@@ -103,7 +103,7 @@ class SupabaseStorage(Storage):
     """Django storage adapter writing files into a public Supabase bucket."""
 
     def __init__(self, url=None, key=None, bucket=None):
-        self.url = (url or getattr(
+        self._base_url = (url or getattr(
             settings, 'SUPABASE_URL', '') or '').rstrip('/')
         self.key = key or getattr(
             settings, 'SUPABASE_SERVICE_ROLE_KEY', '') or ''
@@ -116,7 +116,7 @@ class SupabaseStorage(Storage):
     def _get_bucket_proxy(self):
         if self._client is None:
             from supabase import create_client
-            self._client = create_client(self.url, self.key)
+            self._client = create_client(self._base_url, self.key)
         return self._client.storage.from_(self.bucket)
 
     # -- Storage API -------------------------------------------------------
