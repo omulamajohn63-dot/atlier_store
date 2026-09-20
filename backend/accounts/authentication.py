@@ -66,9 +66,11 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         subject = claims.get('sub')
         if not subject:
             raise AuthenticationFailed('Supabase token has no subject.')
+        role = self.get_role(claims)
         user = self.get_or_create_user(subject, claims)
-        user.supabase_role = self.get_role(claims)
+        user.supabase_role = role
         user.supabase_claims = claims
+        self.sync_local_role(user, role)
         return user, token
 
     @staticmethod
@@ -76,6 +78,19 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         app_metadata = claims.get('app_metadata') or {}
         role = app_metadata.get('role', 'customer')
         return role if role in {'customer', 'staff', 'admin'} else 'customer'
+
+    @staticmethod
+    def sync_local_role(user, role):
+        should_be_staff = role in {'staff', 'admin'}
+        updates = []
+        if user.is_staff != should_be_staff:
+            user.is_staff = should_be_staff
+            updates.append('is_staff')
+        if user.is_superuser and role != 'admin':
+            user.is_superuser = False
+            updates.append('is_superuser')
+        if updates:
+            user.save(update_fields=updates)
 
     @staticmethod
     def get_or_create_user(subject, claims):

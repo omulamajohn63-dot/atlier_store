@@ -834,7 +834,7 @@ class AdminPageView(View):
         if page == 'customers':
             customer_rows = []
             User = get_user_model()
-            users = User.objects.annotate(
+            users = User.objects.filter(is_staff=False).annotate(
                 order_count=Count('orders'),
                 total_spent=Sum('orders__total_minor')
             ).order_by('-date_joined')
@@ -1140,7 +1140,7 @@ class DashboardView(View):
         pending_revenue_kes = Decimal(pending_revenue_minor) / Decimal('100')
 
         total_orders = Order.objects.count()
-        total_customers = get_user_model().objects.count()
+        total_customers = get_user_model().objects.filter(is_staff=False).count()
         low_stock_variants = ProductVariant.objects.filter(
             stock_quantity__lte=3).select_related('product')
         low_stock_count = low_stock_variants.count()

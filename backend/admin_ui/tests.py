@@ -366,6 +366,31 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, 'sales-chart-bar')
         self.assertContains(response, 'data-value="22.00"')
 
+    def test_customers_page_excludes_staff_users(self):
+        staff = get_user_model().objects.create_user(
+            username='staff-not-customer', email='staff@example.com', is_staff=True)
+        customer = get_user_model().objects.create_user(
+            username='real-customer', email='customer@example.com')
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/customers/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, customer.username)
+        self.assertNotContains(response, staff.username)
+
+    def test_dashboard_customer_count_excludes_staff_users(self):
+        get_user_model().objects.create_user(
+            username='counted-customer', email='counted@example.com')
+        get_user_model().objects.create_user(
+            username='counted-staff', email='staff-count@example.com', is_staff=True)
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="metric-value">1</div>')
+
     def test_dashboard_sales_overview_range_selector_changes_period(self):
         self.client.force_login(self.staff)
 

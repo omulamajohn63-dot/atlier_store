@@ -24,9 +24,9 @@ class SupabaseAuthenticationTests(TestCase):
             'app_metadata': {'role': role},
         }, 'test-secret-that-is-at-least-32-bytes', algorithm='HS256')
 
-    def auth(self, role='customer'):
+    def auth(self, role='customer', subject='user-123'):
         self.client.credentials(
-            HTTP_AUTHORIZATION=f'Bearer {self.token(role)}')
+            HTTP_AUTHORIZATION=f'Bearer {self.token(role, subject)}')
 
     def test_valid_token_resolves_current_user_and_role(self):
         self.auth('customer')
@@ -56,6 +56,24 @@ class SupabaseAuthenticationTests(TestCase):
         self.assertEqual(self.client.get('/api/admin/access').status_code, 200)
         self.assertEqual(self.client.get(
             '/api/admin/owner-access').status_code, 200)
+
+    def test_staff_role_syncs_to_local_user_without_customer_status(self):
+        self.auth('staff', subject='staff-user')
+
+        response = self.client.get('/api/auth/me')
+
+        self.assertEqual(response.status_code, 200)
+        user = response.wsgi_request.user
+        self.assertTrue(user.is_staff)
+        self.assertFalse(user.is_superuser)
+
+    def test_customer_role_is_not_local_staff(self):
+        self.auth('customer', subject='customer-user')
+
+        response = self.client.get('/api/auth/me')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_staff)
 
     def test_invalid_token_is_rejected(self):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer invalid-token')
