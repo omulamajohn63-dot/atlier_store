@@ -1,8 +1,11 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from rest_framework.test import APIClient
+from unittest.mock import Mock, patch
 
 from catalog.models import Category, Product, ProductVariant
 from catalog.services import ProductGenerationService
+from botique_backend.storage import SupabaseStorage
 
 
 class CatalogApiTests(TestCase):
@@ -28,6 +31,27 @@ class CatalogApiTests(TestCase):
         self.assertEqual(response.json()['data'][0]['price'], 245)
         self.assertEqual(response.json()['data']
                          [0]['variants'][0]['price'], 245)
+
+    @patch('botique_backend.storage.SupabaseStorage._get_bucket_proxy')
+    def test_supabase_storage_upload_uses_string_file_options(self, get_bucket):
+        bucket = Mock()
+        get_bucket.return_value = bucket
+        storage = SupabaseStorage(
+            url='https://example.supabase.co', key='test-key')
+        image = SimpleUploadedFile(
+            'dress.png', b'fake-image', content_type='image/png')
+
+        storage._save('products/dress.png', image)
+
+        bucket.upload.assert_called_once_with(
+            'products/dress.png',
+            b'fake-image',
+            {
+                'content-type': 'image/png',
+                'cache-control': 'public, max-age=31536000, immutable',
+                'upsert': 'true',
+            },
+        )
 
     def test_category_list_returns_frontend_shape(self):
         response = self.client.get('/api/categories/')

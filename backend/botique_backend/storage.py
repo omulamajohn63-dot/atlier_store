@@ -103,9 +103,12 @@ class SupabaseStorage(Storage):
     """Django storage adapter writing files into a public Supabase bucket."""
 
     def __init__(self, url=None, key=None, bucket=None):
-        self.url = (url or getattr(settings, 'SUPABASE_URL', '') or '').rstrip('/')
-        self.key = key or getattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', '') or ''
-        self.bucket = bucket or getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'product-images')
+        self.url = (url or getattr(
+            settings, 'SUPABASE_URL', '') or '').rstrip('/')
+        self.key = key or getattr(
+            settings, 'SUPABASE_SERVICE_ROLE_KEY', '') or ''
+        self.bucket = bucket or getattr(
+            settings, 'SUPABASE_STORAGE_BUCKET', 'product-images')
         self._client = None
 
     # -- internals ---------------------------------------------------------
@@ -131,7 +134,7 @@ class SupabaseStorage(Storage):
         file_options = {
             'content-type': content_type,
             'cache-control': 'public, max-age=31536000, immutable',
-            'upsert': True,
+            'upsert': 'true',
         }
         self._get_bucket_proxy().upload(name, data, file_options)
         return name
