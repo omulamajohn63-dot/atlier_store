@@ -18,7 +18,7 @@
 
   <style>
     :root {
-      --bg: #F7F7F5;
+      --bg: #F6F6F3;
       --panel: #FFFFFF;
       --text: #181818;
       --text-secondary: #6B6B6B;
@@ -30,12 +30,12 @@
       --status-success: #2E6A4F;
       --status-danger-bg: #FDF0F0;
       --status-danger: #C92A2A;
-      --radius-sm: 6px;
+      --radius-sm: 8px;
       --radius-md: 10px;
-      --radius-lg: 16px;
+      --radius-lg: 18px;
       --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
       --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
-      --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 24px 60px -24px rgba(24, 28, 25, 0.22);
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
@@ -44,63 +44,170 @@
     body {
       margin: 0;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 16px;
       color: var(--text);
-      background:
-        radial-gradient(900px 400px at 15% -10%, rgba(74, 93, 78, 0.08), transparent 60%),
-        radial-gradient(900px 400px at 100% 10%, rgba(74, 93, 78, 0.06), transparent 60%),
-        var(--bg);
+      background: var(--bg);
       font-family: var(--font-sans);
       font-size: 14px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
 
-    .auth-shell {
+    .auth-layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ---- Brand side panel ---- */
+    .auth-side {
+      width: 440px;
+      flex-shrink: 0;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(165deg, #46564B 0%, #36433A 55%, #29322C 100%);
+    }
+
+    .auth-side::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(620px 420px at 90% -10%, rgba(255, 255, 255, 0.10), transparent 60%),
+        radial-gradient(520px 360px at -10% 110%, rgba(198, 214, 203, 0.12), transparent 60%);
+      pointer-events: none;
+    }
+
+    .auth-side::after {
+      content: 'ATELIER';
+      position: absolute;
+      bottom: -52px;
+      right: -34px;
+      font-size: 264px;
+      font-weight: 800;
+      letter-spacing: -0.06em;
+      line-height: 1;
+      color: rgba(255, 255, 255, 0.035);
+      pointer-events: none;
+      user-select: none;
+      font-family: var(--font-sans);
+    }
+
+    .auth-side-inner {
+      position: relative;
+      z-index: 1;
+      padding: 52px 44px;
+      display: flex;
+      flex-direction: column;
+      gap: 44px;
       width: 100%;
-      max-width: 420px;
     }
 
     .auth-brand {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      justify-content: center;
       gap: 12px;
-      margin-bottom: 24px;
     }
 
     .auth-brand-mark {
-      width: 34px;
-      height: 34px;
-      background: var(--text);
-      color: #FFF;
-      border-radius: 6px;
+      width: 38px;
+      height: 38px;
+      background: #FFFFFF;
+      color: #2B362F;
+      border-radius: 9px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      font-size: 16px;
+      font-size: 17px;
       letter-spacing: 1px;
+      box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.35);
     }
 
     .auth-brand-title {
       font-weight: 700;
       font-size: 17px;
       letter-spacing: -0.01em;
-      color: var(--text);
+      color: #F6F6F2;
     }
 
     .auth-brand-badge {
       font-size: 10px;
-      background: var(--border);
-      color: var(--text-secondary);
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
+      background: rgba(255, 255, 255, 0.13);
+      color: #D6DDD7;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .auth-side-copy h2 {
+      font-size: 25px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #F6F6F2;
+      margin: 0 0 12px 0;
+    }
+
+    .auth-side-copy p {
+      font-size: 14px;
+      line-height: 1.65;
+      color: #BAC3BD;
+      margin: 0;
+      max-width: 320px;
+    }
+
+    .auth-features {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .auth-features li {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      font-size: 13.5px;
+      color: #E1E6E2;
+      font-weight: 500;
+    }
+
+    .auth-features i {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.10);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      color: #CBd6CD;
+      flex-shrink: 0;
+    }
+
+    .auth-side-footer {
+      margin-top: auto;
+      font-size: 12px;
+      color: #8A9A8D;
+    }
+
+    /* ---- Form side ---- */
+    .auth-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      background:
+        radial-gradient(900px 500px at 90% -10%, rgba(74, 93, 78, 0.07), transparent 60%),
+        radial-gradient(700px 420px at 0% 110%, rgba(74, 93, 78, 0.05), transparent 55%);
+    }
+
+    .auth-shell {
+      width: 100%;
+      max-width: 430px;
     }
 
     .auth-card {
@@ -108,21 +215,32 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-lg);
-      padding: 32px;
+      padding: 38px 38px 34px;
+      animation: auth-in 0.4s ease-out;
+    }
+
+    @keyframes auth-in {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .auth-card { animation: none; }
     }
 
     .auth-title {
-      font-size: 20px;
-      font-weight: 600;
-      margin: 0 0 4px 0;
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 6px 0;
       letter-spacing: -0.02em;
       color: var(--text);
     }
 
     .auth-subtitle {
-      font-size: 13px;
+      font-size: 13.5px;
       color: var(--text-secondary);
-      margin: 0 0 24px 0;
+      margin: 0 0 26px 0;
+      line-height: 1.55;
     }
 
     .form-group {
@@ -132,133 +250,265 @@
     .form-label {
       display: block;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       color: var(--text);
-      margin-bottom: 6px;
+      margin-bottom: 7px;
     }
 
     .form-label .required {
       color: var(--status-danger);
     }
 
-    .form-control {
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap input {
       width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: var(--panel);
+      height: 46px;
+      padding: 10px 46px 10px 42px;
+      border: 1px solid #DFDDD8;
+      border-radius: var(--radius-md);
+      background: #FAFAF8;
       font-family: var(--font-sans);
       font-size: 14px;
       color: var(--text);
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow-sm);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
     }
 
-    .form-control:focus {
+    .input-wrap input::placeholder { color: #A9A9A2; }
+
+    .input-wrap input:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-soft);
+      background: var(--panel);
+      box-shadow: 0 0 0 4px var(--accent-soft);
     }
 
-    select.form-control[multiple] {
-      min-height: 120px;
+    .input-wrap .input-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #9C9C96;
+      font-size: 17px;
+      pointer-events: none;
+      transition: color 0.18s ease;
+    }
+
+    .input-wrap input:focus ~ .input-icon {
+      color: var(--accent);
+    }
+
+    .input-wrap.has-error input {
+      border-color: var(--status-danger);
+      background: #FDF7F7;
+    }
+
+    .input-wrap.has-error input:focus {
+      box-shadow: 0 0 0 4px rgba(201, 42, 42, 0.10);
+    }
+
+    .input-wrap.has-error .input-icon {
+      color: var(--status-danger);
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      color: #8C8C86;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      transition: color 0.15s ease, background 0.15s ease;
+    }
+
+    .password-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+
+    select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #DFDDD8;
+      border-radius: var(--radius-md);
+      background: #FAFAF8;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--text);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    select[multiple] {
+      min-height: 132px;
       padding: 6px;
     }
 
-    select.form-control[multiple] option {
-      padding: 6px 8px;
-      border-radius: 4px;
-    }
-
-    .form-check {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 10px 0;
-      border-top: 1px solid #F0EFEA;
-    }
-
-    .form-check input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      margin-top: 2px;
-      accent-color: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .form-check-group {
-      flex: 1;
-    }
-
-    .form-check-group label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text);
-      margin: 0;
-    }
-
-    .form-check-group label + .form-check-text {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 2px;
-    }
+    select[multiple] option { padding: 6px 8px; border-radius: 6px; }
 
     .form-text {
       font-size: 12px;
       color: var(--text-secondary);
-      margin-top: 6px;
+      margin-top: 7px;
+      line-height: 1.5;
     }
 
     .form-error {
       font-size: 12px;
+      font-weight: 500;
       color: var(--status-danger);
-      margin-top: 6px;
+      margin-top: 7px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
 
     .errorlist {
       list-style: none;
-      margin: 0 0 6px 0;
-      padding: 0;
-      font-size: 12px;
+      margin: 0 0 18px 0;
+      padding: 12px 14px;
+      background: var(--status-danger-bg);
+      border: 1px solid #F5C2C2;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
       color: var(--status-danger);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .errorlist li { margin-bottom: 2px; }
+    .form-group-check { margin-bottom: 14px; }
+
+    .form-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: #FAFAF8;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .form-check:hover { background: var(--accent-soft); border-color: #C9D2CB; }
+
+    .form-check input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .form-check-box {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 1.5px solid #C6C4BE;
+      background: var(--panel);
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      margin-top: 1px;
+      transition: all 0.15s ease;
+    }
+
+    .form-check-box i {
+      font-size: 13px;
+      opacity: 0;
+      transform: scale(0.6);
+      transition: all 0.15s ease;
+    }
+
+    .form-check input:checked + .form-check-box {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .form-check input:checked + .form-check-box i { opacity: 1; transform: scale(1); }
+
+    .form-check input:disabled + .form-check-box {
+      background: #F0EFEA;
+      border-color: var(--border);
+    }
+
+    .form-check input:disabled ~ .form-check-content { opacity: 0.55; }
+
+    .form-check:has(input:checked) {
+      border-color: var(--accent);
+      background: #F4F7F4;
+    }
+
+    .form-check-content { flex: 1; }
+
+    .form-check-title {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .form-check-text {
+      display: block;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
 
     .auth-actions {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      margin-top: 24px;
+      gap: 11px;
+      margin-top: 26px;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 10px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
+      gap: 9px;
+      height: 46px;
+      padding: 0 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.18s ease;
       text-decoration: none;
       font-family: var(--font-sans);
       border: 1px solid transparent;
+      width: 100%;
     }
 
     .btn-primary {
       background: var(--accent);
-      color: #FFF;
-      box-shadow: var(--shadow-sm);
+      color: #FFFFFF;
+      box-shadow: 0 10px 22px -10px rgba(74, 93, 78, 0.65);
     }
 
     .btn-primary:hover {
       background: var(--accent-hover);
-      color: #FFF;
+      color: #FFFFFF;
+      transform: translateY(-1px);
+      box-shadow: 0 14px 26px -10px rgba(74, 93, 78, 0.75);
     }
+
+    .btn-primary:active { transform: translateY(0); }
 
     .btn-secondary {
       background: var(--panel);
@@ -268,34 +518,38 @@
     }
 
     .btn-secondary:hover {
-      background: #F9F9F9;
+      background: #FAFAF8;
       border-color: #D6D5D0;
+      transform: translateY(-1px);
     }
 
     .auth-footer {
       text-align: center;
-      font-size: 12px;
+      font-size: 13px;
       color: var(--text-secondary);
-      margin-top: 20px;
+      margin-top: 22px;
     }
 
     .auth-footer a {
       color: var(--accent);
-      font-weight: 500;
+      font-weight: 600;
       text-decoration: none;
     }
 
-    .auth-footer a:hover { color: var(--accent-hover); }
+    .auth-footer a:hover { color: var(--accent-hover); text-decoration: underline; }
 
     .alert {
-      padding: 11px 14px;
-      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
       margin-bottom: 18px;
       font-size: 13px;
       display: flex;
       align-items: flex-start;
-      gap: 8px;
+      gap: 9px;
+      font-weight: 500;
     }
+
+    .alert i { font-size: 16px; margin-top: 1px; flex-shrink: 0; }
 
     .alert-success { background: var(--status-success-bg); color: var(--status-success); border: 1px solid #B8E6CE; }
     .alert-error, .alert-danger { background: var(--status-danger-bg); color: var(--status-danger); border: 1px solid #F8B4B4; }
@@ -325,32 +579,96 @@
       height: 1px;
       background: var(--border);
     }
+
+    @media (max-width: 920px) {
+      .auth-layout { flex-direction: column; }
+
+      .auth-side {
+        width: 100%;
+        min-height: auto;
+      }
+
+      .auth-side::after { display: none; }
+
+      .auth-side-inner {
+        padding: 24px;
+        gap: 0;
+      }
+
+      .auth-side-copy,
+      .auth-features,
+      .auth-side-footer { display: none; }
+
+      .auth-main { padding: 32px 20px; }
+    }
   </style>
   {% block extra_css %}{% endblock %}
 </head>
 <body>
-  <div class="auth-shell">
-    <div class="auth-brand">
-      <div class="auth-brand-mark">A</div>
-      <div class="auth-brand-title">ATELIER</div>
-      <div class="auth-brand-badge">ADMIN</div>
-    </div>
+  <div class="auth-layout">
+    <aside class="auth-side">
+      <div class="auth-side-inner">
+        <div class="auth-brand">
+          <span class="auth-brand-mark">A</span>
+          <span class="auth-brand-title">ATELIER</span>
+          <span class="auth-brand-badge">ADMIN</span>
+        </div>
 
-    <div class="auth-card">
-      {% if messages %}
-        {% for message in messages %}
-          <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}" role="alert">
-            <i class="ph ph-info"></i> <span>{{ message }}</span>
-          </div>
-        {% endfor %}
-      {% endif %}
+        <div class="auth-side-copy">
+          <h2>Administration portal</h2>
+          <p>Manage the ATELIER Pr&ecirc;t-&agrave;-Porter store &mdash; catalog, inventory, orders, payments and staff.</p>
+        </div>
 
-      {% block content %}{% endblock %}
-    </div>
+        <ul class="auth-features">
+          <li><i class="ph ph-storefront" aria-hidden="true"></i> Catalog &amp; inventory control</li>
+          <li><i class="ph ph-shopping-bag-open" aria-hidden="true"></i> Order &amp; payment monitoring</li>
+          <li><i class="ph ph-user-list" aria-hidden="true"></i> Staff &amp; customer management</li>
+        </ul>
 
-    <div class="auth-footer">
-      {% block footer %}{% endblock %}
-    </div>
+        <div class="auth-side-footer">&copy; ATELIER Pr&ecirc;t-&agrave;-Porter &middot; Staff portal</div>
+      </div>
+    </aside>
+
+    <main class="auth-main">
+      <div class="auth-shell">
+        <div class="auth-card">
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert {% if message.tags %}alert-{{ message.tags }}{% else %}alert-info{% endif %}" role="alert">
+                <i class="ph ph-info" aria-hidden="true"></i> <span>{{ message }}</span>
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          {% block content %}{% endblock %}
+        </div>
+
+        <div class="auth-footer">
+          {% block footer %}{% endblock %}
+        </div>
+      </div>
+    </main>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var toggles = document.querySelectorAll('.password-toggle');
+      toggles.forEach(function (toggle) {
+        toggle.addEventListener('click', function () {
+          var wrap = toggle.closest('.input-wrap');
+          if (!wrap) return;
+          var input = wrap.querySelector('input');
+          if (!input) return;
+          var show = input.type === 'password';
+          input.type = show ? 'text' : 'password';
+          var icon = toggle.querySelector('i');
+          if (icon) {
+            icon.className = 'ph ' + (show ? 'ph-eye-slash' : 'ph-eye');
+          }
+          toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        });
+      });
+    });
+  </script>
 </body>
 </html>

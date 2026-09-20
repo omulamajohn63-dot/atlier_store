@@ -46,15 +46,46 @@ npm run test:api              # bundled API integration tests
    - `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=<app.onrender.com>`,
      `DJANGO_SECURE_SSL_REDIRECT=True`, `FRONTEND_ORIGIN=<vercel-url>`.
    - Add a managed **Postgres** database and paste its connection string into `DATABASE_URL`.
-4. Migrations run on first request if needed (`python manage.py migrate`) — or add it as a
-   Render pre-deploy command / run it via `manage.py` once:
+4. Migrations now run automatically on every container start (`python manage.py migrate
+   --noinput` in the Dockerfile), so the schema is applied as soon as the first deploy
+   boots. To apply them manually (e.g. for a one-off):
+
    ```bash
    DATABASE_URL="postgres://..." python manage.py migrate
    ```
 5. Health check `GET /api/health/` should answer 200. Static admin assets are served by
    WhiteNoise (already `collectstatic`'d in the image).
 
-> First Django admin user: `python manage.py createsuperuser` inside a one-off shell.
+## Admin login after deploy
+
+The deployed admin (`https://<backend>.onrender.com/admin/dashboard/login/`, plus the
+Django admin at `/admin/`) reads from the **production** database, not your local
+`db.sqlite3`. A superuser created locally will never appear there.
+
+1. Open the Render dashboard → your `boutique-backend` service → **Shell**.
+2. Create the admin user against the production DB — either interactively:
+
+   ```bash
+   python manage.py createsuperuser
+   ```
+
+   or non-interactively from env vars set in the Render dashboard
+   (`DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD`):
+
+   ```bash
+   python manage.py ensure_superuser   # command is idempotent; re-runs also reset the password
+   ```
+
+   (You can also run either command locally with `DATABASE_URL` set to the production
+   connection string — just never rely on the local SQLite admin users for production.)
+3. Sign in at `https://<backend>.onrender.com/admin/dashboard/login/`.
+
+Tests/customers explained: customers authenticate entirely through **Supabase Auth**
+(`auth.users`), so a working sign-up always lives in the Supabase dashboard under
+*Authentication → Users* for project `ngpzjddvkgopfmghjqnv`. Django only creates a
+matching `auth_user` (username `supabase_<uuid>`) the first time that customer calls an
+authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
+"Customers" page gets its rows.
 
 ## Deploy the frontend to Vercel
 
@@ -70,6 +101,8 @@ npm run test:api              # bundled API integration tests
 ## Post-deploy checklist
 
 - [ ] `GET https://<backend>/api/health/` returns 200.
+- [ ] Superuser created via the Render Shell (`python manage.py ensure_superuser`) and
+      `https://<backend>/admin/dashboard/login/` accepts it.
 - [ ] `https://<frontend>/#/` serves the SPA and deep links (e.g. `/product/…`) refresh correctly.
 - [ ] Guest adds to cart → signs in → checkout prefill shows account data.
 - [ ] M-Pesa callbacks can reach `https://<backend>/api/payments/mpesa/callback`

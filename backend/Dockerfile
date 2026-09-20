@@ -18,4 +18,6 @@ RUN python manage.py collectstatic --noinput
 
 # Render injects PORT automatically; fall back to 8000 locally.
 EXPOSE 8000
-CMD ["sh", "-c", "gunicorn botique_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 120 --max-requests 1000 --max-requests-jitter 100 --access-logfile -"]
+# Apply schema migrations before serving traffic. Render's free tier supports
+# no pre-deploy command, so this runs on every container start (idempotent).
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn botique_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 120 --max-requests 1000 --max-requests-jitter 100 --access-logfile -"]

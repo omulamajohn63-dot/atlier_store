@@ -1,0 +1,42 @@
+{% if field.is_hidden %}
+  {{ field }}
+{% elif field.field.widget.input_type == 'checkbox' %}
+  <div class="form-group form-group-check">
+    <label class="form-check" for="{{ field.id_for_label }}">
+      {{ field }}
+      <span class="form-check-box"><i class="ph ph-check" aria-hidden="true"></i></span>
+      <span class="form-check-content">
+        <span class="form-check-title">{{ field.label }}</span>
+        {% if field.help_text %}<span class="form-check-text">{{ field.help_text }}</span>{% endif %}
+      </span>
+    </label>
+    {% if field.errors %}<div class="form-error">{{ field.errors|striptags }}</div>{% endif %}
+  </div>
+{% elif field.field.widget.input_type == 'select' or field.field.widget.input_type == 'select_multiple' %}
+  <div class="form-group">
+    <label class="form-label" for="{{ field.id_for_label }}">
+      {{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}
+    </label>
+    {{ field }}
+    {% if field.errors %}<div class="form-error">{{ field.errors|striptags }}</div>{% endif %}
+    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+  </div>
+{% else %}
+  <div class="form-group">
+    <label class="form-label" for="{{ field.id_for_label }}">
+      {{ field.label }}{% if field.field.required %}<span class="required"> *</span>{% endif %}
+    </label>
+    <div class="input-wrap{% if field.errors %} has-error{% endif %}">
+      {{ field }}
+      <i class="ph input-icon{% if field.name == 'password' or field.name == 'password1' %} ph-lock-key{% elif field.name == 'email' %} ph-envelope{% elif field.name == 'username' %} ph-user{% elif field.name == 'first_name' %} ph-identification-card{% elif field.name == 'last_name' %} ph-identification-card{% elif field.name == 'password_confirm' or field.name == 'password2' %} ph-key{% else %} ph-pen{% endif %}"
+         aria-hidden="true"></i>
+      {% if field.name == 'password' or field.name == 'password1' or field.name == 'password_confirm' or field.name == 'password2' %}
+        <button type="button" class="password-toggle" tabindex="-1" aria-label="Toggle password visibility">
+          <i class="ph ph-eye" aria-hidden="true"></i>
+        </button>
+      {% endif %}
+    </div>
+    {% if field.errors %}<div class="form-error">{{ field.errors|striptags }}</div>{% endif %}
+    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+  </div>
+{% endif %}
