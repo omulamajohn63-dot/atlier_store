@@ -157,13 +157,13 @@ export const api = {
   async cancelOrder(orderNumber: string): Promise<OrderDTO> {
     return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/cancel`, {
       method: 'POST',
-    });
+    }, true, true);
   },
 
   async receiveOrder(orderNumber: string): Promise<OrderDTO> {
     return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/mark-received-paid`, {
       method: 'POST',
-    });
+    }, true, true);
   },
 
   // Orders
@@ -186,15 +186,15 @@ export const api = {
     return request<OrderDTO>('/api/orders', {
       method: 'POST',
       body: JSON.stringify(payload),
-    });
+    }, true, true);
   },
 
   async getOrder(orderNumber: string): Promise<OrderDTO> {
-    return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}`);
+    return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}`, {}, true, true);
   },
 
   async getOrders(): Promise<{ count: number; results: OrderDTO[] }> {
-    return request<{ count: number; results: OrderDTO[] }>('/api/orders');
+    return request<{ count: number; results: OrderDTO[] }>('/api/orders', {}, true, true);
   },
 
   // Payments
@@ -206,7 +206,7 @@ export const api = {
     return request<PaymentIntentDTO>('/api/payments/create-intent', {
       method: 'POST',
       body: JSON.stringify({ orderNumber, method, phoneNumber }),
-    });
+    }, true, true);
   },
 
   async confirmPayment(
@@ -217,7 +217,7 @@ export const api = {
     return request<OrderDTO>('/api/payments/confirm', {
       method: 'POST',
       body: JSON.stringify({ orderNumber, paymentIntentId, gatewayReference }),
-    });
+    }, true, true);
   },
 
   // Admin
