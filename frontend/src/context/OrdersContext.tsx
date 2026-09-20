@@ -10,80 +10,7 @@ import {
   VAT_RATE,
 } from '../utils/currency';
 
-const ORDERS_STORAGE_KEY = 'atelier_orders_v3_kes';
-
-const INITIAL_DEMO_ORDERS: Order[] = [
-  {
-    id: 'ord-demo-001',
-    orderNumber: 'ATL-KES-849201',
-    customer: {
-      firstName: 'Elena',
-      lastName: 'Wambui',
-      email: 'elena.wambui@atelier.com',
-      phone: '+254 (0) 712 345 678',
-      addressLine1: '14 Riverside Drive, Westlands',
-      addressLine2: 'Apartment 4B',
-      city: 'Nairobi',
-      stateOrProvince: 'Nairobi County',
-      postalCode: '00100',
-      country: 'Kenya',
-    },
-    items: [
-      {
-        id: 'ord-item-1',
-        productId: 'prod-1',
-        variantId: 'v-1-s',
-        productName: 'The Drape Silk Midi Dress',
-        variantDetails: 'Size S / Oatmeal',
-        sku: 'DRP-OAT-S',
-        unitPrice: 24500,
-        quantity: 1,
-        subtotal: 24500,
-        image: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=1000&auto=format&fit=crop',
-      },
-    ],
-    subtotal: 24500,
-    shippingMethod: 'express',
-    shippingCost: 1500,
-    tax: 3920,
-    total: 29920,
-    status: 'processing',
-    paymentStatus: 'paid',
-    notes: 'Please pack with atelier silk garment bag.',
-    timeline: [
-      {
-        status: 'confirmed',
-        title: 'Order Confirmed & Authorized',
-        description: 'Payment verified and transaction recorded.',
-        timestamp: '2026-09-05T09:30:00Z',
-        completed: true,
-      },
-      {
-        status: 'processing',
-        title: 'Atelier Preparation & Steaming',
-        description: 'Garment passed artisan stitch check and hand-packaged with lavender sachet.',
-        timestamp: '2026-09-05T14:15:00Z',
-        completed: true,
-      },
-      {
-        status: 'shipped',
-        title: 'Express Dispatch',
-        description: 'Handed to courier for carbon-neutral express transit.',
-        timestamp: '2026-09-06T08:00:00Z',
-        completed: false,
-      },
-      {
-        status: 'delivered',
-        title: 'Delivery & Signature',
-        description: 'Signed delivery at designated residence.',
-        timestamp: '',
-        completed: false,
-      },
-    ],
-    createdAt: '2026-09-05T09:30:00Z',
-    updatedAt: '2026-09-05T14:15:00Z',
-  },
-];
+const ORDERS_STORAGE_KEY = 'atelier_orders_v4_kes';
 
 export interface OrdersContextType {
   orders: Order[];
@@ -113,7 +40,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch {
       // fallback
     }
-    return INITIAL_DEMO_ORDERS;
+    return [];
   });
 
   useEffect(() => {
