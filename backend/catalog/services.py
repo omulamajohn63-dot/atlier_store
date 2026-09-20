@@ -184,7 +184,7 @@ class ProductImportService:
                                '') or f'import-image-{order}.jpg'
             saved_path = default_storage.save(
                 f'products/{slugify(filename)}', image_file)
-            image_url = settings.MEDIA_URL.rstrip('/') + '/' + saved_path
+            image_url = default_storage.url(saved_path)
             ProductImage.objects.update_or_create(
                 product=product,
                 image=image_url,

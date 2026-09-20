@@ -22,6 +22,7 @@ from django.views import View
 
 from catalog.models import Category, Product, ProductVariant
 from catalog.services import ProductGenerationService, import_products_from_file
+from botique_backend.storage import object_key_from_url
 from inventory.services import adjust_stock
 from orders.models import Order, OrderItem
 from orders.services import approve_order
@@ -1245,7 +1246,7 @@ class DashboardView(View):
             safe_name = f"{uuid.uuid4()}_{file_name}"
             saved_path = default_storage.save(
                 f'products/{safe_name}', uploaded_image)
-            image_path = f"{settings.MEDIA_URL}{saved_path}"
+            image_path = default_storage.url(saved_path)
 
         product = Product.objects.create(
             category=data['category'],
@@ -1275,7 +1276,7 @@ class DashboardView(View):
             safe_name = f"{uuid.uuid4()}_{file_name}"
             saved_path = default_storage.save(
                 f'products/{safe_name}', uploaded_image)
-            image_path = f"{settings.MEDIA_URL}{saved_path}"
+            image_path = default_storage.url(saved_path)
 
         product.category = data['category']
         product.name = data['name']
@@ -1302,7 +1303,8 @@ class DashboardView(View):
         image_paths = Product.normalize_images(product.images)
         product.delete()
         for image_path in image_paths:
-            storage_path = image_path.removeprefix(settings.MEDIA_URL)
+            storage_path = object_key_from_url(image_path) or image_path.removeprefix(
+                settings.MEDIA_URL)
             if storage_path:
                 default_storage.delete(storage_path)
 

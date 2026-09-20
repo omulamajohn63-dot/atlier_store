@@ -246,13 +246,23 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+SUPABASE_URL = os.getenv('SUPABASE_URL', '').rstrip('/')
+SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
+SUPABASE_STORAGE_BUCKET = os.getenv(
+    'SUPABASE_STORAGE_BUCKET', 'product-images')
+
+if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+    DEFAULT_STORAGE_BACKEND = 'botique_backend.storage.SupabaseStorage'
+    DEFAULT_STORAGE_OPTIONS = {}
+else:
+    DEFAULT_STORAGE_BACKEND = 'django.core.files.storage.FileSystemStorage'
+    DEFAULT_STORAGE_OPTIONS = {'location': MEDIA_ROOT}
+
 # Served by WhiteNoise in production: compressed, hashed, cache-busted assets.
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
-        'OPTIONS': {
-            'location': BASE_DIR / 'media',
-        },
+        'BACKEND': DEFAULT_STORAGE_BACKEND,
+        'OPTIONS': DEFAULT_STORAGE_OPTIONS,
     },
     'staticfiles': {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',

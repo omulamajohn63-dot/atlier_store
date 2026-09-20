@@ -26,12 +26,18 @@ services:
         value: "https://atlier-boutique.vercel.app"
       - key: MPESA_ENV
         value: "sandbox"
+      - key: SUPABASE_URL
+        value: "https://ngpzjddvkgopfmghjqnv.supabase.co"
+      - key: SUPABASE_STORAGE_BUCKET
+        value: "product-images"
 
       # Secrets — set each via the Render dashboard ("sync: false" values are
       # never stored in source control):
       - key: DJANGO_SECRET_KEY
         sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
