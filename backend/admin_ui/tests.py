@@ -21,7 +21,8 @@ class AdminDashboardTests(TestCase):
         response = self.client.get('/')
 
         self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, '/admin/dashboard/landing/', fetch_redirect_response=False)
+        self.assertRedirects(
+            response, '/admin/dashboard/landing/', fetch_redirect_response=False)
 
     def test_dashboard_requires_staff_session(self):
         response = self.client.get('/admin/dashboard/')
@@ -1087,6 +1088,25 @@ class AdminDashboardTests(TestCase):
         self.assertContains(
             response, 'Are you sure you want to delete 2 products?')
 
+    def test_bulk_delete_confirmation_ignores_malformed_product_id_lists(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Delete Me Safely',
+            slug='delete-me-safely',
+            description='Malformed IDs must not cause an admin error.',
+            price_minor=11000,
+            status=Product.Status.DRAFT,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post('/admin/dashboard/confirm/', {
+            'action': 'delete-selected-products',
+            'product_ids': [f"['{product.id}']"],
+        })
+
+        self.assertRedirects(response, '/admin/dashboard/products/')
+        self.assertTrue(Product.objects.filter(pk=product.id).exists())
+
     def test_staff_products_use_confirmation_links_for_archive_and_delete(self):
         product = Product.objects.create(
             category=self.category,
@@ -1240,7 +1260,8 @@ class AdminAuthTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, '/admin/dashboard/')
         self.assertIn('_auth_user_id', self.client.session)
-        self.assertEqual(int(self.client.session['_auth_user_id']), self.staff.id)
+        self.assertEqual(
+            int(self.client.session['_auth_user_id']), self.staff.id)
 
     def test_login_honours_next_parameter(self):
         response = self.client.post(

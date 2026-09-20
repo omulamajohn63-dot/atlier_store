@@ -28,9 +28,9 @@
         <form method="post" action="{{ confirm_url }}" style="margin: 0; display: inline-block;">
           {% csrf_token %}
           {% for key, value in confirm_post.items %}
-            {% if value is iterable and value is not string %}
+            {% if key == 'product_ids' %}
               {% for item in value %}
-                <input type="hidden" name="{{ key }}" value="{{ item }}">
+                <input type="hidden" name="product_ids" value="{{ item }}">
               {% endfor %}
             {% else %}
               <input type="hidden" name="{{ key }}" value="{{ value }}">

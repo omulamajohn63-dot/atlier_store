@@ -115,11 +115,19 @@ class ConfirmActionView(View):
     def _parse_product_ids(raw_value):
         if not raw_value:
             return []
+
+        values = raw_value if isinstance(
+            raw_value, (list, tuple)) else [raw_value]
         ids = []
-        for item in str(raw_value).split(','):
-            value = item.strip()
-            if value:
-                ids.append(value)
+        for item in values:
+            for candidate in str(item).split(','):
+                value = candidate.strip()
+                if not value:
+                    continue
+                try:
+                    ids.append(str(uuid.UUID(value)))
+                except ValueError:
+                    continue
         return list(dict.fromkeys(ids))
 
     def _product_title(self, product):
