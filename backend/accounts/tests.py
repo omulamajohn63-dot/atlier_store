@@ -13,16 +13,20 @@ class SupabaseAuthenticationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def token(self, role='customer', subject='user-123'):
+    def token(self, role='customer', subject='user-123', full_name=None):
         now = datetime.now(timezone.utc)
-        return jwt.encode({
+        claims = {
             'sub': subject,
             'email': f'{subject}@example.com',
             'aud': 'authenticated',
             'iat': now,
             'exp': now + timedelta(minutes=5),
             'app_metadata': {'role': role},
-        }, 'test-secret-that-is-at-least-32-bytes', algorithm='HS256')
+        }
+        if full_name:
+            claims['user_metadata'] = {'full_name': full_name}
+        return jwt.encode(
+            claims, 'test-secret-that-is-at-least-32-bytes', algorithm='HS256')
 
     def auth(self, role='customer', subject='user-123'):
         self.client.credentials(
@@ -74,6 +78,16 @@ class SupabaseAuthenticationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.wsgi_request.user.is_staff)
+
+    def test_supabase_full_name_syncs_to_local_user(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {self.token(subject="named-user", full_name="Ada Lovelace")}')
+
+        response = self.client.get('/api/auth/me')
+
+        self.assertEqual(response.status_code, 200)
+        user = response.wsgi_request.user
+        self.assertEqual(user.get_full_name(), 'Ada Lovelace')
 
     def test_invalid_token_is_rejected(self):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer invalid-token')

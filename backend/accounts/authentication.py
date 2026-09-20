@@ -71,6 +71,7 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         user.supabase_role = role
         user.supabase_claims = claims
         self.sync_local_role(user, role)
+        self.sync_local_name(user, claims)
         return user, token
 
     @staticmethod
@@ -89,6 +90,28 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         if user.is_superuser and role != 'admin':
             user.is_superuser = False
             updates.append('is_superuser')
+        if updates:
+            user.save(update_fields=updates)
+
+    @staticmethod
+    def sync_local_name(user, claims):
+        metadata = claims.get('user_metadata') or claims.get(
+            'raw_user_meta_data') or {}
+        full_name = str(metadata.get('full_name')
+                        or metadata.get('name') or '').strip()
+        if not full_name:
+            return
+
+        name_parts = full_name.split()
+        first_name = name_parts[0]
+        last_name = ' '.join(name_parts[1:])
+        updates = []
+        if user.first_name != first_name:
+            user.first_name = first_name
+            updates.append('first_name')
+        if user.last_name != last_name:
+            user.last_name = last_name
+            updates.append('last_name')
         if updates:
             user.save(update_fields=updates)
 
