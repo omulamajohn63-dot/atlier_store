@@ -300,7 +300,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
                   Cancel & Restock
                 </Button>
               )}
-              {canMarkReceived(activeOrder.status) && (
+              {canMarkReceived(activeOrder.status, activeOrder.paymentMethod) && (
                 <Button
                   variant="primary"
                   size="sm"

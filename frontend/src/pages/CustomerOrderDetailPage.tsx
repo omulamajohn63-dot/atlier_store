@@ -425,7 +425,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                     Track Order
                   </Button>
                 )}
-                {canMarkReceived(order.status) && (
+                {canMarkReceived(order.status, order.paymentMethod) && (
                   <Button type="button" variant="secondary" size="md" onClick={() => void handleMarkReceived()} className="text-xs uppercase tracking-wider">
                     Mark as Received
                   </Button>

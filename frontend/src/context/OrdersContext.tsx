@@ -3,6 +3,7 @@ import { Order, OrderItem, OrderStatus, CreateOrderInput, OrderTimelineEvent } f
 import { useStore } from './StoreContext';
 import { api } from '../services/apiClient';
 import { mapServerOrder } from '../utils/orderMapper';
+import { canMarkReceived } from '../utils/orderStatus';
 import {
   FREE_SHIPPING_THRESHOLD,
   STANDARD_SHIPPING_COST,
@@ -401,8 +402,8 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (order.status === 'received') {
         return { success: false, message: 'Order is already marked as received.' };
       }
-      if (order.status !== 'confirmed' && order.status !== 'delivered') {
-        return { success: false, message: 'Only confirmed or delivered orders can be marked as received.' };
+      if (!canMarkReceived(order.status, order.paymentMethod)) {
+        return { success: false, message: 'Only confirmed, delivered or pay-on-delivery orders can be marked as received.' };
       }
 
       const applyReceived = (updated: Order) => {

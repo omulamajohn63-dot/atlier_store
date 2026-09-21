@@ -211,6 +211,28 @@ class OrderApiTests(TestCase):
         )
         self.assertEqual(settled.status_code, 400)
 
+    def test_mark_received_paid_settles_pending_delivery_payment_order(self):
+        payload = self.order_payload()
+        payload['paymentMethod'] = 'pay_on_delivery'
+        response = self.client.post(
+            '/api/orders', payload, format='json', HTTP_X_CART_ID='order-cart')
+        self.assertEqual(response.status_code, 201)
+        order_number = response.json()['orderNumber']
+
+        order = Order.objects.get(order_number=order_number)
+        self.assertEqual(order.status, Order.Status.PENDING)
+        self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
+
+        settled = self.client.post(
+            f'/api/orders/{order_number}/mark-received-paid',
+            format='json',
+            HTTP_X_CART_ID='order-cart',
+        )
+        self.assertEqual(settled.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.RECEIVED)
+        self.assertEqual(order.payment_status, Order.PaymentStatus.PAID)
+
     def test_guest_can_list_orders_for_their_cart_only(self):
         self.client.post(
             '/api/orders', self.order_payload(), format='json', HTTP_X_CART_ID='order-cart')

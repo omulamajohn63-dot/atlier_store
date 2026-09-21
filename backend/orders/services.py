@@ -66,14 +66,21 @@ def mark_received_paid(order):
     # confirming receipt on a delivered order settles the outstanding balance.
     if order.status == Order.Status.RECEIVED:
         return order
-    if order.status not in (Order.Status.CONFIRMED, Order.Status.DELIVERED):
-        raise ValidationError(
-            {'status': 'Only confirmed or delivered orders can be marked as received and paid.'})
-
     is_delivery_payment = order.payment_method in {
         'cash_on_delivery',
         'pay_on_delivery',
     }
+    # Delivery-payment orders can be settled and marked received at handover
+    # even while still pending (the shop may not update the status first).
+    receivable_statuses = (
+        (Order.Status.PENDING, Order.Status.CONFIRMED, Order.Status.DELIVERED)
+        if is_delivery_payment
+        else (Order.Status.CONFIRMED, Order.Status.DELIVERED)
+    )
+    if order.status not in receivable_statuses:
+        raise ValidationError(
+            {'status': 'Only confirmed or delivered orders can be marked as received and paid.'})
+
     previous_status = order.status
     previous_payment = order.payment_status
     order.status = Order.Status.RECEIVED

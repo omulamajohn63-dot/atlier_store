@@ -213,6 +213,11 @@ else:
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
+# Admin staff sign in with either their username or their account email.
+AUTHENTICATION_BACKENDS = [
+    'admin_ui.backends.EmailOrUsernameModelBackend',
+]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',

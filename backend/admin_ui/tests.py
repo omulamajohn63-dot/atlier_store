@@ -1336,6 +1336,49 @@ class AdminAuthTests(TestCase):
         self.assertContains(response, 'does not have admin access')
         self.assertNotIn('_auth_user_id', self.client.session)
 
+    def test_staff_can_login_via_email(self):
+        response = self.client.post('/admin/dashboard/login/', {
+            'username': 'staff@example.com',
+            'password': 'staff-pass-123',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, '/admin/dashboard/')
+        self.assertIn('_auth_user_id', self.client.session)
+        self.assertEqual(
+            int(self.client.session['_auth_user_id']), self.staff.id)
+
+    def test_staff_can_login_via_email_ignoring_case(self):
+        response = self.client.post('/admin/dashboard/login/', {
+            'username': 'STAFF@Example.COM',
+            'password': 'staff-pass-123',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, '/admin/dashboard/')
+        self.assertIn('_auth_user_id', self.client.session)
+        self.assertEqual(
+            int(self.client.session['_auth_user_id']), self.staff.id)
+
+    def test_email_login_rejects_wrong_password(self):
+        response = self.client.post('/admin/dashboard/login/', {
+            'username': 'staff@example.com',
+            'password': 'wrong-password',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_email_login_rejects_non_staff(self):
+        response = self.client.post('/admin/dashboard/login/', {
+            'username': 'user@example.com',
+            'password': 'user-pass-123',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'does not have admin access')
+        self.assertNotIn('_auth_user_id', self.client.session)
+
     def test_login_view_redirects_authenticated_staff(self):
         self.client.force_login(self.staff)
 
