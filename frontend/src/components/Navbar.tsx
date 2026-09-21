@@ -9,7 +9,8 @@ import { useNotifications } from '../context/NotificationsContext';
 import { Badge } from './ui/Badge';
 import { motion, AnimatePresence } from 'motion/react';
 
-const BRAND_LOGO_URL = `${(import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')}/static/images/favicon.png`;
+const backendBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const atelierLogoUrl = `${backendBaseUrl}/static/images/logo.png`;
 
 export interface NavbarProps {
   onOpenSearch?: () => void;
@@ -337,13 +338,11 @@ const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNaviga
       className="group block text-center"
       aria-label="ATELIER Home"
     >
-      <img src={BRAND_LOGO_URL} alt="" className="mx-auto mb-1 h-8 w-8 object-contain sm:h-9 sm:w-9" />
-      <span className="block font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] group-hover:text-[#8A745C] transition-colors">
-        ATELIER
-      </span>
-      <span className="block text-[9px] sm:text-[10px] tracking-[0.3em] text-[#827E77] uppercase mt-0.5">
-        Haute Prêt-à-Porter
-      </span>
+      <img
+        src={atelierLogoUrl}
+        alt="ATELIER Haute Prêt-à-Porter"
+        className="mx-auto h-10 w-auto object-contain transition-opacity group-hover:opacity-75 sm:h-12"
+      />
     </button>
   </div>
 );

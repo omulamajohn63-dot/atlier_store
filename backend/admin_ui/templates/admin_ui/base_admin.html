@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ page_title|default:'ATELIER Admin' }}{% endblock %}</title>
-  <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+  <link rel="icon" type="image/jpeg" href="{% static 'images/favicon.jpg' %}">
   
   <!-- Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -105,15 +105,9 @@
     .brand-mark {
       width: 28px;
       height: 28px;
-      background: var(--text);
-      color: #FFF;
       border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 14px;
-      letter-spacing: 1px;
+      object-fit: contain;
+      display: block;
     }
 
     .brand-title {
@@ -961,7 +955,7 @@
     <!-- Sidebar -->
     <aside class="admin-sidebar" id="sidebar">
       <div class="brand-wrap">
-        <div class="brand-mark">A</div>
+        <img class="brand-mark" src="{% static 'images/logo.png' %}" alt="ATELIER">
         <div class="brand-title">ATELIER</div>
         <div class="brand-badge">ADMIN</div>
       </div>
