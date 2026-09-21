@@ -8,8 +8,9 @@ import {
 } from '../types/api';
 import { CustomerNotification } from '../types';
 import { supabase } from './supabaseClient';
+import { setLastRequestId } from '../lib/requestId';
 
-const CART_STORAGE_KEY = 'atelier_server_cart_id';
+const CART_STORAGE_KEY = 'modeza_server_cart_id';
 // Default to the Django backend for local development. The frontend is expected to
 // read real catalog data from the database unless a different API origin is configured.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -65,6 +66,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
     }
   }
 
+  // Capture the backend request ID for error correlation and audit reports.
+  const requestId = res.headers.get('x-request-id');
+  if (requestId) setLastRequestId(requestId);
+
   // Track returned cart header if any
   const returnedCartId = res.headers.get('x-cart-id');
   if (returnedCartId) {
@@ -81,10 +86,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
     const errorObj = errorJson?.error;
     const message = errorObj?.message || `API request failed with status ${res.status}.`;
     const code = errorObj?.code || (res.status === 404 ? 'NOT_FOUND' : 'UNKNOWN_ERROR');
-    const error = new Error(message) as Error & { code?: string; details?: unknown; status?: number };
+    const error = new Error(message) as Error & { code?: string; details?: unknown; status?: number; requestId?: string };
     error.code = code;
     error.details = errorObj?.details;
     error.status = res.status;
+    if (errorJson && 'request_id' in errorJson) {
+      setLastRequestId(errorJson.request_id as string);
+      error.requestId = errorJson.request_id as string;
+    }
     throw error;
   }
 

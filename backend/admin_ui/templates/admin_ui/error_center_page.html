@@ -1,0 +1,126 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Error Center | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="/admin/dashboard/activity/">Activity &amp; Logs</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Errors</li>
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Error Center</h2>
+    <p class="page-subtitle">{{ total_errors|default:0 }} failed or high-severity events in {{ range_label|default:"the selected range" }}</p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/dashboard/activity/"><i class="ph ph-list"></i> Full activity log</a>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header" style="padding: 16px 24px;">
+    <span class="card-title" style="display:inline-flex; align-items:center; gap:8px;"><i class="ph ph-funnel"></i> Filters</span>
+  </div>
+  <div class="card-body" style="padding: 16px 24px 20px;">
+    <form method="get" action="/admin/dashboard/activity/errors/" class="alog-filter-form">
+      <div class="alog-filter-group">
+        <label for="ec-q">Search</label>
+        <input type="search" id="ec-q" name="q" value="{{ filters.q }}" placeholder="request id, object, description..." size="22">
+      </div>
+      <div class="alog-filter-group">
+        <label for="ec-action">Action</label>
+        <select id="ec-action" name="action">
+          <option value="">All error actions</option>
+          {% for option in action_options %}
+            <option value="{{ option.value }}" {% if filters.action == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="alog-filter-group">
+        <label for="ec-severity">Severity</label>
+        <select id="ec-severity" name="severity">
+          <option value="">All severities</option>
+          {% for option in severity_options %}
+            <option value="{{ option.value }}" {% if filters.severity == option.value %}selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="alog-filter-group">
+        <button type="submit" class="btn btn-primary"><i class="ph ph-funnel"></i> Apply</button>
+      </div>
+      {% if filters.q or filters.action or filters.severity %}
+      <div class="alog-filter-group">
+        <a href="/admin/dashboard/activity/errors/" class="btn btn-secondary"><i class="ph ph-x"></i> Clear</a>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Errors &amp; failures</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">{{ total_errors|default:0 }} total</span>
+  </div>
+  {% if logs %}
+  <div class="alog-timeline">
+    {% for log in logs %}
+    <div class="alog-tl-item"
+         data-event="{{ log.ui_event_json|escape }}"
+         role="button"
+         tabindex="0"
+         aria-label="View event details: {{ log.ui_action_label }}"
+         data-open-alog-event>
+      <span class="alog-tl-icon tone-{{ log.ui_tone }}"><i class="ph {{ log.ui_action_icon }}"></i></span>
+      <div class="alog-tl-body">
+        <div class="alog-tl-head">
+          <span class="alog-tl-action">{{ log.ui_action_label }}</span>
+          {% if log.result %}
+          <span class="status-badge status-{% if log.result == 'success' %}success{% else %}danger{% endif %}">{{ log.result }}</span>
+          {% endif %}
+          <span class="alog-severity alog-sev-{{ log.ui_severity_key }}"><span class="alog-dot"></span>{{ log.ui_severity_label }}</span>
+          <span class="alog-tl-time">{{ log.created_at|date:"M d, Y H:i" }}</span>
+        </div>
+        {% if log.description %}
+        <div class="alog-tl-desc">{{ log.description }}</div>
+        {% endif %}
+        <div class="alog-tl-meta">
+          <span><i class="ph ph-user-circle"></i> {{ log.ui_actor }}</span>
+          {% if log.ui_resource_label %}
+            {% if log.ui_resource_url %}
+              <a class="alog-resource-link" href="{{ log.ui_resource_url }}">{{ log.ui_resource_label }}</a>
+            {% else %}
+              <span>{{ log.ui_resource_label }}</span>
+            {% endif %}
+          {% endif %}
+          {% if log.request_id %}
+          <a class="alog-rid-link" href="/admin/dashboard/activity/request/{{ log.request_id }}/" title="Open full request trace"><i class="ph ph-link-simple"></i> {{ log.request_id }}</a>
+          {% endif %}
+          {% if log.ip_address %}
+          <span class="alog-ip">{{ log.ip_address }}</span>
+          {% endif %}
+          {% if log.path %}
+          <span class="alog-mono">{{ log.path }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% include "admin_ui/components/logs/_pagination.html" %}
+  {% else %}
+  {% include "admin_ui/components/logs/_empty_state.html" %}
+  {% endif %}
+</div>
+
+{% include "admin_ui/components/logs/_event_drawer.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "admin_ui/components/logs/_scripts.html" %}
+{% endblock %}

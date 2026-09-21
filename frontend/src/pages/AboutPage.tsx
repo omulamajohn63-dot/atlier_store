@@ -10,12 +10,12 @@ export const AboutPage: React.FC = () => {
     <div className="pb-20">
       <section className="border-b border-[#E8E5DF] bg-[#181716] text-[#FAF9F6]">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C6A77A]">The Atelier story</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C6A77A]">The MODEZA story</p>
           <h1 className="mt-5 max-w-3xl font-serif text-4xl font-normal leading-tight sm:text-6xl">
             Considered clothing for a life well lived.
           </h1>
           <p className="mt-6 max-w-2xl text-sm leading-7 text-[#D8D0C5] sm:text-base">
-            ATELIER is a considered wardrobe of fluid tailoring, natural fibers, and enduring silhouettes. We work with small studios to make fewer pieces, better.
+            MODEZA is a considered wardrobe of fluid tailoring, natural fibers, and enduring silhouettes. We work with small studios to make fewer pieces, better.
           </p>
         </div>
       </section>
@@ -24,7 +24,7 @@ export const AboutPage: React.FC = () => {
         <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-[#EFECE6]">
           <img
             src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1200&auto=format&fit=crop"
-            alt="Natural textile arranged in an atelier"
+            alt="Natural textile arranged in an modeza"
             className="h-full w-full object-cover"
             referrerPolicy="no-referrer"
           />
@@ -33,7 +33,7 @@ export const AboutPage: React.FC = () => {
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8A745C]">Our point of view</p>
           <h2 className="mt-4 font-serif text-3xl font-normal text-[#181716] sm:text-4xl">Quiet design, deliberate detail.</h2>
           <p className="mt-6 text-sm leading-7 text-[#63605A]">
-            Every ATELIER piece begins with the material. We choose traceable silk, responsible wool, and fine cashmere for their handfeel, longevity, and ability to move with the wearer.
+            Every MODEZA piece begins with the material. We choose traceable silk, responsible wool, and fine cashmere for their handfeel, longevity, and ability to move with the wearer.
           </p>
           <p className="mt-4 text-sm leading-7 text-[#63605A]">
             Our collections are made in small batches and designed to live beyond a single season. The result is a wardrobe that feels personal, useful, and quietly distinctive.

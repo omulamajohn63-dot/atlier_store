@@ -4,7 +4,7 @@ import { PROMOTIONAL_CODES } from '../data/promotions';
 import { api } from '../services/apiClient';
 import { mapProductDtoToDomain } from '../utils/productMapper';
 
-const INVENTORY_LOGS_KEY = 'atelier_inventory_logs_v1';
+const INVENTORY_LOGS_KEY = 'modeza_inventory_logs_v1';
 const ALL_CATEGORY: Category = {
   id: 'all',
   name: 'All Pieces',

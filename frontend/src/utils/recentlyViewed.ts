@@ -3,7 +3,7 @@ export interface RecentlyViewedEntry {
   viewedAt: string;
 }
 
-const STORAGE_KEY = 'atelier_recently_viewed_v1';
+const STORAGE_KEY = 'modeza_recently_viewed_v1';
 export const MAX_RECENT = 12;
 
 export function getRecentlyViewed(): RecentlyViewedEntry[] {

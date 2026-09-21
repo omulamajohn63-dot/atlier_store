@@ -4,9 +4,23 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from admin_ui.models import notify_staff
+from audit.services import AuditLogService
 from catalog.models import ProductVariant
 
 from .models import InventoryTransaction, StockReservation
+
+
+def _audit_variant(action, variant, metadata=None, result='success'):
+    AuditLogService.log(
+        action,
+        object_type='product_variant',
+        object_id=variant.pk,
+        object_repr=variant.sku or str(variant.pk),
+        category='inventory',
+        result=result,
+        metadata=metadata,
+        description=f'{action}: {variant.sku}',
+    )
 
 
 def reserve_variant(order, variant, quantity):
@@ -33,6 +47,12 @@ def reserve_variant(order, variant, quantity):
         quantity=quantity,
         expires_at=timezone.now() + timedelta(minutes=30),
     )
+    _audit_variant(
+        'status_change', locked_variant,
+        metadata={'delta': -quantity, 'previous_quantity': previous,
+                  'new_quantity': locked_variant.stock_quantity,
+                  'reason': 'order_reservation'},
+    )
     InventoryTransaction.objects.create(
         variant=locked_variant,
         quantity_delta=-quantity,
@@ -57,6 +77,12 @@ def release_reservation(reservation):
     reservation.status = StockReservation.Status.RELEASED
     reservation.released_at = timezone.now()
     reservation.save(update_fields=['status', 'released_at'])
+    _audit_variant(
+        'status_change', variant,
+        metadata={'delta': reservation.quantity, 'previous_quantity': previous,
+                  'new_quantity': variant.stock_quantity,
+                  'reason': 'reservation_release'},
+    )
     InventoryTransaction.objects.create(
         variant=variant,
         quantity_delta=reservation.quantity,
@@ -77,6 +103,11 @@ def adjust_stock(variant_id, delta, reason, actor=None):
     previous = variant.stock_quantity
     variant.stock_quantity = new_quantity
     variant.save(update_fields=['stock_quantity'])
+    _audit_variant(
+        'update', variant,
+        metadata={'delta': delta, 'previous_quantity': previous,
+                  'new_quantity': new_quantity, 'reason': reason},
+    )
     if variant.stock_quantity <= 3:
         notify_staff(
             'inventory',

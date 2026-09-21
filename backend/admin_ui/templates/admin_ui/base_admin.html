@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{{ page_title|default:'ATELIER Admin' }}{% endblock %}</title>
+  <title>{% block title %}{{ page_title|default:'MODEZA Admin' }}{% endblock %}</title>
   <link rel="icon" type="image/jpeg" href="{% static 'images/favicon.jpg' %}">
   
   <!-- Fonts: Inter -->
@@ -955,7 +955,7 @@
     <!-- Sidebar -->
     <aside class="admin-sidebar" id="sidebar">
       <div class="brand-wrap">
-        <img class="brand-mark" src="{% static 'images/logo.png' %}" alt="ATELIER">
+        <img class="brand-mark" src="{% static 'images/logo.png' %}" alt="MODEZA">
         <div class="brand-title">MODEZA</div>
         <div class="brand-badge">ADMIN</div>
       </div>
@@ -1006,6 +1006,18 @@
 
         <div class="sidebar-section">
           <div class="sidebar-label">System</div>
+          <a class="nav-link {% if admin_page == 'activity' %}active{% endif %}" href="/admin/dashboard/activity/">
+            <i class="ph ph-scroll"></i><span>Activity &amp; Logs</span>
+          </a>
+          <a class="nav-link {% if admin_page == 'errors' %}active{% endif %}" href="/admin/dashboard/activity/errors/">
+            <i class="ph ph-warning-octagon"></i><span>Errors</span>
+          </a>
+          <a class="nav-link {% if admin_page == 'security' %}active{% endif %}" href="/admin/dashboard/security/">
+            <i class="ph ph-shield-warning"></i><span>Security</span>
+          </a>
+          <a class="nav-link {% if admin_page == 'system-health' %}active{% endif %}" href="/admin/dashboard/system-health/">
+            <i class="ph ph-pulse"></i><span>System Health</span>
+          </a>
           <a class="nav-link {% if admin_page == 'admin-users' %}active{% endif %}" href="/admin/dashboard/admin-users/">
             <i class="ph ph-shield-check"></i><span>Admin Users</span>
           </a>
@@ -1036,7 +1048,7 @@
           
           <ul class="breadcrumb">
             {% block breadcrumbs %}
-            <li>ATELIER</li>
+            <li>MODEZA</li>
             <li><i class="ph ph-caret-right"></i></li>
             <li class="active">{{ page_title|default:"Dashboard" }}</li>
             {% endblock %}

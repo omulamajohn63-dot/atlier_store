@@ -1,0 +1,9 @@
+<div class="alog-empty">
+  <span class="alog-empty-icon"><i class="ph ph-magnifying-glass"></i></span>
+  <div>No activity matches the current filters.</div>
+  {% if active_filters %}
+  <div style="margin-top: 8px;">
+    <a href="{{ clear_url }}" class="btn btn-secondary"><i class="ph ph-x"></i> Clear filters</a>
+  </div>
+  {% endif %}
+</div>

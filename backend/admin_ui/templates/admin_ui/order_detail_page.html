@@ -1,9 +1,9 @@
 {% extends "admin_ui/base_admin.html" %}
 
-{% block title %}{{ page_title }} | ATELIER Admin{% endblock %}
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
 
 {% block breadcrumbs %}
-<li>ATELIER</li>
+<li>MODEZA</li>
 <li><i class="ph ph-caret-right"></i></li>
 <li><a href="/admin/dashboard/orders/">Orders</a></li>
 <li><i class="ph ph-caret-right"></i></li>
@@ -101,4 +101,22 @@
     </div>
   </div>
 </div>
+
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <span class="card-title"><i class="ph ph-scroll"></i> Order activity</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">{{ activity_logs|length }} events</span>
+  </div>
+  {% include "admin_ui/components/logs/_timeline.html" %}
+</div>
+
+{% include "admin_ui/components/logs/_event_drawer.html" %}
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "admin_ui/components/logs/_scripts.html" %}
 {% endblock %}

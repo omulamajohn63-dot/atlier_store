@@ -10,7 +10,7 @@ import {
   VAT_RATE,
 } from '../utils/currency';
 
-const ORDERS_STORAGE_KEY = 'atelier_orders_v4_kes';
+const ORDERS_STORAGE_KEY = 'modeza_orders_v4_kes';
 
 export interface OrdersContextType {
   orders: Order[];
@@ -122,7 +122,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             },
             {
               status: 'processing',
-              title: 'Atelier Preparation & Finishing',
+              title: 'MODEZA Preparation & Finishing',
               description: 'Garments queued for fine inspection and tissue wrapping.',
               timestamp: now,
               completed: true,
@@ -170,7 +170,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!stockCheck.available) {
           return {
             success: false,
-            error: stockCheck.errors[0] || 'One or more items exceed current atelier inventory.',
+            error: stockCheck.errors[0] || 'One or more items exceed current modeza inventory.',
           };
         }
 
@@ -232,13 +232,13 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             {
               status: 'confirmed',
               title: 'Order Authorized & Received',
-              description: 'Payment verified and registered in atelier ledger.',
+              description: 'Payment verified and registered in modeza ledger.',
               timestamp: now,
               completed: true,
             },
             {
               status: 'processing',
-              title: 'Atelier Preparation & Finishing',
+              title: 'MODEZA Preparation & Finishing',
               description: 'Garments queued for fine inspection and tissue wrapping.',
               timestamp: now,
               completed: true,
@@ -329,7 +329,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
 
       try {
-        // Authoritative server cancellation releases reserved atelier stock.
+        // Authoritative server cancellation releases reserved modeza stock.
         const serverOrder = await api.cancelOrder(order.orderNumber);
         const mapped = mapServerOrder(serverOrder);
         const updated: Order = {
@@ -339,7 +339,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             {
               status: 'cancelled',
               title: 'Order Cancelled & Restocked',
-              description: 'Client cancellation confirmed. Atelier inventory restocked.',
+              description: 'Client cancellation confirmed. MODEZA inventory restocked.',
               timestamp: new Date().toISOString(),
               completed: true,
             },
@@ -353,7 +353,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (errorObj.code && errorObj.code !== 'NOT_FOUND') {
           return {
             success: false,
-            message: errorObj.message || 'Atelier could not cancel this order.',
+            message: errorObj.message || 'MODEZA could not cancel this order.',
           };
         }
 
@@ -379,7 +379,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             {
               status: 'cancelled',
               title: 'Order Cancelled & Restocked',
-              description: 'Client cancellation confirmed. Atelier inventory restocked.',
+              description: 'Client cancellation confirmed. MODEZA inventory restocked.',
               timestamp: now,
               completed: true,
             },
@@ -485,7 +485,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const resetOrdersToDefault = useCallback(() => {
-    setOrders(INITIAL_DEMO_ORDERS);
+    setOrders([]);
     try {
       localStorage.removeItem(ORDERS_STORAGE_KEY);
     } catch {

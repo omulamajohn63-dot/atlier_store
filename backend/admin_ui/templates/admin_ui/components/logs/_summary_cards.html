@@ -1,0 +1,30 @@
+<div class="alog-summary-grid">
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-list-dashes"></i> Total events</div>
+    <div class="alog-summary-value">{{ summary.total|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-user-gear"></i> Admin actions</div>
+    <div class="alog-summary-value">{{ summary.admin_actions|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-shield-warning"></i> Security</div>
+    <div class="alog-summary-value">{{ summary.security_events|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-warning-octagon"></i> Errors</div>
+    <div class="alog-summary-value">{{ summary.errors|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-currency-circle-dollar"></i> Payments</div>
+    <div class="alog-summary-value">{{ summary.payments|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-shopping-bag"></i> Orders</div>
+    <div class="alog-summary-value">{{ summary.orders|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-users-three"></i> Active admins</div>
+    <div class="alog-summary-value">{{ summary.active_admins|default:0 }}</div>
+  </div>
+</div>

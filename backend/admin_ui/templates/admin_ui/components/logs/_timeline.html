@@ -1,0 +1,49 @@
+<div class="alog-timeline">
+  {% for log in logs %}
+  <div class="alog-tl-item"
+       data-event="{{ log.ui_event_json|escape }}"
+       role="button"
+       tabindex="0"
+       aria-label="View event details: {{ log.ui_action_label }}"
+       data-open-alog-event>
+    <span class="alog-tl-icon tone-{{ log.ui_tone }}"><i class="ph {{ log.ui_action_icon }}"></i></span>
+    <div class="alog-tl-body">
+      <div class="alog-tl-head">
+        <span class="alog-tl-action">{{ log.ui_action_label }}</span>
+        {% if log.result %}
+        <span class="status-badge status-{% if log.result == 'success' %}success{% else %}danger{% endif %}">{{ log.result }}</span>
+        {% endif %}
+        <span class="alog-severity alog-sev-{{ log.ui_severity_key }}"><span class="alog-dot"></span>{{ log.ui_severity_label }}</span>
+        <span class="alog-tl-time">{{ log.created_at|date:"M d, Y H:i" }}</span>
+      </div>
+      {% if log.description %}
+      <div class="alog-tl-desc">{{ log.description }}</div>
+      {% endif %}
+      <div class="alog-tl-meta">
+        <span><i class="ph ph-user-circle"></i> {{ log.ui_actor }}</span>
+        {% if log.ui_resource_label %}
+          {% if log.ui_resource_url %}
+            <a class="alog-resource-link" href="{{ log.ui_resource_url }}"><i class="ph ph-arrow-square-out"></i> {{ log.ui_resource_label }}</a>
+          {% else %}
+            <span>{{ log.ui_resource_label }}</span>
+          {% endif %}
+        {% endif %}
+        {% if log.category %}
+        <span><i class="ph {{ log.ui_category_icon }}"></i> {{ log.ui_category_label }}</span>
+        {% endif %}
+        {% if log.ip_address %}
+        <span class="alog-ip">{{ log.ip_address }}</span>
+        {% endif %}
+        {% if log.request_id %}
+        <a class="alog-rid-link" href="/admin/dashboard/activity/request/{{ log.request_id }}/" title="Open full request trace"><i class="ph ph-link-simple"></i> {{ log.request_id }}</a>
+        {% endif %}
+        {% if log.path %}
+        <span class="alog-mono">{{ log.path }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  {% include "admin_ui/components/logs/_empty_state.html" %}
+  {% endfor %}
+</div>

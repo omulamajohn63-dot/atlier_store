@@ -89,7 +89,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
 
   const handleCancel = useCallback(async () => {
     if (!order) return;
-    if (!window.confirm(`Cancel order ${order.orderNumber}? Reserved atelier stock will be returned.`)) {
+    if (!window.confirm(`Cancel order ${order.orderNumber}? Reserved modeza stock will be returned.`)) {
       return;
     }
 
@@ -250,7 +250,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                       )}
                     </p>
                     <p className="mt-0.5 text-xs text-[#63605A]">
-                      Thank you for shopping with the atelier.
+                      Thank you for shopping with the modeza.
                     </p>
                   </div>
                 </section>

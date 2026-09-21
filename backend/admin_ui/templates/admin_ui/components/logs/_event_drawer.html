@@ -1,0 +1,69 @@
+<div class="alog-drawer-backdrop" id="alogEventDrawer" role="dialog" aria-modal="true" aria-label="Event details">
+  <div class="alog-drawer">
+    <div class="card-header" style="padding: 16px 24px;">
+      <span class="card-title" style="display:inline-flex; align-items:center; gap:8px;">
+        <i class="ph ph-info" id="alogDrawerIcon"></i>
+        <span id="alogDrawerTitle">Event details</span>
+      </span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button type="button" class="btn btn-secondary" id="alogDrawerCopy" aria-label="Copy event JSON">
+          <i class="ph ph-copy"></i> Copy
+        </button>
+        <button type="button" class="icon-btn" id="alogDrawerClose" aria-label="Close"><i class="ph ph-x"></i></button>
+      </div>
+    </div>
+    <div class="card-body" style="display: grid; gap: 14px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <div class="alog-field-label">Event</div>
+          <div id="alogDrawerAction" style="font-size: 14px; margin-top: 2px; display:flex; align-items:center; gap:8px;"></div>
+        </div>
+        <div>
+          <div class="alog-field-label">Time</div>
+          <div id="alogDrawerTime" style="font-size: 14px; margin-top: 2px;"></div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <div class="alog-field-label">Actor</div>
+          <div id="alogDrawerActor" style="font-size: 14px; margin-top: 2px;"></div>
+        </div>
+        <div>
+          <div class="alog-field-label">Severity</div>
+          <div id="alogDrawerSeverity" style="font-size: 14px; margin-top: 2px;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="alog-field-label">Description</div>
+        <div id="alogDrawerDescription" style="font-size: 14px; margin-top: 2px;"></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <div class="alog-field-label">Resource</div>
+          <div id="alogDrawerResource" style="font-size: 14px; margin-top: 2px;"></div>
+        </div>
+        <div>
+          <div class="alog-field-label">Path</div>
+          <div id="alogDrawerPath" class="alog-mono" style="font-size: 12px; margin-top: 2px;"></div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <div class="alog-field-label">IP address</div>
+          <div id="alogDrawerIp" class="alog-mono" style="font-size: 12px; margin-top: 2px;"></div>
+        </div>
+        <div>
+          <div class="alog-field-label">Request ID</div>
+          <div id="alogDrawerRequest" style="font-size: 14px; margin-top: 2px;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="alog-field-label">Metadata</div>
+        <pre id="alogDrawerMetadata" style="margin-top: 6px;"></pre>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+          Values on keys matching <code>password, token, secret, key, cookie, jwt, authorization</code> are redacted below the line even if present server-side.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

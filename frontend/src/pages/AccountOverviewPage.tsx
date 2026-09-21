@@ -73,7 +73,7 @@ export const AccountOverviewPage: React.FC = () => {
       <AccountPageHeader
         eyebrow={greeting()}
         title={firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
-        description="A glance at your Atelier — orders, wishlist and the latest from your boutique."
+        description="A glance at your MODEZA — orders, wishlist and the latest from your boutique."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
@@ -182,7 +182,7 @@ export const AccountOverviewPage: React.FC = () => {
         <div className="flex items-center justify-between gap-4 border-b border-[#F3F1ED] px-6 py-5">
           <div>
             <h2 className="font-serif text-2xl tracking-tight text-[#181716]">Latest Notifications</h2>
-            <p className="mt-0.5 text-xs text-[#63605A]">Order and account updates from the atelier.</p>
+            <p className="mt-0.5 text-xs text-[#63605A]">Order and account updates from the modeza.</p>
           </div>
           <button
             type="button"

@@ -1,0 +1,26 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Access Denied | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Access Denied</li>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 460px; margin: 8vh auto 0; text-align: center;">
+  <div class="card">
+    <div class="card-body" style="padding: 48px 32px; display: grid; gap: 12px; justify-items: center;">
+      <span style="font-size: 44px; color: var(--status-danger);"><i class="ph ph-lock-key"></i></span>
+      <h2 style="font-size: 20px; font-weight: 600; margin: 0;">Access denied</h2>
+      <p style="font-size: 14px; color: var(--text-secondary); margin: 0;">
+        Your account doesn't have permission to view system activity. If you believe this is an error,
+        contact a super administrator.
+      </p>
+      <div style="margin-top: 12px; display: flex; gap: 8px;">
+        <a class="btn btn-secondary" href="/admin/dashboard/"><i class="ph ph-home"></i> Back to dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

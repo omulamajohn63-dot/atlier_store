@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'audit.apps.AuditConfig',
     'accounts',
     'admin_api',
     'admin_ui.apps.AdminUiConfig',
@@ -108,6 +109,7 @@ THROTTLE_RATES = {
     'orders': os.getenv('THROTTLE_ORDERS_RATE', '20/minute'),
     'payments': os.getenv('THROTTLE_PAYMENTS_RATE', '10/minute'),
     'admin': os.getenv('THROTTLE_ADMIN_RATE', '60/minute'),
+    'audit': os.getenv('THROTTLE_AUDIT_RATE', '60/minute'),
 }
 
 if LOAD_TEST_MODE:
@@ -117,6 +119,7 @@ if LOAD_TEST_MODE:
         'orders': os.getenv('LOAD_TEST_ORDERS_RATE', '60000/minute'),
         'payments': os.getenv('LOAD_TEST_PAYMENTS_RATE', '30000/minute'),
         'admin': os.getenv('LOAD_TEST_ADMIN_RATE', '60000/minute'),
+        'audit': os.getenv('LOAD_TEST_AUDIT_RATE', '60000/minute'),
     }
 
 REST_FRAMEWORK = {
@@ -151,6 +154,7 @@ SUPABASE_JWT_JWKS_URL = os.getenv(
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'botique_backend.middleware.RequestContextMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -271,14 +275,34 @@ STORAGES = {
 WHITENOISE_MAX_AGE = 60 * 60 * 24 * 365
 
 
-# Logging — send Django request errors to stderr so 5xx tracebacks surface in
-# the Render console. Without this, errors are swallowed by Django's default
-# Null handler and become impossible to diagnose.
+# Logging — structured console logs with per-request correlation.
+# LOG_FORMAT=json emits one JSON object per line (Render console friendly);
+# LOG_FORMAT=text keeps the human-readable verbose layout for local dev.
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+LOG_FORMAT = os.getenv('LOG_FORMAT', 'text')
+
+# Audit trail retention (days) used by `python manage.py cleanup_audit_logs`.
+AUDIT_LOG_RETENTION_DAYS = int(os.getenv('AUDIT_LOG_RETENTION_DAYS', '365'))
+
+# Trust the first X-Forwarded-For entry as the client IP when the app sits
+# behind a reverse proxy / load balancer (Render). Keep False on direct hosts.
+USE_X_FORWARDED_FOR = os.getenv(
+    'USE_X_FORWARDED_FOR', 'False').lower() in {'1', 'true', 'yes', 'on'}
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'request_context': {
+            '()': 'botique_backend.logging.RequestContextFilter',
+        },
+    },
     'formatters': {
+        'json': {
+            '()': 'botique_backend.logging.JsonFormatter',
+        },
         'verbose': {
+            '()': 'botique_backend.logging.TextFormatter',
             'format': '[{asctime}] {levelname} {name} {message}',
             'style': '{',
         },
@@ -286,22 +310,79 @@ LOGGING = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'filters': ['request_context'],
+            'formatter': 'json' if LOG_FORMAT == 'json' else 'verbose',
         },
     },
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
+            'propagate': False,
         },
         'django.server': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'django.request': {
             'handlers': ['console'],
             'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'modeza': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'modeza.http': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'audit': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'payments': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'orders': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'catalog': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'inventory': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'admin_api': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'admin_ui': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
             'propagate': False,
         },
     },

@@ -10,7 +10,7 @@ import { Badge } from './ui/Badge';
 import { motion, AnimatePresence } from 'motion/react';
 
 const backendBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-const atelierLogoUrl = `${backendBaseUrl}/static/images/logo.png`;
+const modezaLogoUrl = `${backendBaseUrl}/static/images/logo.png`;
 
 export interface NavbarProps {
   onOpenSearch?: () => void;
@@ -336,11 +336,11 @@ const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNaviga
       type="button"
       onClick={() => onNavigate('/')}
       className="group block text-center"
-      aria-label="ATELIER Home"
+      aria-label="MODEZA Home"
     >
       <img
-        src={atelierLogoUrl}
-        alt="ATELIER Haute Prêt-à-Porter"
+        src={modezaLogoUrl}
+        alt="MODEZA Haute Prêt-à-Porter"
         className="mx-auto h-10 w-auto object-contain transition-opacity group-hover:opacity-75 sm:h-12"
       />
     </button>
@@ -568,7 +568,7 @@ const MobileMenu: React.FC<{
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#E8E5DF] px-6 py-5">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">Atelier</p>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">MODEZA</p>
             <h2 className="mt-1 font-serif text-2xl text-[#181716]">Menu</h2>
           </div>
           <button

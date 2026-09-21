@@ -1,5 +1,5 @@
 -- ============================================================================
--- ATELIER boutique — database cleanup / reset
+-- MODEZA boutique — database cleanup / reset
 -- ============================================================================
 -- Drops EVERYTHING created by supabase/setup.sql so you can re-run setup.sql
 -- cleanly. Run BEFORE setup.sql in the SQL Editor when you want a full reset.

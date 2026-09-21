@@ -12,10 +12,10 @@ const configSchema = z.object({
   MPESA_SHORTCODE: z.string().min(1).optional(),
   MPESA_PASSKEY: z.string().min(1).optional(),
   MPESA_CALLBACK_URL: z.string().url().optional(),
-  MPESA_CALLBACK_SECRET: z.string().min(16).default('atelier_mpesa_callback_2026'),
+  MPESA_CALLBACK_SECRET: z.string().min(16).default('modeza_mpesa_callback_2026'),
   MPESA_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
-  PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('atelier_webhook_secret_2026'),
-  SESSION_SECRET: z.string().min(16).default('atelier_session_secret_2026'),
+  PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('modeza_webhook_secret_2026'),
+  SESSION_SECRET: z.string().min(16).default('modeza_session_secret_2026'),
   ADMIN_API_TOKEN: z.string().min(16).optional(),
 });
 
@@ -32,9 +32,9 @@ const config = parsedConfig.data;
 
 if (config.NODE_ENV === 'production') {
   const devDefaults: Array<[string, string]> = [
-    ['SESSION_SECRET', 'atelier_session_secret_2026'],
-    ['PAYMENT_WEBHOOK_SECRET', 'atelier_webhook_secret_2026'],
-    ['MPESA_CALLBACK_SECRET', 'atelier_mpesa_callback_2026'],
+    ['SESSION_SECRET', 'modeza_session_secret_2026'],
+    ['PAYMENT_WEBHOOK_SECRET', 'modeza_webhook_secret_2026'],
+    ['MPESA_CALLBACK_SECRET', 'modeza_mpesa_callback_2026'],
   ];
   for (const [key, value] of devDefaults) {
     if ((config as Record<string, string>)[key] === value) {

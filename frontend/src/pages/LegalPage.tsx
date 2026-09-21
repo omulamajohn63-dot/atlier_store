@@ -25,7 +25,7 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
     eyebrow: 'Client data & transparency',
     updated: 'Last updated September 2026',
     intro:
-      'Atelier retains only the information needed to fulfil orders, deliver parcels, issue receipts, and care for its clients. This policy explains what we hold, why, and how you can control it.',
+      'MODEZA retains only the information needed to fulfil orders, deliver parcels, issue receipts, and care for its clients. This policy explains what we hold, why, and how you can control it.',
     sections: [
       {
         heading: 'Information we collect',
@@ -42,7 +42,7 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
       },
       {
         heading: 'Your choices',
-        body: 'You can unsubscribe from salon messages at any time, clear your browsing history, and request correction or deletion of stored data by contacting concierge@atelier-boutique.com.',
+        body: 'You can unsubscribe from salon messages at any time, clear your browsing history, and request correction or deletion of stored data by contacting concierge@modeza-boutique.com.',
       },
     ],
   },
@@ -51,15 +51,15 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
     eyebrow: 'Boutique shopping agreement',
     updated: 'Last updated September 2026',
     intro:
-      'These terms govern your use of the Atelier boutique storefront and the purchase of our garments. By placing an order you accept these terms.',
+      'These terms govern your use of the MODEZA boutique storefront and the purchase of our garments. By placing an order you accept these terms.',
     sections: [
       {
         heading: 'Orders & pricing',
-        body: 'All prices are in Kenyan Shillings (KES). The final total shown at checkout includes the prevailing value-added tax, delivery, and any Privilege discount applied. An order is confirmed when you receive an order number from Atelier.',
+        body: 'All prices are in Kenyan Shillings (KES). The final total shown at checkout includes the prevailing value-added tax, delivery, and any Privilege discount applied. An order is confirmed when you receive an order number from MODEZA.',
         bullets: [
           'Prices and availability are correct at the time of display but may change without notice.',
           'Payment methods available include M-Pesa, card, cash on delivery, and pay on delivery.',
-          'A confirmed order reserves atelier stock; cancellation is available only for pending or confirmed orders.',
+          'A confirmed order reserves modeza stock; cancellation is available only for pending or confirmed orders.',
         ],
       },
       {
@@ -85,7 +85,7 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
         bullets: [
           'Standard — usually 2–4 working days within major Kenyan counties.',
           'Express Priority Air — usually 1–2 working days.',
-          'Orders are shipped from our Kenyan fulfillment atelier after payment or, for pay-on-delivery, at handover.',
+          'Orders are shipped from our Kenyan fulfillment modeza after payment or, for pay-on-delivery, at handover.',
         ],
       },
       {
@@ -107,7 +107,7 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
     sections: [
       {
         heading: 'How to return',
-        body: 'Contact concierge@atelier-boutique.com within 30 days of delivery and we will arrange collection. Refunds to the original payment method are issued once the garment passes inspection.',
+        body: 'Contact concierge@modeza-boutique.com within 30 days of delivery and we will arrange collection. Refunds to the original payment method are issued once the garment passes inspection.',
         bullets: [
           'M-Pesa and card returns are processed to the account used for payment.',
           'Cash-on-delivery returns can be refunded to a chosen M-Pesa number.',
@@ -133,7 +133,7 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
     sections: [
       {
         heading: 'What we store',
-        body: 'Rather than third-party advertising cookies, Atelier uses local device storage for a handful of essential conveniences:',
+        body: 'Rather than third-party advertising cookies, MODEZA uses local device storage for a handful of essential conveniences:',
         bullets: [
           'Recent activity — recently viewed pieces, saved on your device only.',
           'Membership — account session, address book, and wishlist stored locally (or via your configured Supabase account).',
@@ -201,8 +201,8 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
       <div className="mt-12 rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-6 text-center">
         <p className="text-sm text-[#63605A]">
           Questions? Contact{' '}
-          <a href="mailto:concierge@atelier-boutique.com" className="font-medium text-[#8A745C] hover:text-[#6B5642] transition-colors">
-            concierge@atelier-boutique.com
+          <a href="mailto:concierge@modeza-boutique.com" className="font-medium text-[#8A745C] hover:text-[#6B5642] transition-colors">
+            concierge@modeza-boutique.com
           </a>
         </p>
       </div>

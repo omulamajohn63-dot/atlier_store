@@ -50,13 +50,13 @@ export function mapServerOrder(serverOrder: OrderDTO): Order {
       {
         status: 'confirmed' as OrderStatus,
         title: 'Order Authorized & Received',
-        description: 'Order registered in the atelier order ledger.',
+        description: 'Order registered in the modeza order ledger.',
         timestamp: serverOrder.createdAt,
         completed: true,
       },
       {
         status: 'processing' as OrderStatus,
-        title: 'Atelier Preparation',
+        title: 'MODEZA Preparation',
         description: 'The order is being prepared for delivery.',
         timestamp: serverOrder.updatedAt,
         completed: serverOrder.status !== 'pending',

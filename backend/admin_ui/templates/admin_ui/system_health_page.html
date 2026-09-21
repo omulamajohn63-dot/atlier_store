@@ -1,0 +1,79 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}System Health | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">System Health</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .health-card {
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .health-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .health-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .health-name i {
+    font-size: 18px;
+    color: var(--accent);
+  }
+  .health-detail {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">System Health</h2>
+    <p class="page-subtitle">Live status of the services Modeza relies on.</p>
+  </div>
+</div>
+
+<div class="health-grid">
+  {% for check in checks %}
+  <div class="card health-card">
+    <div class="health-card-head">
+      <div class="health-name">
+        <i class="ph {{ check.icon }}"></i>
+        {{ check.name }}
+      </div>
+      <span class="status-badge status-{% if check.tone == 'success' %}success{% elif check.tone == 'warning' %}warning{% elif check.tone == 'error' %}danger{% else %}neutral{% endif %}">
+        {{ check.status|title }}
+      </span>
+    </div>
+    <div class="health-detail">{{ check.detail|default:"" }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card" style="margin-top: 20px; background: transparent; box-shadow: none; border-style: dashed;">
+  <div class="card-body" style="color: var(--text-secondary); font-size: 12px; display: flex; gap: 8px;">
+    <i class="ph ph-info"></i>
+    <span>{{ note }}</span>
+  </div>
+</div>
+{% endblock %}

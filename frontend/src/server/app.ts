@@ -21,7 +21,7 @@ export function createExpressApp(): Express {
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
-      service: 'atelier-boutique-backend',
+      service: 'modeza-boutique-backend',
       timestamp: new Date().toISOString(),
     });
   });

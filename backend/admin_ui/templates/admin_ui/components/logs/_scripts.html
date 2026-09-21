@@ -1,0 +1,230 @@
+<script>
+  (function () {
+    'use strict';
+
+    var SECRET_KEY_RE = /password|passwd|token|secret|authoriz|bearer|api[-_]?key|cookie|jwt|credential/i;
+
+    function redact(value) {
+      if (value === null || value === undefined) return value;
+      if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+          return value.map(redact);
+        }
+        var out = {};
+        Object.keys(value).forEach(function (k) {
+          out[k] = SECRET_KEY_RE.test(k) ? '[REDACTED]' : redact(value[k]);
+        });
+        return out;
+      }
+      return value;
+    }
+
+    function parseEvent(el) {
+      try {
+        return JSON.parse(el.getAttribute('data-event') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function pretty(value) {
+      return JSON.stringify(redact(value), null, 2);
+    }
+
+    function openEventDrawer(el) {
+      var ev = parseEvent(el);
+      var drawer = document.getElementById('alogEventDrawer');
+      if (!drawer) return;
+      document.getElementById('alogDrawerTitle').textContent = ev.action_label || 'Event details';
+      document.getElementById('alogDrawerIcon').className = 'ph ' + (ev.action_icon || 'ph-info');
+      var action = document.getElementById('alogDrawerAction');
+      action.innerHTML = '';
+      var actionLabel = document.createElement('b');
+      actionLabel.textContent = ev.action_label || ev.action || '';
+      action.appendChild(actionLabel);
+      if (ev.category_label) {
+        var cat = document.createElement('span');
+        cat.className = 'alog-tl-time';
+        cat.textContent = ev.category_label;
+        action.appendChild(cat);
+      }
+      if (ev.status_code) {
+        var code = document.createElement('span');
+        code.className = 'alog-severity ' + (ev.status_code >= 400 ? 'alog-sev-warning' : 'alog-sev-success');
+        code.textContent = 'HTTP ' + ev.status_code;
+        action.appendChild(code);
+      }
+      document.getElementById('alogDrawerTime').textContent = ev.time || '—';
+      var actor = document.getElementById('alogDrawerActor');
+      actor.textContent = ev.actor || 'System';
+      if (ev.actor_role) actor.textContent += ' · ' + ev.actor_role;
+      var sev = document.getElementById('alogDrawerSeverity');
+      sev.innerHTML = '';
+      var sevChip = document.createElement('span');
+      sevChip.className = 'alog-severity alog-sev-' + (ev.severity_key || 'info');
+      sevChip.textContent = ev.severity_label || ev.severity_key || 'Info';
+      sev.appendChild(sevChip);
+      if (ev.result) {
+        var res = document.createElement('span');
+        res.className = 'status-badge status-' + (ev.result === 'success' ? 'success' : 'danger');
+        res.textContent = ev.result;
+        sev.appendChild(res);
+      }
+      document.getElementById('alogDrawerDescription').textContent = ev.description || '—';
+      var resource = document.getElementById('alogDrawerResource');
+      resource.innerHTML = '';
+      if (ev.resource_label) {
+        if (ev.resource_url) {
+          var link = document.createElement('a');
+          link.href = ev.resource_url;
+          link.textContent = ev.resource_label;
+          resource.appendChild(link);
+        } else {
+          resource.textContent = ev.resource_label;
+        }
+        if (ev.object_id && ev.object_id !== ev.object_repr) {
+          var oid = document.createElement('div');
+          oid.className = 'alog-mono';
+          oid.textContent = ev.object_id;
+          resource.appendChild(oid);
+        }
+      } else {
+        resource.textContent = '—';
+      }
+      document.getElementById('alogDrawerPath').textContent = ev.path || '—';
+      document.getElementById('alogDrawerIp').textContent = ev.ip_address || '—';
+      var req = document.getElementById('alogDrawerRequest');
+      req.innerHTML = '';
+      if (ev.request_id) {
+        var rlink = document.createElement('a');
+        rlink.href = '/admin/dashboard/activity/request/' + encodeURIComponent(ev.request_id) + '/';
+        rlink.className = 'alog-rid-link';
+        rlink.textContent = ev.request_id;
+        req.appendChild(rlink);
+      } else {
+        req.textContent = '—';
+      }
+      document.getElementById('alogDrawerMetadata').textContent = pretty(ev.metadata || {});
+      drawer.classList.add('open');
+      if (drawer._lastEvent) {
+        drawer._lastEvent = ev;
+      }
+    }
+
+    function closeEventDrawer() {
+      var drawer = document.getElementById('alogEventDrawer');
+      if (drawer) drawer.classList.remove('open');
+    }
+
+    function copyDrawerJson() {
+      var drawer = document.getElementById('alogEventDrawer');
+      if (!drawer || !drawer._lastEvent) return;
+      var raw = JSON.stringify(redact(drawer._lastEvent.metadata || {}), null, 2);
+      var text = JSON.stringify(redact({
+        time_utc: drawer._lastEvent.time,
+        action: drawer._lastEvent.action,
+        actor: drawer._lastEvent.actor,
+        actor_email: drawer._lastEvent.actor_email,
+        resource: drawer._lastEvent.resource_label,
+        object_id: drawer._lastEvent.object_id,
+        request_id: drawer._lastEvent.request_id,
+        ip_address: drawer._lastEvent.ip_address,
+        path: drawer._lastEvent.path,
+        status_code: drawer._lastEvent.status_code,
+        description: drawer._lastEvent.description,
+        metadata: drawer._lastEvent.metadata || {}
+      }), null, 2);
+      var payload = raw === '[REDACTED]' ? text : text + '\n\nmetadata:\n' + raw;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).then(function () {
+          var btn = document.getElementById('alogDrawerCopy');
+          if (!btn) return;
+          var old = btn.innerHTML;
+          btn.innerHTML = '<i class="ph ph-check"></i> Copied';
+          setTimeout(function () { btn.innerHTML = old; }, 1600);
+        });
+      }
+    }
+
+    function wireDrawer() {
+      var drawer = document.getElementById('alogEventDrawer');
+      if (!drawer) return;
+      var closeBtn = document.getElementById('alogDrawerClose');
+      var copyBtn = document.getElementById('alogDrawerCopy');
+      closeBtn.addEventListener('click', closeEventDrawer);
+      copyBtn.addEventListener('click', copyDrawerJson);
+      drawer.addEventListener('click', function (e) {
+        if (e.target === drawer) closeEventDrawer();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          closeEventDrawer();
+          var menus = document.querySelectorAll('.alog-export-menu.open');
+          menus.forEach(function (m) { m.classList.remove('open'); });
+        }
+      });
+    }
+
+    function wireEventRows() {
+      document.querySelectorAll('[data-open-alog-event]').forEach(function (row) {
+        row.addEventListener('click', function (e) {
+          if (e.target.closest('a')) return;
+          openEventDrawer(row);
+        });
+        row.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (e.target.closest('a')) return;
+            openEventDrawer(row);
+          }
+        });
+      });
+    }
+
+    function wireExportMenu() {
+      document.querySelectorAll('.alog-export-menu .alog-export-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var menu = btn.closest('.alog-export-menu');
+          var open = menu.classList.contains('open');
+          document.querySelectorAll('.alog-export-menu.open').forEach(function (m) {
+            m.classList.remove('open');
+          });
+          if (!open) menu.classList.add('open');
+        });
+      });
+      document.addEventListener('click', function () {
+        document.querySelectorAll('.alog-export-menu.open').forEach(function (m) {
+          m.classList.remove('open');
+        });
+      });
+    }
+
+    function wireSearchDebounce() {
+      var q = document.getElementById('alog-q');
+      if (!q) return;
+      var form = q.closest('form');
+      if (!form) return;
+      q.addEventListener('input', function () {
+        if (q._debounce) window.clearTimeout(q._debounce);
+        q._debounce = window.setTimeout(function () {
+          if (q.value.trim() === '') return;
+          form.submit();
+        }, 450);
+      });
+    }
+
+    function init() {
+      wireDrawer();
+      wireEventRows();
+      wireExportMenu();
+      wireSearchDebounce();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+</script>

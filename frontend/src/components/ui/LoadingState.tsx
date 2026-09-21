@@ -256,7 +256,7 @@ export const PageLoader: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#FAF9F6]">
       <div className="flex flex-col items-center gap-4">
-        <LoadingSpinner size="lg" label="Loading Atelier..." />
+        <LoadingSpinner size="lg" label="Loading MODEZA..." />
         <div className="w-48 h-1 bg-[#EFECE6] rounded-full overflow-hidden">
           <div className="h-full bg-gradient-to-r from-[#8A745C] to-[#A6937D] animate-shimmer" />
         </div>

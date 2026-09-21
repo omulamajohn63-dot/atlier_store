@@ -92,7 +92,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
           Thank you. Your order has been placed.
         </h1>
         <p className="text-sm text-[#63605A] max-w-lg mx-auto leading-relaxed">
-          An email receipt with full tracking credentials and atelier preparation notes has been sent
+          An email receipt with full tracking credentials and modeza preparation notes has been sent
           to <span className="font-medium text-[#181716]">{resolvedOrder ? resolvedOrder.customer.email : 'your address'}</span>.
         </p>
       </div>
@@ -112,7 +112,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#E8EFEA] text-[#2E5A44]">
               <PackageCheck className="w-3.5 h-3.5" />
-              <span className="capitalize">{resolvedOrder ? resolvedOrder.status : 'Preparing in Atelier'}</span>
+              <span className="capitalize">{resolvedOrder ? resolvedOrder.status : 'Preparing in MODEZA'}</span>
             </span>
           </div>
         </div>
@@ -120,7 +120,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
         {resolvedOrder && (
           <div className="space-y-3">
             <span className="text-[11px] uppercase tracking-wider text-[#827E77] block">
-              Reserved Atelier Pieces ({resolvedOrder.items.reduce((s, i) => s + i.quantity, 0)})
+              Reserved MODEZA Pieces ({resolvedOrder.items.reduce((s, i) => s + i.quantity, 0)})
             </span>
             <div className="divide-y divide-[#F3F1ED]">
               {resolvedOrder.items.map((item) => (

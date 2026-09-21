@@ -1,7 +1,10 @@
+import secrets
+
 from django.conf import settings
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from audit.services import AuditLogService
 from orders.serializers import OrderSerializer
 
 from .serializers import PaymentIntentSerializer
@@ -41,10 +44,22 @@ class PaymentWebhookView(APIView):
     throttle_scope = 'payments'
 
     def post(self, request):
+        signature = request.headers.get('x-webhook-signature')
         event_id = request.headers.get(
             'x-event-id') or request.data.get('eventId')
-        result = process_webhook(request.data, request.headers.get(
-            'x-webhook-signature'), event_id)
+        if not signature or not secrets.compare_digest(
+                signature, settings.PAYMENT_WEBHOOK_SECRET):
+            AuditLogService.log(
+                'security_event',
+                category='security',
+                result='failure',
+                severity='critical',
+                metadata={'event_type': (request.data or {}).get('event', ''),
+                          'has_signature': bool(signature)},
+                path=request.path,
+                description='Payment webhook rejected with an invalid signature.',
+            )
+        result = process_webhook(request.data, signature, event_id)
         return Response(result)
 
 
@@ -55,6 +70,16 @@ class MpesaCallbackView(APIView):
 
     def post(self, request):
         if request.query_params.get('token') != settings.MPESA_CALLBACK_SECRET:
+            AuditLogService.log(
+                'security_event',
+                category='security',
+                result='failure',
+                severity='critical',
+                metadata={'ip_address': request.META.get('REMOTE_ADDR', ''),
+                          'has_token': bool(request.query_params.get('token'))},
+                path=request.path,
+                description='Unauthorized M-Pesa callback attempt.',
+            )
             return Response({'ResponseCode': '1', 'ResponseDescription': 'Unauthorized callback.'}, status=401)
         callback = request.data.get('Body', {}).get('stkCallback', {})
         checkout_id = callback.get('CheckoutRequestID')

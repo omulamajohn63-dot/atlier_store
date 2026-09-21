@@ -89,7 +89,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
         </h1>
         <p className="text-sm text-[#63605A]">
           {products.length === 0
-            ? 'We are refreshing the collection from the atelier catalogue.'
+            ? 'We are refreshing the collection from the modeza catalogue.'
             : 'This product may have been archived or removed, but the rest of the collection is still available.'}
         </p>
         <Button variant="primary" size="md" onClick={() => navigate('/shop')}>
@@ -361,7 +361,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
               ) : (
                 <p className="text-xs text-[#2E5A44] flex items-center gap-1.5 font-medium bg-[#E8EFEA] border border-[#C8D8CA] rounded-lg px-3 py-2">
                   <Check className="w-3.5 h-3.5" />
-                  <span>In Stock &bull; Ready for Atelier Dispatch</span>
+                  <span>In Stock &bull; Ready for MODEZA Dispatch</span>
                 </p>
               )}
             </div>
@@ -538,7 +538,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                   className="p-5 pt-0 space-y-2 text-[#63605A] border-t border-[#F3F1ED]"
                 >
                   <p className="mt-3 text-xs leading-relaxed text-pretty">
-                    Orders are packaged in recyclable atelier boxes with cotton dustbags. Standard
+                    Orders are packaged in recyclable modeza boxes with cotton dustbags. Standard
                     delivery takes 2-4 business days. Returns are accepted within 30 days of receipt in
                     original unworn condition.
                   </p>

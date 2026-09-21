@@ -75,7 +75,7 @@ export const Footer: React.FC = () => {
                 onClick={() => navigate('/')}
                 className="text-left font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] block hover:text-[#8A745C] transition-colors"
               >
-                ATELIER
+                MODEZA
               </button>
               <p className="text-sm text-[#63605A] leading-relaxed max-w-md">
                 A modern fashion boutique dedicated to conscious luxury, timeless silhouettes,
@@ -108,8 +108,8 @@ export const Footer: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                <a href="mailto:concierge@atelier-boutique.com" className="hover:text-[#181716] transition-colors">
-                  concierge@atelier-boutique.com
+                <a href="mailto:concierge@modeza-boutique.com" className="hover:text-[#181716] transition-colors">
+                  concierge@modeza-boutique.com
                 </a>
               </div>
               <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ export const Footer: React.FC = () => {
             {/* Social Links */}
             <div className="pt-4 border-t border-[#E8E5DF]">
               <span className="text-[10px] uppercase tracking-widest font-semibold text-[#827E77] block mb-3">
-                Follow the Atelier
+                Follow the MODEZA
               </span>
               <div className="flex gap-3">
                 {socialLinks.map((social) => (
@@ -195,7 +195,7 @@ export const Footer: React.FC = () => {
           {/* Company */}
           <div className="space-y-4">
             <h5 className="text-xs uppercase tracking-widest font-semibold text-[#181716]">
-              The Atelier
+              The MODEZA
             </h5>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
@@ -223,11 +223,11 @@ export const Footer: React.FC = () => {
                 Private Salon & Capsule Drops
               </span>
               <h3 className="font-serif text-xl sm:text-2xl lg:text-3xl text-[#181716] font-normal leading-tight">
-                Join The Atelier Gazette
+                Join The MODEZA Gazette
               </h3>
               <p className="text-sm text-[#63605A] max-w-md leading-relaxed">
                 Subscribers receive private pre-order access 48 hours prior to public seasonal releases
-                and invitations to atelier archive events.
+                and invitations to modeza archive events.
               </p>
             </div>
             <div className="lg:col-span-1">
@@ -246,7 +246,7 @@ export const Footer: React.FC = () => {
                       setNewsletterStatus('idle');
                     }}
                     placeholder="Enter your email address"
-                    aria-label="Email address for The Atelier Gazette"
+                    aria-label="Email address for The MODEZA Gazette"
                     className="w-full pl-11 pr-4 py-3.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-sm text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"
                   />
                 </div>
@@ -296,7 +296,7 @@ export const Footer: React.FC = () => {
 
         {/* Bottom copyright & attribution */}
         <div className="border-t border-[#F3F1ED] mt-6 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#827E77]">
-          <p>&copy; {new Date().getFullYear()} ATELIER Prêt-à-Porter. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} MODEZA Prêt-à-Porter. All rights reserved.</p>
           <div className="flex items-center gap-6 flex-wrap justify-center sm:justify-end">
             <button onClick={() => navigate('/')} className="hover:text-[#181716] transition-colors flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" />

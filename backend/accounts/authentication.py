@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed
 
+from audit.services import AuditLogService
+
 
 class SupabaseJWTAuthentication(BaseAuthentication):
     keyword = b'bearer'
@@ -124,6 +126,14 @@ class SupabaseJWTAuthentication(BaseAuthentication):
             username=username,
             defaults={'email': email, 'is_active': True},
         )
+        if created:
+            AuditLogService.log(
+                'signup',
+                actor=user,
+                category='account',
+                result='success',
+                description=f'Account created for a new Supabase identity.',
+            )
         if not created and email and user.email != email:
             user.email = email
             user.save(update_fields=['email'])

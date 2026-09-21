@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
+import { audit } from '../lib/logger';
 
 interface AuthContextValue {
   user: User | null;
@@ -39,7 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     if (!supabase) return { error: 'Account access is not configured yet.' };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? { error: error.message } : {};
+    if (error) {
+      void audit('login_failed', 'Storefront sign-in failed.', {}, { reason: error.message });
+      return { error: error.message };
+    }
+    void audit('login', 'Storefront sign-in succeeded.', { provider: 'supabase' });
+    return {};
   };
 
   const signUp = async (email: string, password: string, profile: { fullName: string; phone: string }) => {
@@ -57,13 +63,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       },
     });
-    return error
-      ? { error: error.message }
-      : { needsVerification: !data.session };
+    if (error) {
+      return { error: error.message };
+    }
+    void audit('signup', 'New storefront account created.', { provider: 'supabase' }, {
+      needsVerification: !data.session,
+    });
+    return { needsVerification: !data.session };
   };
 
   const signOut = async () => {
     await supabase?.auth.signOut();
+    void audit('logout', 'Storefront sign-out.');
   };
 
   const updateProfile = async (profile: { fullName: string; phone: string }) => {
@@ -92,6 +103,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (!error) {
+      void audit('password_reset', 'Account password updated.');
+    }
     return error ? { error: error.message } : {};
   };
 

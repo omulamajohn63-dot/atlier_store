@@ -1,18 +1,23 @@
 import csv
 import io
+import json
+import os
 import uuid
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import user_passes_test
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LoginView, LogoutView, redirect_to_login
+from django.core.paginator import Paginator
+from django.db import connection
 from django.db.models import Count, Q, Sum
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -20,12 +25,33 @@ from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.views import View
 
+from audit.constants import AUDIT_ACTIONS
+from audit.models import AuditLog
 from catalog.models import Category, Product, ProductVariant
 from catalog.services import ProductGenerationService, import_products_from_file
-from botique_backend.storage import object_key_from_url
+from audit.services import AuditLogService
+from botique_backend.storage import object_key_from_url, supabase_storage_enabled
 from inventory.services import adjust_stock
 from orders.models import Order, OrderItem
 from orders.services import approve_order
+
+from .audit_ui import (
+    RANGE_CHOICES,
+    RESOURCE_TYPE_LABELS,
+    SORT_CHOICES,
+    SECURITY_ACTIONS,
+    SEVERITY_META,
+    SEVERITY_ORDER,
+    action_label,
+    apply_activity_filters,
+    build_query,
+    category_label,
+    compute_summary,
+    decorate_audit_logs,
+    normalize_filters,
+    resolve_date_range,
+    severity_meta,
+)
 
 from .forms import (
     AdminLoginForm,
@@ -46,12 +72,25 @@ def is_superuser(user):
     return user.is_authenticated and user.is_superuser
 
 
+def _audit_catalog(action, item, metadata=None, status_code=None):
+    AuditLogService.log(
+        action,
+        object_type=item.__class__.__name__.lower(),
+        object_id=item.pk,
+        object_repr=str(item),
+        category='catalog',
+        metadata=metadata,
+        status_code=status_code,
+        description=f'{action}: {item}',
+    )
+
+
 class AdminLandingPageView(View):
     template_name = 'admin_ui/admin_landing_page.html'
 
     def get(self, request):
         return render(request, self.template_name, {
-            'page_title': 'ATELIER Admin',
+            'page_title': 'MODEZA Admin',
             'is_authenticated_staff': bool(
                 request.user.is_authenticated and request.user.is_staff),
             'is_superuser': bool(request.user.is_authenticated and request.user.is_superuser),
@@ -86,6 +125,15 @@ class AdminRegisterView(View):
             request.POST, allow_superuser=bool(request.user.is_superuser))
         if form.is_valid():
             user = form.save()
+            AuditLogService.log(
+                'create',
+                actor=user,
+                category='auth',
+                object_type='user',
+                object_id=user.pk,
+                object_repr=user.get_username(),
+                description=f'Administrator account created: {user.get_username()}.',
+            )
             notify_staff(
                 category='system',
                 title='New admin account created',
@@ -360,6 +408,15 @@ class ProductImportPageView(View):
                 image_files,
                 created_by=request.user,
             )
+            AuditLogService.log(
+                'file_upload',
+                category='catalog',
+                object_type='file',
+                object_repr=file.name,
+                metadata={'rows_success': result.rows_success,
+                          'rows_failed': result.rows_failed},
+                description=f'Product import from {file.name}.',
+            )
             messages.success(
                 request,
                 f'Import complete: {result.rows_success} rows succeeded, {result.rows_failed} failed.',
@@ -549,7 +606,7 @@ class AdminPageView(View):
             'filters': ['Product performance'],
             'columns': ['Product', 'Units Sold', 'Revenue', 'Stock'],
             'rows': [
-                {'name': 'Atelier Silk Wrap Dress', 'units': '34',
+                {'name': 'MODEZA Silk Wrap Dress', 'units': '34',
                     'revenue': 'KES 163,200', 'stock': '12'},
             ],
         },
@@ -1100,6 +1157,7 @@ class DashboardView(View):
                     'This category cannot be deleted because products still use it. Edit or move those products first.',
                 )
             else:
+                _audit_catalog('delete', category)
                 messages.success(request, 'Category deleted.')
             return redirect('admin-dashboard')
         messages.error(request, 'Unknown dashboard action.')
@@ -1266,6 +1324,12 @@ class DashboardView(View):
             color=data['color'],
             stock_quantity=data['stock_quantity'],
         )
+        _audit_catalog(
+            'create', product,
+            status_code=201,
+            metadata={'has_image': bool(image_path),
+                      'stock_quantity': data['stock_quantity']},
+        )
 
     @staticmethod
     @transaction.atomic
@@ -1278,6 +1342,7 @@ class DashboardView(View):
                 f'products/{safe_name}', uploaded_image)
             image_path = default_storage.url(saved_path)
 
+        before = (product.name, product.status, product.price_minor)
         product.category = data['category']
         product.name = data['name']
         product.slug = data['slug']
@@ -1290,17 +1355,32 @@ class DashboardView(View):
             DashboardView.sync_image_fields(product, image_path)
 
         product.save()
+        _audit_catalog(
+            'update', product,
+            metadata={'changed': {
+                'name': {'from': before[0], 'to': product.name},
+                'status': {'from': before[1], 'to': product.status},
+                'price_minor': {'from': before[2], 'to': product.price_minor},
+            }, 'has_image': bool(image_path)},
+        )
 
     @staticmethod
     @transaction.atomic
     def archive_product(product):
+        previous = product.status
         product.status = Product.Status.ARCHIVED
         product.save(update_fields=['status', 'updated_at'])
+        _audit_catalog(
+            'update', product,
+            metadata={'status_changed': {'from': previous,
+                                         'to': product.status}},
+        )
 
     @staticmethod
     @transaction.atomic
     def delete_product(product):
         image_paths = Product.normalize_images(product.images)
+        _audit_catalog('delete', product)
         product.delete()
         for image_path in image_paths:
             storage_path = object_key_from_url(image_path) or image_path.removeprefix(
@@ -1319,7 +1399,8 @@ class CategoryCreatePageView(View):
     def post(self, request):
         form = CategoryForm(request.POST)
         if form.is_valid():
-            form.save()
+            category = form.save()
+            _audit_catalog('create', category, status_code=201)
             messages.success(request, 'Category created.')
             return redirect('admin-dashboard')
         return self.render_form(request, form)
@@ -1355,6 +1436,7 @@ class CategoryEditPageView(View):
         form = CategoryForm(request.POST, instance=category)
         if form.is_valid():
             form.save()
+            _audit_catalog('update', category)
             messages.success(request, 'Category updated.')
             return redirect('admin-dashboard')
         return self.render_form(request, form, category)
@@ -1382,6 +1464,7 @@ class CategoryDeletePageView(View):
             messages.error(request,
                            'This category cannot be deleted because products still use it. Edit or move those products first.')
         else:
+            _audit_catalog('delete', category)
             messages.success(request, 'Category deleted.')
         return redirect('admin-dashboard')
 
@@ -1475,10 +1558,17 @@ class ProductDetailPageView(View):
             f'/admin/dashboard/inventory/adjust/?variant={primary_variant.id}'
             if primary_variant else '/admin/dashboard/inventory/adjust/'
         )
+        activity = AuditLog.objects.select_related('actor').filter(
+            object_type__in=('product', 'productvariant'),
+            object_id=str(product.pk),
+        )[:40]
+        activity = decorate_audit_logs(list(activity))
         return render(request, self.template_name, {
             'product': product,
             'primary_variant': primary_variant,
             'stock_adjust_url': stock_adjust_url,
+            'activity_logs': activity,
+            'logs': activity,
             'page_title': 'Product Details',
             'page_subtitle': product.name,
             'page_primary_action': 'Edit Product',
@@ -1536,6 +1626,12 @@ class OrderDetailPageView(View):
             and order.status != Order.Status.CONFIRMED
         )
 
+        activity = AuditLog.objects.select_related('actor').filter(
+            Q(object_type='order', object_id=str(order.pk))
+            | Q(object_type='payment_intent', object_repr=order.order_number)
+        )[:40]
+        activity = decorate_audit_logs(list(activity))
+
         return render(request, self.template_name, {
             'order': order,
             'customer_name': customer_name,
@@ -1547,6 +1643,8 @@ class OrderDetailPageView(View):
             'page_title': f'Order {order.order_number}',
             'page_subtitle': 'Review the full order and approve payment.',
             'can_approve': can_approve,
+            'activity_logs': activity,
+            'logs': activity,
         })
 
 
@@ -1586,6 +1684,12 @@ class ProductDuplicatePageView(View):
                         is_active=variant.is_active,
                     )
             messages.success(request, 'Product duplicated.')
+            _audit_catalog(
+                'create', new_product,
+                status_code=201,
+                metadata={'duplicated_from': str(product.pk),
+                          'note': 'duplicate'},
+            )
             return redirect(f'/admin/dashboard/products/{new_product.pk}/edit/')
         except IntegrityError:
             messages.error(
@@ -1638,6 +1742,15 @@ class AdminUserInvitePageView(View):
         form = AdminSignupForm(request.POST, allow_superuser=True)
         if form.is_valid():
             user = form.save()
+            AuditLogService.log(
+                'create',
+                actor=user,
+                category='auth',
+                object_type='user',
+                object_id=user.pk,
+                object_repr=user.get_username(),
+                description=f'Administrator account created: {user.get_username()}.',
+            )
             notify_staff(
                 category='system',
                 title='New admin account created',
@@ -1698,4 +1811,616 @@ class StockAdjustmentPageView(View):
             'page_title': 'Update availability',
             'page_subtitle': 'Keep your stock counts accurate and up to date.',
             'submit_label': 'Update quantity',
+        })
+
+
+class StaffRequiredMixin:
+    """Gate a page behind the staff self-service login.
+
+    Anonymous users are redirected to the admin login; authenticated
+    non-staff users receive a proper 403 Access Denied message instead of a
+    silent redirect, matching the existing self-service admin UX. The backend
+    permission is the only authority — nothing here hides data client-side.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect_to_login(
+                request.get_full_path(), login_url='admin-login')
+        if not request.user.is_staff:
+            return render(
+                request,
+                'admin_ui/access_denied.html',
+                {
+                    'page_title': 'Access Denied',
+                    'page_subtitle': "You don't have permission to view system activity.",
+                    'admin_page': 'activity',
+                    'title': 'Access Denied',
+                    'description': "You don't have permission to view system activity.",
+                },
+                status=403,
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class AuditLogsPageView(View):
+    """Legacy alias of the Activity & Logs overview.
+
+    Kept so existing bookmarks/checks pointing at ``/admin/dashboard/audit-logs/``
+    keep working; it renders the same richer overview as ``/activity/``.
+    """
+
+    template_name = 'admin_ui/activity_page.html'
+    PAGE_SIZE = 25
+
+    def get(self, request):
+        return ActivityOverviewPageView.render_activity(
+            self, request, template_name=self.template_name)
+
+
+class ActivityOverviewPageView(StaffRequiredMixin, View):
+    """Main logging dashboard: summary cards, timeline/table, filters, export."""
+
+    template_name = 'admin_ui/activity_page.html'
+    PAGE_SIZE = 25
+
+    def get(self, request):
+        return self.render_activity(request)
+
+    def render_activity(self, request, template_name=None):
+        filters = normalize_filters(request.GET)
+        base_queryset = AuditLog.objects.all()
+        queryset = apply_activity_filters(base_queryset, filters)
+        summary = compute_summary(queryset)
+
+        paginator = Paginator(queryset, self.PAGE_SIZE)
+        page_obj = paginator.get_page(request.GET.get('page', '1'))
+        logs = decorate_audit_logs(list(page_obj.object_list))
+
+        start_date, end_date, range_label = resolve_date_range(filters)
+
+        range_links = [
+            {'key': key, 'label': label,
+             'url': build_query(filters, range=key, page=None)}
+            for key, label in RANGE_CHOICES if key not in ('custom', 'all')
+        ]
+
+        sort_links = [
+            {'key': key, 'label': label,
+             'url': build_query(filters, sort=key, page=None)}
+            for key, label in SORT_CHOICES
+        ]
+        active_sort_label = dict(SORT_CHOICES).get(filters['sort'], 'Newest')
+
+        active_filters = []
+        if filters['q']:
+            active_filters.append({'label': f"Search: {filters['q']}",
+                                   'remove_url': build_query(filters, q='', page=None)})
+        if filters['action']:
+            active_filters.append({'label': f"Action: {action_label(filters['action'])}",
+                                   'remove_url': build_query(filters, action='', page=None)})
+        if filters['category']:
+            active_filters.append({'label': f"Category: {category_label(filters['category'])}",
+                                   'remove_url': build_query(filters, category='', page=None)})
+        if filters['resource']:
+            resource_name = RESOURCE_TYPE_LABELS.get(
+                filters['resource'], filters['resource'].replace('_', ' ').title())
+            active_filters.append({'label': f"Resource: {resource_name}",
+                                   'remove_url': build_query(filters, resource='', page=None)})
+        if filters['severity']:
+            active_filters.append({'label': f"Severity: {severity_meta(filters['severity'])['label']}",
+                                   'remove_url': build_query(filters, severity='', page=None)})
+        if filters['result']:
+            active_filters.append({'label': f"Result: {filters['result'].title()}",
+                                   'remove_url': build_query(filters, result='', page=None)})
+        if filters['actor']:
+            active_filters.append({'label': f"Actor: {filters['actor']}",
+                                   'remove_url': build_query(filters, actor='', page=None)})
+        if filters['ip']:
+            active_filters.append({'label': f"IP: {filters['ip']}",
+                                   'remove_url': build_query(filters, ip='', page=None)})
+        if filters['request_id']:
+            active_filters.append({'label': f"Request: {filters['request_id']}",
+                                   'remove_url': build_query(filters, request_id='', page=None)})
+        if filters['range'] != 'all' or filters['date_from'] or filters['date_to']:
+            active_filters.append({'label': f"Date: {range_label}",
+                                   'remove_url': build_query(
+                                       filters, range='all', date_from='', date_to='', page=None)})
+
+        clear_url = build_query({'view': filters['view'], 'sort': filters['sort']},
+                                range='all')
+
+        user_model = get_user_model()
+        actor_options = []
+        for admin in user_model.objects.filter(is_staff=True).order_by('username'):
+            actor_options.append({
+                'value': admin.username,
+                'label': admin.get_full_name() or admin.username,
+            })
+
+        action_options = [
+            {'value': action, 'label': action_label(action)} for action in AUDIT_ACTIONS
+        ]
+        resource_options = sorted({
+            value for value in ActivitySelectors.object_types()
+            if value
+        })
+        category_options = sorted(set(ActivitySelectors.categories()))
+        severity_options = [
+            {'value': key, 'label': meta['label']}
+            for key, meta in sorted(
+                SEVERITY_META.items(), key=lambda pair: SEVERITY_ORDER[pair[0]])
+        ]
+        result_options = [
+            {'value': 'success', 'label': 'Success'},
+            {'value': 'failure', 'label': 'Failure'},
+        ]
+
+        return render(request, template_name or self.template_name, {
+            'logs': logs,
+            'page_obj': page_obj,
+            'summary': summary,
+            'range_links': range_links,
+            'range_label': range_label,
+            'range_key': filters['range'],
+            'start_date': start_date,
+            'end_date': end_date,
+            'sort_links': sort_links,
+            'active_sort_label': active_sort_label,
+            'sort_key': filters['sort'],
+            'view_mode': filters['view'],
+            'timeline_url': build_query(filters, view='timeline', page=None),
+            'table_url': build_query(filters, view='table', page=None),
+            'export_csv_url': build_query(filters, format='csv', view='', sort=''),
+            'export_json_url': build_query(filters, format='json', view='', sort=''),
+            'active_filters': active_filters,
+            'clear_url': clear_url,
+            'page_base': build_query(filters, page=''),
+            'filters': filters,
+            'action_options': action_options,
+            'resource_options': resource_options,
+            'category_options': category_options,
+            'severity_options': severity_options,
+            'result_options': result_options,
+            'actor_options': actor_options,
+            'last_updated': timezone.localtime().strftime('%H:%M:%S'),
+            'page_title': 'Activity & Logs',
+            'page_subtitle': 'Monitor activity, system events and administrative actions.',
+            'admin_page': 'activity',
+            'title': 'Activity & Logs',
+            'description': 'Monitor activity, system events and administrative actions.',
+            'data_loaded': True,
+        })
+
+
+class ActivitySelectors:
+    """Read-only distinct values used to populate the activity filter menus."""
+
+    @staticmethod
+    def object_types():
+        return AuditLog.objects.exclude(object_type='').values_list(
+            'object_type', flat=True).distinct()
+
+    @staticmethod
+    def categories():
+        return AuditLog.objects.exclude(category='').values_list(
+            'category', flat=True).distinct()
+
+    @staticmethod
+    def actors():
+        return get_user_model().objects.filter(is_staff=True).order_by('username')
+
+
+class ActivityExportView(StaffRequiredMixin, View):
+    """Export the filtered audit trail as CSV or JSON.
+
+    Derived from the same server-side filter pipeline as the overview so the
+    export always matches what the administrator currently sees. Only files
+    this endpoint actually supports (csv/json) are offered in the UI.
+    """
+
+    FORMATS = ('csv', 'json')
+    MAX_ROWS = 10000
+
+    def get(self, request):
+        fmt = (request.GET.get('format') or 'csv').lower()
+        if fmt not in self.FORMATS:
+            return HttpResponseBadRequest('Unsupported export format.')
+
+        filters = normalize_filters(request.GET)
+        queryset = apply_activity_filters(
+            AuditLog.objects.all(), filters)[:self.MAX_ROWS]
+        logs = list(decorate_audit_logs(list(queryset)))
+        start, end, range_label = resolve_date_range(filters)
+
+        stamp = timezone.localtime().strftime('%Y%m%d-%H%M%S')
+        filename = f'modeza-activity-{stamp}'
+
+        if fmt == 'csv':
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+            writer = csv.writer(response)
+            writer.writerow([
+                'time_utc', 'action', 'category', 'severity', 'result',
+                'actor', 'actor_email', 'object_type', 'object_id',
+                'object_repr', 'description', 'request_id', 'ip_address',
+                'path', 'status_code', 'metadata',
+            ])
+            for log in logs:
+                writer.writerow([
+                    log.created_at.isoformat(),
+                    log.action or '',
+                    log.category or '',
+                    log.severity or '',
+                    log.result or '',
+                    log.ui_actor or '',
+                    log.actor_email or '',
+                    log.object_type or '',
+                    log.object_id or '',
+                    log.object_repr or '',
+                    log.description or '',
+                    log.request_id or '',
+                    log.ip_address or '',
+                    log.path or '',
+                    log.status_code or '',
+                    json.dumps(log.metadata or {}, default=str),
+                ])
+            return response
+
+        payload = [{
+            'time_utc': log.created_at.isoformat(),
+            'action': log.action or '',
+            'category': log.category or '',
+            'severity': log.severity or '',
+            'result': log.result or '',
+            'actor': log.ui_actor or '',
+            'actor_email': log.actor_email or '',
+            'object_type': log.object_type or '',
+            'object_id': log.object_id or '',
+            'object_repr': log.object_repr or '',
+            'description': log.description or '',
+            'request_id': log.request_id or '',
+            'ip_address': log.ip_address or '',
+            'path': log.path or '',
+            'status_code': log.status_code,
+            'metadata': log.metadata or {},
+        } for log in logs]
+        response = HttpResponse(
+            json.dumps(payload, indent=2, default=str),
+            content_type='application/json',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}.json"'
+        return response
+
+
+class RequestTracePageView(StaffRequiredMixin, View):
+    """Chronological trace of every audit event for a single request ID."""
+
+    template_name = 'admin_ui/request_trace_page.html'
+
+    def get(self, request, request_id):
+        request_id = (request_id or '').strip()
+        logs = list(AuditLog.objects.select_related('actor').filter(
+            request_id=request_id).order_by('created_at', 'id'))
+        logs = decorate_audit_logs(logs)
+        log_objects = logs
+
+        paths = list(dict.fromkeys(
+            log.path for log in log_objects if log.path))
+
+        count_by_action = {}
+        for log in log_objects:
+            count_by_action[log.ui_action_label] = count_by_action.get(
+                log.ui_action_label, 0) + 1
+
+        first_log = log_objects[0] if log_objects else None
+        last_log = log_objects[-1] if log_objects else None
+        first_time = last_time = None
+        duration_ms = None
+        if first_log and last_log:
+            first_time = timezone.localtime(first_log.created_at)
+            last_time = timezone.localtime(last_log.created_at)
+            duration_ms = int(
+                (last_log.created_at - first_log.created_at).total_seconds() * 1000)
+
+        return render(request, self.template_name, {
+            'request_id': request_id,
+            'logs': log_objects,
+            'paths': paths,
+            'count_by_action': count_by_action,
+            'total_events': len(log_objects),
+            'first_time': first_time,
+            'last_time': last_time,
+            'duration_ms': duration_ms,
+            'page_title': f'Request Trace · {request_id[:24]}',
+            'page_subtitle': 'Chronological audit trail for a single request.',
+            'admin_page': 'activity',
+            'title': 'Request Trace',
+            'description': 'Chronological audit trail for a single request.',
+        })
+
+
+class SecurityCenterPageView(StaffRequiredMixin, View):
+    """Focused view of authentication and security-related audit events."""
+
+    template_name = 'admin_ui/security_page.html'
+    LIMIT = 50
+
+    def get(self, request):
+        filters = normalize_filters(request.GET)
+        base = AuditLog.objects.all()
+        secured = apply_activity_filters(base, filters).filter(
+            Q(category='security') | Q(action__in=SECURITY_ACTIONS))
+
+        failed_logins = secured.filter(action='login_failed')
+        permission_denials = secured.filter(
+            action__in=('permission_denied', 'access_denied'))
+        suspicious = secured.filter(action='security_event')
+        admin_logins = secured.filter(action='login', result='success')
+        password_resets = secured.filter(action='password_reset')
+        unauthorized = secured.filter(
+            severity='critical', result='failure')
+
+        summary = {
+            'failed_logins': failed_logins.count(),
+            'permission_denials': permission_denials.count(),
+            'suspicious': suspicious.count(),
+            'admin_logins': admin_logins.count(),
+            'password_resets': password_resets.count(),
+            'total': secured.count(),
+        }
+
+        recent = decorate_audit_logs(
+            list(secured.order_by('-created_at')[:self.LIMIT]))
+        failed_login_rows = decorate_audit_logs(
+            list(failed_logins.order_by('-created_at')[:self.LIMIT]))
+
+        start, end, range_label = resolve_date_range(filters)
+        range_links = [
+            {'key': key, 'label': label,
+             'url': build_query(filters, range=key, page=None)}
+            for key, label in RANGE_CHOICES if key not in ('custom', 'all')
+        ]
+
+        return render(request, self.template_name, {
+            'summary': summary,
+            'logs': recent,
+            'failed_login_logs': failed_login_rows,
+            'range_links': range_links,
+            'range_label': range_label,
+            'range_key': filters['range'],
+            'filters': filters,
+            'page_title': 'Security Center',
+            'page_subtitle': 'Authentication failures, permission denials and suspicious events.',
+            'admin_page': 'security',
+            'title': 'Security Center',
+            'description': 'Authentication and security events.',
+        })
+
+
+class ErrorCenterPageView(StaffRequiredMixin, View):
+    """Focused view of failed/high-severity application events."""
+
+    template_name = 'admin_ui/error_center_page.html'
+    PAGE_SIZE = 25
+
+    def get(self, request):
+        filters = normalize_filters(request.GET)
+        errors = apply_activity_filters(AuditLog.objects.all(), filters).filter(
+            Q(result='failure') | Q(severity__in=('high', 'critical'))
+            | Q(action__in=('server_error', 'payment_failed',
+                            'checkout_failed', 'login_failed')))
+        total = errors.count()
+
+        paginator = Paginator(errors, self.PAGE_SIZE)
+        page_obj = paginator.get_page(request.GET.get('page', '1'))
+        logs = decorate_audit_logs(list(page_obj.object_list))
+
+        return render(request, self.template_name, {
+            'logs': logs,
+            'page_obj': page_obj,
+            'total_errors': total,
+            'page_base': build_query(filters, page=''),
+            'filters': filters,
+            'range_label': resolve_date_range(filters)[2],
+            'action_options': [
+                {'value': action, 'label': action_label(action)}
+                for action in ('server_error', 'payment_failed',
+                               'checkout_failed', 'login_failed',
+                               'permission_denied', 'access_denied')
+            ],
+            'severity_options': [
+                {'value': key, 'label': meta['label']}
+                for key, meta in SEVERITY_META.items() if key in ('high', 'critical')
+            ],
+            'page_title': 'Error Center',
+            'page_subtitle': 'Failed requests, server errors and high-severity events.',
+            'admin_page': 'errors',
+            'title': 'Error Center',
+            'description': 'Application errors and failures.',
+            'data_loaded': True,
+        })
+
+
+class SystemHealthPageView(StaffRequiredMixin, View):
+    """Honest, read-only system health summary.
+
+    Only checks the backend actually supports are shown. Configuration-only
+    checks are labelled ``Configured``/``Unknown`` rather than presenting
+    invented latency or uptime numbers.
+    """
+
+    template_name = 'admin_ui/system_health_page.html'
+
+    @staticmethod
+    def _check_database():
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+                cursor.fetchone()
+            return {
+                'key': 'database', 'name': 'Database',
+                'status': 'operational', 'tone': 'success',
+                'icon': 'ph-database', 'detail': 'Connected',
+            }
+        except Exception as exc:  # noqa: BLE001 - surfaced generically
+            return {
+                'key': 'database', 'name': 'Database',
+                'status': 'unavailable', 'tone': 'error',
+                'icon': 'ph-database', 'detail': 'Unreachable',
+            }
+
+    @staticmethod
+    def _check_api():
+        return {
+            'key': 'api', 'name': 'API & Admin',
+            'status': 'operational', 'tone': 'success',
+            'icon': 'ph-plugs-connected',
+            'detail': 'This page was served successfully.',
+        }
+
+    @staticmethod
+    def _check_auth():
+        configured = bool(
+            settings.SUPABASE_JWT_SECRET or settings.SUPABASE_JWT_JWKS_URL)
+        return {
+            'key': 'auth', 'name': 'Authentication',
+            'status': 'operational' if configured else 'unknown',
+            'tone': 'success' if configured else 'neutral',
+            'icon': 'ph-key',
+            'detail': ('Supabase JWT verification configured.'
+                       if configured else
+                       'Supabase JWT verification is not configured; only the '
+                       'Django session login is available.'),
+        }
+
+    @staticmethod
+    def _check_storage():
+        backend = settings.STORAGES['default']['BACKEND']
+        if 'Supabase' in backend or supabase_storage_enabled():
+            return {
+                'key': 'storage', 'name': 'Storage',
+                'status': 'operational', 'tone': 'success',
+                'icon': 'ph-cloud',
+                'detail': 'Supabase Storage configured (uploads are verified at write time).',
+            }
+        if 'FileSystem' in backend:
+            location = settings.MEDIA_ROOT
+            writable = False
+            try:
+                writable = os.access(location, os.W_OK)
+            except OSError:
+                writable = False
+            return {
+                'key': 'storage', 'name': 'Storage',
+                'status': 'operational' if writable else 'degraded',
+                'tone': 'success' if writable else 'warning',
+                'icon': 'ph-hard-drives',
+                'detail': (f'Local media storage {location} is writable.'
+                           if writable else
+                           f'Local media storage {location} is not writable.'),
+            }
+        return {
+            'key': 'storage', 'name': 'Storage',
+            'status': 'unknown', 'tone': 'neutral', 'icon': 'ph-hard-drives',
+            'detail': 'Storage backend could not be determined.',
+        }
+
+    @staticmethod
+    def _check_payments():
+        mpesa = os.environ.get('MPESA_CONSUMER_KEY') \
+            and os.environ.get('MPESA_CONSUMER_SECRET')
+        webhook = bool(settings.PAYMENT_WEBHOOK_SECRET)
+        if webhook and mpesa:
+            status, tone = 'operational', 'success'
+            detail = 'Payment provider credentials and webhook secret are configured.'
+        elif webhook:
+            status, tone = 'degraded', 'warning'
+            detail = 'Webhook secret configured; MPesa API credentials are missing.'
+        else:
+            status, tone = 'unknown', 'neutral'
+            detail = 'No payment credentials configured; MPesa will not process transactions.'
+        return {
+            'key': 'payments', 'name': 'Payment Provider',
+            'status': status, 'tone': tone, 'icon': 'ph-currency-circle-dollar',
+            'detail': detail,
+        }
+
+    def get(self, request):
+        checks = [
+            self._check_database(),
+            self._check_api(),
+            self._check_auth(),
+            self._check_storage(),
+            self._check_payments(),
+        ]
+        return render(request, self.template_name, {
+            'checks': checks,
+            'note': ('Status on this page reflects live read-only checks. '
+                     'Configuration presence is labelled Unknown/Configured — '
+                     'no external provider is pinged.'),
+            'page_title': 'System Health',
+            'page_subtitle': 'Live status of the services Modeza relies on.',
+            'admin_page': 'system-health',
+            'title': 'System Health',
+            'description': 'Service health and configuration status.',
+        })
+
+
+class CustomerDetailPageView(StaffRequiredMixin, View):
+    """Customer profile with the linked audit activity for that account."""
+
+    template_name = 'admin_ui/customer_detail_page.html'
+
+    def get(self, request, customer_id):
+        User = get_user_model()
+        customer = User.objects.filter(
+            pk=customer_id, is_staff=False).first()
+        if not customer:
+            messages.error(request, 'Customer not found.')
+            return redirect('admin-customers')
+
+        orders = Order.objects.filter(user=customer).order_by('-created_at')
+        order_count = orders.count()
+        total_spent = Decimal(
+            orders.exclude(status=Order.Status.CANCELLED).aggregate(
+                s=Sum('total_minor'))['s'] or 0) / Decimal(100)
+
+        object_events = AuditLog.objects.select_related('actor').filter(
+            Q(object_type__in=('user', 'customer'), object_id=str(customer.pk))
+            | Q(actor=customer)
+        )
+        order_ids = [str(pk) for pk in orders.values_list('pk', flat=True)]
+        order_events = AuditLog.objects.select_related('actor').filter(
+            object_type='order', object_id__in=order_ids)
+
+        merged = list(object_events) + list(order_events)
+        merged.sort(key=lambda log: log.created_at, reverse=True)
+        activity = decorate_audit_logs(merged[:60])
+
+        recent_orders = []
+        for order in orders[:5]:
+            recent_orders.append({
+                'id': order.pk,
+                'order_number': order.order_number,
+                'total': f'KES {Decimal(order.total_minor) / Decimal(100):.2f}',
+                'status': order.get_status_display(),
+                'payment_status': order.get_payment_status_display(),
+                'created_at': order.created_at,
+            })
+
+        return render(request, self.template_name, {
+            'customer': customer,
+            'customer_name': customer.get_full_name() or customer.username,
+            'order_count': order_count,
+            'total_spent': total_spent,
+            'activity_logs': activity,
+            'logs': activity,
+            'recent_orders': recent_orders,
+            'page_title': customer.get_full_name() or customer.username,
+            'page_subtitle': 'Customer profile and account activity.',
+            'admin_page': 'customers',
+            'title': 'Customer Details',
+            'description': 'Customer profile and account activity.',
         })

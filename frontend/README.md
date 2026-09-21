@@ -1,6 +1,6 @@
-# Atelier Boutique Frontend
+# MODEZA Boutique Frontend
 
-This directory contains the React/Vite customer storefront for the Atelier fashion store.
+This directory contains the React/Vite customer storefront for the MODEZA fashion store.
 
 ## Run locally
 

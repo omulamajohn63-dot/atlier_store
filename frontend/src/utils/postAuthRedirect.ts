@@ -1,4 +1,4 @@
-const KEY = 'atelier_post_auth_destination';
+const KEY = 'modeza_post_auth_destination';
 
 /**
  * Remembers an intended destination (e.g. /checkout) before routing a guest to

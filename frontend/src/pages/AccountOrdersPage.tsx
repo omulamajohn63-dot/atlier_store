@@ -319,7 +319,7 @@ export const AccountOrdersPage: React.FC = () => {
 
         {syncStatus === 'loading' && mergedOrders.length > 0 && (
           <p className="px-1 text-[11px] text-[#A29E96]" role="status">
-            Refreshing orders from the atelier…
+            Refreshing orders from the modeza…
           </p>
         )}
       </div>

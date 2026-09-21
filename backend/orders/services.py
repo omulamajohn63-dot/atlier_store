@@ -4,6 +4,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from admin_ui.models import notify_customer, notify_staff
+from audit.services import AuditLogService
 from cart.models import Cart
 from inventory.services import release_reservation, reserve_variant
 
@@ -14,6 +15,20 @@ EXPRESS_SHIPPING_COST_MINOR = 1500
 VAT_RATE = 0.16
 
 
+def _audit_order(action, order, result='success', metadata=None, status_code=None):
+    AuditLogService.log(
+        action,
+        object_type='order',
+        object_id=order.pk,
+        object_repr=order.order_number,
+        category='orders',
+        result=result,
+        metadata=metadata,
+        status_code=status_code,
+        description=f'{action}: order {order.order_number}',
+    )
+
+
 @transaction.atomic
 def receive_order(order):
     if order.status == Order.Status.RECEIVED:
@@ -22,8 +37,14 @@ def receive_order(order):
         raise ValidationError(
             {'status': 'Only delivered orders can be marked as received.'})
 
+    previous_status = order.status
     order.status = Order.Status.RECEIVED
     order.save(update_fields=['status', 'updated_at'])
+    _audit_order(
+        'status_change', order,
+        metadata={'from': previous_status, 'to': Order.Status.RECEIVED,
+                  'reason': 'received'},
+    )
 
     if order.user is not None:
         notify_customer(
@@ -52,10 +73,19 @@ def mark_received_paid(order):
         'cash_on_delivery',
         'pay_on_delivery',
     }
+    previous_status = order.status
+    previous_payment = order.payment_status
     order.status = Order.Status.RECEIVED
     if is_delivery_payment and order.payment_status != Order.PaymentStatus.PAID:
         order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=['status', 'payment_status', 'updated_at'])
+    _audit_order(
+        'status_change', order,
+        metadata={'from': previous_status, 'to': Order.Status.RECEIVED,
+                  'payment_from': previous_payment,
+                  'payment_to': order.payment_status,
+                  'reason': 'received_and_paid'},
+    )
 
     notify_staff(
         'order',
@@ -110,6 +140,17 @@ def create_order(cart_key, payload, user=None):
         raise ValidationError(
             {'cart': 'Cannot create an order from an empty cart.'})
 
+    AuditLogService.log(
+        'checkout_started',
+        category='orders',
+        result='success',
+        object_type='cart',
+        object_id=cart.cart_key,
+        metadata={'item_count': len(items), 'payment_method': payload.get(
+            'paymentMethod', 'mpesa')},
+        description='Checkout started from cart.',
+    )
+
     order_items = []
     subtotal_minor = 0
     for cart_item in items:
@@ -152,6 +193,12 @@ def create_order(cart_key, payload, user=None):
             line_total_minor=line_total_minor,
         )
     cart.items.all().delete()
+    _audit_order(
+        'create', order,
+        status_code=201,
+        metadata={'total_minor': order.total_minor,
+                  'payment_method': order.payment_method},
+    )
     if user is not None:
         notify_customer(
             user,
@@ -175,10 +222,16 @@ def approve_order(order):
             {'payment_status': 'Only paid orders can be approved.'})
     if order.status == Order.Status.CONFIRMED:
         return order
+    previous_status = order.status
     if order.payment_status != Order.PaymentStatus.PAID and is_delivery_payment:
         order.payment_status = Order.PaymentStatus.PAID
     order.status = Order.Status.CONFIRMED
     order.save(update_fields=['status', 'payment_status', 'updated_at'])
+    _audit_order(
+        'status_change', order,
+        metadata={'from': previous_status, 'to': Order.Status.CONFIRMED,
+                  'reason': 'approved'},
+    )
     if order.user is not None:
         notify_customer(
             order.user,
@@ -197,6 +250,10 @@ def refund_order(order):
         return order
     order.payment_status = Order.PaymentStatus.REFUNDED
     order.save(update_fields=['payment_status', 'updated_at'])
+    _audit_order(
+        'refund', order,
+        metadata={'to_payment_status': Order.PaymentStatus.REFUNDED},
+    )
     notify_staff(
         'payment',
         'Refund processed',
@@ -230,8 +287,14 @@ def cancel_order(order):
     if order.payment_status == Order.PaymentStatus.PAID:
         order.payment_status = Order.PaymentStatus.REFUNDED
 
+    previous_status = order.status
     order.status = Order.Status.CANCELLED
     order.save(update_fields=['status', 'payment_status', 'updated_at'])
+    _audit_order(
+        'status_change', order,
+        metadata={'from': previous_status, 'to': Order.Status.CANCELLED,
+                  'reason': 'cancelled'},
+    )
     notify_staff(
         'order',
         'Order cancelled',

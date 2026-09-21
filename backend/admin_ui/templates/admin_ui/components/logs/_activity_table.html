@@ -1,0 +1,70 @@
+<div class="table-container">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Event</th>
+        <th>Actor</th>
+        <th>Resource</th>
+        <th>Result</th>
+        <th>Severity</th>
+        <th>IP</th>
+        <th>Request</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr data-event="{{ log.ui_event_json|escape }}"
+          data-open-alog-event
+          role="button"
+          tabindex="0"
+          style="cursor: pointer;"
+          aria-label="View event details: {{ log.ui_action_label }}">
+        <td style="white-space: nowrap;">{{ log.created_at|date:"M d, Y H:i" }}</td>
+        <td>
+          <span style="display:inline-flex; align-items:center; gap:6px;">
+            <i class="ph {{ log.ui_action_icon }}"></i>
+            <span class="alog-tl-action">{{ log.ui_action_label }}</span>
+          </span>
+          {% if log.category %}
+          <div style="font-size: 11px; color: var(--text-secondary);">{{ log.ui_category_label }}</div>
+          {% endif %}
+        </td>
+        <td style="max-width: 180px;">
+          <div>{{ log.ui_actor }}</div>
+          {% if log.actor_email %}
+          <div style="font-size: 11px; color: var(--text-secondary);">{{ log.actor_email }}</div>
+          {% endif %}
+        </td>
+        <td style="max-width: 200px;">
+          {% if log.ui_resource_label %}
+            {% if log.ui_resource_url %}
+              <a class="alog-resource-link" href="{{ log.ui_resource_url }}">{{ log.ui_resource_label }}</a>
+            {% else %}
+              {{ log.ui_resource_label }}
+            {% endif %}
+          {% else %}
+            <span style="color: var(--text-secondary);">-</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if log.result %}
+            <span class="status-badge status-{% if log.result == 'success' %}success{% else %}danger{% endif %}">{{ log.result }}</span>
+          {% else %}<span style="color: var(--text-secondary);">-</span>{% endif %}
+        </td>
+        <td>
+          <span class="alog-severity alog-sev-{{ log.ui_severity_key }}"><span class="alog-dot"></span>{{ log.ui_severity_label }}</span>
+        </td>
+        <td><span class="alog-ip">{{ log.ip_address|default:"-" }}</span></td>
+        <td>
+          {% if log.request_id %}
+          <a class="alog-rid-link" href="/admin/dashboard/activity/request/{{ log.request_id }}/"><i class="ph ph-link-simple"></i></a>
+          {% else %}<span style="color: var(--text-secondary);">-</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      {% include "admin_ui/components/logs/_empty_state.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

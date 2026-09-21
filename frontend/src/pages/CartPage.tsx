@@ -255,7 +255,7 @@ export const CartPage: React.FC = () => {
                 <input
                   id="order-note"
                   type="text"
-                  placeholder="Atelier packaging / gift note instructions..."
+                  placeholder="MODEZA packaging / gift note instructions..."
                   value={orderNote}
                   onChange={(e) => setOrderNote(e.target.value)}
                   className="w-full text-xs px-4 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"
@@ -284,7 +284,7 @@ export const CartPage: React.FC = () => {
                     <input
                       id="promo-code"
                       type="text"
-                      placeholder="e.g. ATELIER10, KARIBU500"
+                      placeholder="e.g. MODEZA10, KARIBU500"
                       value={promoCodeInput}
                       onChange={(e) => setPromoCodeInput(e.target.value)}
                       className="w-full pl-9 pr-3 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs uppercase text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"

@@ -210,7 +210,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                 className="space-y-4"
               >
                 <p className="text-sm sm:text-base text-[#63605A] leading-relaxed text-pretty">
-                  ATELIER began with an aversion to planned obsolescence and excessive synthetic blends.
+                  MODEZA began with an aversion to planned obsolescence and excessive synthetic blends.
                   We develop our pieces through quiet iterative refinement: prioritizing weighted silks,
                   virgin wools from audited ethical farms, and buttons carved from natural corozo nuts.
                 </p>
@@ -256,7 +256,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               <div className="aspect-[4/5] max-w-[540px] mx-auto rounded-[2rem] overflow-hidden shadow-2xl bg-[#EFECE6] border border-[#E8E5DF] relative group image-zoom">
                 <img
                   src="https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=1000&auto=format&fit=crop"
-                  alt="Craftsmanship Atelier Tailoring"
+                  alt="Craftsmanship MODEZA Tailoring"
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
@@ -267,7 +267,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                       <Palette className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#181716]">The Atelier Process</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#181716]">The MODEZA Process</p>
                       <p className="text-[9px] text-[#827E77]">Studio 4, Porto</p>
                     </div>
                   </div>
@@ -372,7 +372,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
           >
             <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-[#E7D6BD] font-semibold">
               <Sparkles className="w-4 h-4" />
-              Atelier Edit 2026
+              MODEZA Edit 2026
             </span>
             <h2 className="font-serif text-4xl sm:text-5xl mt-2 leading-tight text-balance">
               A softer uniform for considered days.
@@ -386,7 +386,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                 <ArrowRight className="w-4 h-4" />
               </Button>
               <Button variant="outline" size="lg" onClick={() => navigate('/about')} className="border-white/60 text-white hover:bg-white/10 hover:border-white">
-                The Atelier Story
+                The MODEZA Story
               </Button>
             </div>
           </motion.div>

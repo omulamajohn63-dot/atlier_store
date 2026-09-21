@@ -1,0 +1,95 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Request Trace | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="/admin/dashboard/activity/">Activity &amp; Logs</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Request Trace</li>
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title" style="font-family: var(--font-mono, monospace); font-size: 18px;">{{ request_id }}</h2>
+    <p class="page-subtitle">Chronological audit trail for this request.</p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/dashboard/activity/?request_id={{ request_id|urlencode }}">
+    <i class="ph ph-arrow-left"></i> Filter activity by this request
+  </a>
+</div>
+
+<div class="alog-summary-grid">
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-lightning"></i> Events</div>
+    <div class="alog-summary-value">{{ total_events }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-clock"></i> First event</div>
+    <div class="alog-summary-value" style="font-size: 14px;">{{ first_time|date:"M d, Y H:i:s"|default:"—" }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-clock-countdown"></i> Last event</div>
+    <div class="alog-summary-value" style="font-size: 14px;">{{ last_time|date:"M d, Y H:i:s"|default:"—" }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-hourglass"></i> Duration</div>
+    <div class="alog-summary-value">{{ duration_ms|default:0 }} <span style="font-size: 12px; color: var(--text-secondary);">ms</span></div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-path"></i> Paths</div>
+    <div class="alog-summary-value">{{ paths|length }}</div>
+  </div>
+</div>
+
+{% if logs %}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <span class="card-title">Received path</span>
+  </div>
+  <div class="card-body">
+    {% for path in paths %}
+      <div class="alog-mono" style="margin-bottom: 6px;"><i class="ph ph-link-simple"></i> {{ path }}</div>
+    {% empty %}
+      <div style="color: var(--text-secondary); font-size: 13px;">No path recorded for this request.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <span class="card-title">Actions in this request</span>
+  </div>
+  <div class="card-body" style="display: flex; flex-wrap: wrap; gap: 8px;">
+    {% for label, count in count_by_action.items %}
+      <span class="alog-chip"><b>{{ count }}</b> × {{ label }}</span>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Event chain</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">{{ total_events }} events</span>
+  </div>
+  <div class="alog-trace-chain">
+    {% include "admin_ui/components/logs/_timeline.html" %}
+  </div>
+</div>
+{% else %}
+<div class="card">
+  {% include "admin_ui/components/logs/_empty_state.html" %}
+</div>
+{% endif %}
+
+{% include "admin_ui/components/logs/_event_drawer.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "admin_ui/components/logs/_scripts.html" %}
+{% endblock %}

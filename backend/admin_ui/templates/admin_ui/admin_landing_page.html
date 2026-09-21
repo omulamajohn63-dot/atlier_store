@@ -1,12 +1,12 @@
 {% extends "admin_ui/auth_base.html" %}
 
-{% block title %}ATELIER Admin Portal{% endblock %}
+{% block title %}MODEZA Admin Portal{% endblock %}
 
 {% block content %}
 {% if user.is_authenticated and user.is_staff %}
   <h1 class="auth-title">Hello, {{ user.get_full_name|default:user.username }}</h1>
   <p class="auth-subtitle">
-    Welcome to the ATELIER administration portal. Choose where you want to go.
+    Welcome to the MODEZA administration portal. Choose where you want to go.
   </p>
 
   <div class="auth-actions">
@@ -58,5 +58,5 @@
 {% endblock %}
 
 {% block footer %}
-&copy; ATELIER Pr&ecirc;t-&agrave;-Porter &middot; Staff portal
+&copy; MODEZA Pr&ecirc;t-&agrave;-Porter &middot; Staff portal
 {% endblock %}

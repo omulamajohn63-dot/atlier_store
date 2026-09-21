@@ -4,6 +4,7 @@ import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/apiClient';
+import { audit } from '../lib/logger';
 import { setPostAuthDestination } from '../utils/postAuthRedirect';
 import { getSavedAddresses, SavedAddress } from '../utils/addressBook';
 import { Button } from '../components/ui/Button';
@@ -288,6 +289,15 @@ export const CheckoutPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      void audit(
+        'checkout_started',
+        'Authorizing modeza order.',
+        { payment_method: paymentMethod },
+        {
+          item_count: cart.length,
+          total_minor: Math.round(grandTotal * 100),
+        }
+      );
       const result = await createOrder({
         customer: {
           firstName: formData.firstName,
@@ -337,11 +347,13 @@ export const CheckoutPage: React.FC = () => {
       } else {
         setIsSubmitting(false);
         setCheckoutError(result.error || 'Failed to place order. Please check inventory levels.');
+        void audit('checkout_failed', 'Order placement failed.', {}, { reason: result.error });
       }
     } catch (err: unknown) {
       const errorObj = err as Error;
       setIsSubmitting(false);
       setCheckoutError(errorObj.message || 'An unexpected error occurred during checkout.');
+      void audit('checkout_failed', 'Order placement failed.', {}, { message: errorObj.message });
     }
   };
 
@@ -361,6 +373,7 @@ export const CheckoutPage: React.FC = () => {
       const errorObj = err as Error;
       setCheckoutError(errorObj.message || 'Payment could not be confirmed. Please retry.');
       setIsSubmitting(false);
+      void audit('payment_failed', 'Payment confirmation failed.', {}, { message: errorObj.message });
     }
   };
 
@@ -593,7 +606,7 @@ export const CheckoutPage: React.FC = () => {
             </SectionCard>
 
             {/* 3. Delivery Method */}
-            <SectionCard step={3} title="Atelier Delivery Speed" icon={<Truck className="w-4 h-4 text-[#8A745C]" />}>
+            <SectionCard step={3} title="MODEZA Delivery Speed" icon={<Truck className="w-4 h-4 text-[#8A745C]" />}>
               <div className="space-y-3">
                 {[
                   {
@@ -837,7 +850,7 @@ export const CheckoutPage: React.FC = () => {
                   disabled={isSubmitting || paymentPending}
                   className="w-full uppercase tracking-wider text-xs shadow-md hover:shadow-lg"
                 >
-                  {isSubmitting ? 'Authorizing Atelier Order...' : paymentPending ? 'Payment Pending' : `Authorize & Place Order • ${formatPrice(grandTotal)}`}
+                  {isSubmitting ? 'Authorizing MODEZA Order...' : paymentPending ? 'Payment Pending' : `Authorize & Place Order • ${formatPrice(grandTotal)}`}
                 </Button>
 
                 <p className="text-[11px] text-[#827E77] text-center leading-relaxed">

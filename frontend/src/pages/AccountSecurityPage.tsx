@@ -65,7 +65,7 @@ export const AccountSecurityPage: React.FC = () => {
           <div>
             <h3 className="font-serif text-xl tracking-tight text-[#181716]">Change password</h3>
             <p className="mt-1 text-sm text-[#63605A]">
-              Choose a strong, unique password for your Atelier account.
+              Choose a strong, unique password for your MODEZA account.
             </p>
           </div>
         </div>

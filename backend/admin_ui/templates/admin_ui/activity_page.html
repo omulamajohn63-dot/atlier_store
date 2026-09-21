@@ -1,0 +1,99 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Activity &amp; Logs | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Activity &amp; Logs</li>
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Activity &amp; Logs</h2>
+    <p class="page-subtitle">{{ summary.total|default:0 }} events · {{ range_label|default:"Last 7 days" }}</p>
+  </div>
+  <div class="alog-live-badge">
+    <span class="alog-live-dot"></span> Last updated {{ last_updated }}
+  </div>
+</div>
+
+{% include "admin_ui/components/logs/_summary_cards.html" %}
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header" style="padding: 16px 24px; flex-wrap: wrap; gap: 12px;">
+    <span class="card-title" style="display:inline-flex; align-items:center; gap:8px;"><i class="ph ph-funnel"></i> Filters</span>
+    {% if range_links %}
+    <nav class="alog-range-nav" style="margin-bottom: 0;" aria-label="Date range">
+      {% for link in range_links %}
+        <a class="alog-range-link {% if range_key == link.key %}active{% endif %}" href="{{ link.url }}">{{ link.label }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+  </div>
+  <div class="card-body" style="padding: 16px 24px 20px;">
+    {% include "admin_ui/components/logs/_filter_panel.html" %}
+  </div>
+</div>
+
+<div class="alog-toolbar" style="margin-bottom: 12px;">
+  <div class="alog-chip-row">
+    <span style="font-size: 12px; color: var(--text-secondary);">
+      Sorting by <b>{{ active_sort_label }}</b>
+    </span>
+    {% if start_date %}
+      <span class="alog-chip"><i class="ph ph-calendar-blank"></i> {{ start_date|date:"M d, Y" }} – {{ end_date|date:"M d, Y" }}</span>
+    {% endif %}
+  </div>
+  <div class="alog-toolbar">
+    {% if sort_links %}
+    <div class="alog-view-toggle" role="group" aria-label="Sort order">
+      {% for link in sort_links %}
+        <a href="{{ link.url }}" class="{% if sort_key == link.key %}active{% endif %}">{{ link.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="alog-view-toggle" role="group" aria-label="View mode">
+      <a href="{{ timeline_url }}" class="{% if view_mode == 'timeline' %}active{% endif %}"><i class="ph ph-list"></i> Timeline</a>
+      <a href="{{ table_url }}" class="{% if view_mode == 'table' %}active{% endif %}"><i class="ph ph-table"></i> Table</a>
+    </div>
+    <div class="alog-export-menu">
+      <button type="button" class="btn btn-secondary alog-export-trigger">
+        <i class="ph ph-download-simple"></i> Export
+      </button>
+      <div class="alog-export-dropdown" role="menu" aria-label="Export options">
+        <a role="menuitem" href="{{ export_csv_url }}"><i class="ph ph-file-csv"></i> Download CSV</a>
+        <a role="menuitem" href="{{ export_json_url }}"><i class="ph ph-file-js"></i> Download JSON</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Events</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">{{ summary.total|default:0 }} total</span>
+  </div>
+
+  {% if logs %}
+    {% if view_mode == 'table' %}
+      {% include "admin_ui/components/logs/_activity_table.html" %}
+    {% else %}
+      {% include "admin_ui/components/logs/_timeline.html" %}
+    {% endif %}
+    {% include "admin_ui/components/logs/_pagination.html" %}
+  {% else %}
+    {% include "admin_ui/components/logs/_empty_state.html" %}
+  {% endif %}
+</div>
+
+{% include "admin_ui/components/logs/_event_drawer.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "admin_ui/components/logs/_scripts.html" %}
+{% endblock %}

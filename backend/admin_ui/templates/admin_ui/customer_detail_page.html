@@ -1,0 +1,81 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}{{ customer_name }} | Customer | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="/admin/dashboard/customers/">Customers</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ customer_name }}</li>
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ customer_name }}</h2>
+    <p class="page-subtitle">{{ customer.email|default:"No email on file" }} · Joined {{ customer.date_joined|date:"M d, Y" }}</p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/dashboard/customers/"><i class="ph ph-arrow-left"></i> All customers</a>
+</div>
+
+<div class="alog-summary-grid">
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-shopping-bag"></i> Orders</div>
+    <div class="alog-summary-value">{{ order_count|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-currency-circle-dollar"></i> Total spent</div>
+    <div class="alog-summary-value">KES <span class="alog-summary-value">{{ total_spent|floatformat:2 }}</span></div>
+  </div>
+</div>
+
+{% if recent_orders %}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <span class="card-title">Recent orders</span>
+  </div>
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Order</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th>Payment</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in recent_orders %}
+        <tr>
+          <td><a class="alog-resource-link" href="/admin/dashboard/orders/{{ order.id }}/">#{{ order.order_number }}</a></td>
+          <td>{{ order.total }}</td>
+          <td><span class="status-badge status-{{ order.status|lower }}">{{ order.status }}</span></td>
+          <td><span class="status-badge status-{{ order.payment_status|lower }}">{{ order.payment_status }}</span></td>
+          <td style="white-space: nowrap;">{{ order.created_at|date:"M d, Y H:i" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Account activity</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">Recent {{ activity_logs|length }} events</span>
+  </div>
+  {% include "admin_ui/components/logs/_timeline.html" %}
+</div>
+
+{% include "admin_ui/components/logs/_event_drawer.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "admin_ui/components/logs/_scripts.html" %}
+{% endblock %}

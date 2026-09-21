@@ -6,6 +6,7 @@ from django.test import TestCase
 from unittest.mock import patch
 from PIL import Image
 
+from audit.models import AuditLog
 from catalog.models import Category, Product, ProductVariant
 from orders.models import Order
 from admin_ui.models import AdminNotification, CustomerNotification
@@ -404,12 +405,12 @@ class AdminDashboardTests(TestCase):
         self.client.force_login(self.staff)
         product_one = Product.objects.create(
             category=self.category,
-            name='Atelier Silk Wrap Dress',
-            slug='atelier-silk-wrap-dress',
+            name='MODEZA Silk Wrap Dress',
+            slug='modeza-silk-wrap-dress',
             description='A refined evening silhouette.',
             price_minor=480000,
             status=Product.Status.ACTIVE,
-            images=['/media/products/atelier-silk-dress.jpg'],
+            images=['/media/products/modeza-silk-dress.jpg'],
         )
         product_two = Product.objects.create(
             category=self.category,
@@ -1464,3 +1465,250 @@ class AdminAuthTests(TestCase):
 
         self.assertContains(response, '/admin/dashboard/logout/')
         self.assertNotContains(response, 'href="/admin/logout/"')
+
+
+class ActivityCenterTests(TestCase):
+    """Tests for the Activity & Logs center, security/error/health pages and
+    the audit activity sections wired into the detail pages."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.superuser = User.objects.create_superuser(
+            username='root-admin', password='root-pass-123', email='root@example.com')
+        staff = User.objects.create_user(
+            username='plain-staff', password='staff-pass-123', email='staff@example.com')
+        staff.is_staff = True
+        staff.save()
+        self.staff = staff
+        self.customer = User.objects.create_user(
+            username='regular-user', password='user-pass-123', email='user@example.com')
+
+    def log(self, action, **kwargs):
+        kwargs.setdefault('actor', self.staff)
+        kwargs.setdefault('actor_role', 'staff')
+        kwargs.setdefault('actor_email', self.staff.email)
+        kwargs.setdefault('object_repr', 'Test log entry')
+        kwargs.setdefault('result', AuditLog.Result.SUCCESS)
+        kwargs.setdefault('severity', AuditLog.Severity.INFO)
+        return AuditLog.objects.create(action=action, **kwargs)
+
+    # -- access control ----------------------------------------------------
+
+    def test_activity_page_redirects_anonymous_to_admin_login(self):
+        response = self.client.get('/admin/dashboard/activity/')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/dashboard/login/', response.url)
+
+    def test_activity_page_denies_authenticated_non_staff_with_403(self):
+        self.client.force_login(self.customer)
+
+        response = self.client.get('/admin/dashboard/activity/')
+
+        self.assertContains(response, 'Access Denied', status_code=403)
+
+    def test_security_and_health_pages_deny_non_staff_with_403(self):
+        self.client.force_login(self.customer)
+
+        response = self.client.get('/admin/dashboard/security/')
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get('/admin/dashboard/system-health/')
+        self.assertEqual(response.status_code, 403)
+
+    # -- overview ----------------------------------------------------------
+
+    def test_activity_page_renders_for_staff(self):
+        self.log('login', object_repr='Welcome back, staff')
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Activity &amp; Logs')
+        self.assertContains(response, 'Total events')
+        self.assertContains(response, 'Welcome back, staff')
+
+    def test_legacy_audit_logs_alias_renders_activity_overview(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/audit-logs/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Activity &amp; Logs')
+
+    def test_activity_page_applies_action_filter(self):
+        self.log('login', object_repr='Login entry')
+        self.log('security_event', object_repr='Suspicious probe',
+                 severity=AuditLog.Severity.HIGH)
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            '/admin/dashboard/activity/?action=login')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Login entry')
+        self.assertNotContains(response, 'Suspicious probe')
+
+    def test_activity_page_table_view_mode(self):
+        self.log('login')
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/?view=table')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'table-container')
+
+    def test_activity_page_empty_state(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No activity')
+
+    # -- export ------------------------------------------------------------
+
+    def test_activity_export_csv_matches_filtered_logs(self):
+        self.log('login', object_repr='CSV exportable login')
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/export/?format=csv')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'], 'text/csv')
+        self.assertContains(response, 'time_utc,action,category,severity')
+        self.assertContains(response, 'CSV exportable login')
+
+    def test_activity_export_json_matches_filtered_logs(self):
+        self.log('login', object_repr='JSON exportable login')
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/export/?format=json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'], 'application/json')
+        self.assertContains(response, '"action": "login"')
+        self.assertContains(response, 'JSON exportable login')
+
+    def test_activity_export_rejects_unknown_format(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/export/?format=xml')
+
+        self.assertEqual(response.status_code, 400)
+
+    # -- request trace, security, errors, health ---------------------------
+
+    def test_request_trace_page_renders_request_timeline(self):
+        self.log('checkout_started', request_id='req_trace123456', path='/api/cart/checkout')
+        self.log('payment_success', request_id='req_trace123456', path='/api/payments/mpesa')
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            '/admin/dashboard/activity/request/req_trace123456/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Request Trace')
+        self.assertContains(response, 'req_trace123456')
+        self.assertContains(response, '2 events')
+
+    def test_request_trace_unknown_request_id_renders_empty_state(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            '/admin/dashboard/activity/request/req_no_such_request/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Request Trace')
+        self.assertContains(response, 'No activity')
+
+    def test_security_center_renders_security_events(self):
+        self.log('login_failed', object_repr='Brute force attempt',
+                 result=AuditLog.Result.FAILURE, severity=AuditLog.Severity.HIGH)
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/security/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Security Center')
+        self.assertContains(response, 'Brute force attempt')
+
+    def test_error_center_renders_failed_events(self):
+        self.log('server_error', object_repr='Database outage',
+                 result=AuditLog.Result.FAILURE, severity=AuditLog.Severity.CRITICAL)
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/activity/errors/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Error Center')
+        self.assertContains(response, 'Database outage')
+
+    def test_system_health_renders_honest_checks(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/system-health/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'System Health')
+        self.assertContains(response, 'Database')
+
+    # -- customer / product / order detail activity -----------------------
+
+    def test_customer_detail_renders_account_activity(self):
+        self.log('login', object_repr='Customer login', actor=self.customer,
+                 object_type='user', object_id=str(self.customer.pk))
+        self.client.force_login(self.staff)
+
+        response = self.client.get(f'/admin/dashboard/customers/{self.customer.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'regular-user')
+        self.assertContains(response, 'Customer login')
+
+    def test_customer_detail_redirects_when_customer_missing(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/customers/99999/')
+
+        self.assertRedirects(response, '/admin/dashboard/customers/')
+
+    def test_product_detail_page_renders_product_activity(self):
+        product = Product.objects.create(
+            category=Category.objects.create(name='Dresses', slug='dresses'),
+            name='Linen Top', slug='linen-top',
+            description='A breathable linen top.', price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.log('update', object_repr=f'Product {product.name}',
+                 object_type='product', object_id=str(product.id))
+        self.client.force_login(self.staff)
+
+        response = self.client.get(f'/admin/dashboard/products/{product.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Product activity')
+        self.assertContains(response, 'Product Linen Top')
+
+    def test_order_detail_page_renders_order_activity(self):
+        from cart.models import Cart
+
+        cart = Cart.objects.create(cart_key='activity-order-cart')
+        order = Order.objects.create(
+            order_number='AT-ACT-001', cart=cart,
+            customer={'fullName': 'Activity Buyer', 'email': 'buyer@example.com'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.PROCESSING,
+        )
+        self.log('status_change', object_repr=f'Order {order.order_number}',
+                 object_type='order', object_id=str(order.pk))
+        self.client.force_login(self.staff)
+
+        response = self.client.get(f'/admin/dashboard/orders/{order.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Order activity')
+        self.assertContains(response, 'Order AT-ACT-001')

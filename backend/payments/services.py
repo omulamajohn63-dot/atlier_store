@@ -6,6 +6,7 @@ from django.db import transaction
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from admin_ui.models import notify_customer, notify_staff
+from audit.services import AuditLogService
 from inventory.models import StockReservation
 from orders.models import Order
 
@@ -44,6 +45,16 @@ def create_intent(order_number, method, phone_number, cart_key):
     )
     order.payment_intent_id = intent.id
     order.save(update_fields=['payment_intent_id', 'updated_at'])
+    AuditLogService.log(
+        'payment_initiated',
+        object_type='payment_intent',
+        object_id=intent.id,
+        object_repr=order.order_number,
+        category='payments',
+        metadata={'method': method, 'order_number': order.order_number},
+        status_code=201,
+        description=f'Payment initiated for order {order.order_number}.',
+    )
     return intent
 
 
@@ -57,6 +68,16 @@ def _mark_intent_succeeded(intent, gateway_reference):
         status=StockReservation.Status.COMMITTED)
     order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=['payment_status', 'updated_at'])
+    AuditLogService.log(
+        'payment_success',
+        object_type='order',
+        object_id=order.pk,
+        object_repr=order.order_number,
+        category='payments',
+        result='success',
+        metadata={'gateway_reference': intent.gateway_reference},
+        description=f'Payment succeeded for order {order.order_number}.',
+    )
     notify_staff(
         'payment',
         'Payment received',

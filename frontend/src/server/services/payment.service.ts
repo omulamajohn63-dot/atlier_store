@@ -37,7 +37,7 @@ export class PaymentService {
         amount: order.totalMinor / 100,
         phoneNumber: input.phoneNumber || order.customer.phone,
         accountReference: order.orderNumber,
-        transactionDescription: `Atelier order ${order.orderNumber}`,
+        transactionDescription: `MODEZA order ${order.orderNumber}`,
       });
       clientSecret = stk.checkoutRequestId;
       providerReference = stk.merchantRequestId;

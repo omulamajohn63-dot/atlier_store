@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabaseClient';
 
-const WISHLIST_STORAGE_KEY = 'atelier_wishlist_v1';
+const WISHLIST_STORAGE_KEY = 'modeza_wishlist_v1';
 
 interface WishlistContextValue {
   wishlistIds: string[];

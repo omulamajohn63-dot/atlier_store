@@ -1,5 +1,5 @@
 -- ============================================================================
--- ATELIER boutique — Supabase setup SQL
+-- MODEZA boutique — Supabase setup SQL
 -- ============================================================================
 -- Run this file ONCE in a NEW Supabase project:
 --   Dashboard -> SQL Editor -> New query -> paste -> Run

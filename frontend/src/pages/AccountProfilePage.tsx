@@ -34,7 +34,7 @@ export const AccountProfilePage: React.FC = () => {
       <AccountPageHeader
         eyebrow="Account"
         title="Personal Information"
-        description="The details the atelier uses for orders and correspondence."
+        description="The details the modeza uses for orders and correspondence."
       />
 
       <form onSubmit={handleSave} className="rounded-2xl border border-[#E8E5DF] bg-white p-6 shadow-xs sm:p-8">
@@ -72,7 +72,7 @@ export const AccountProfilePage: React.FC = () => {
 
         <div className="mt-7 flex flex-col items-start gap-3 border-t border-[#F3F1ED] pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-relaxed text-[#63605A]">
-            Saved instantly to your Atelier member profile.
+            Saved instantly to your MODEZA member profile.
           </p>
           <Button type="submit" isLoading={isSaving} disabled={!isConfigured} className="gap-2 uppercase tracking-wider text-xs">
             <Save className="h-3.5 w-3.5" aria-hidden="true" />

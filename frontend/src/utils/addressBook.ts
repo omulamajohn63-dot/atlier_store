@@ -14,7 +14,7 @@ export interface SavedAddress {
   isDefault: boolean;
 }
 
-const STORAGE_PREFIX = 'atelier_addresses_v1';
+const STORAGE_PREFIX = 'modeza_addresses_v1';
 
 export const EMPTY_ADDRESS: Omit<SavedAddress, 'id' | 'isDefault'> = {
   label: '',

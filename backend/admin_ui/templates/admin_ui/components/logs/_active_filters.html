@@ -1,0 +1,13 @@
+{% if active_filters or summary.total %}
+<div class="alog-chip-row" style="margin-top: 14px;">
+  {% for chip in active_filters %}
+    <span class="alog-chip">
+      {{ chip.label }}
+      <a href="{{ chip.remove_url }}" aria-label="Remove filter: {{ chip.label }}"><i class="ph ph-x"></i></a>
+    </span>
+  {% endfor %}
+  {% if active_filters and summary.total %}
+    <span class="alog-chip" title="Events shown already match these filters">{{ summary.total }} matching</span>
+  {% endif %}
+</div>
+{% endif %}

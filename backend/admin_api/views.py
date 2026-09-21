@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsStaffOrAdmin
+from audit.services import AuditLogService
 from catalog.models import Category, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
 from inventory.services import adjust_stock, expire_reservations
@@ -20,23 +21,55 @@ class AdminProductCreateView(AdminAPIView):
     def post(self, request):
         serializer = ProductWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(ProductSerializer(create_product(serializer.validated_data)).data, status=201)
+        product = create_product(serializer.validated_data)
+        AuditLogService.log(
+            'create',
+            object_type='product',
+            object_id=product.pk,
+            object_repr=product.name,
+            category='catalog',
+            status_code=201,
+            description=f'Product created: {product.name}.',
+        )
+        return Response(ProductSerializer(product).data, status=201)
 
 
 class AdminProductUpdateView(AdminAPIView):
     def patch(self, request, product_id):
         product = get_object_or_404(Product, pk=product_id)
+        before = product_to_input(product)
         serializer = ProductWriteSerializer(
-            product_to_input(product), data=request.data, partial=True)
+            before, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        return Response(ProductSerializer(update_product(product, serializer.validated_data)).data)
+        updated = update_product(product, serializer.validated_data)
+        AuditLogService.log(
+            'update',
+            object_type='product',
+            object_id=updated.pk,
+            object_repr=updated.name,
+            category='catalog',
+            metadata={'changed': _field_diff(before, product_to_input(updated))},
+            description=f'Product updated: {updated.name}.',
+        )
+        return Response(ProductSerializer(updated).data)
 
 
 class AdminProductArchiveView(AdminAPIView):
     def post(self, request, product_id):
         product = get_object_or_404(Product, pk=product_id)
+        previous = product.status
         product.status = Product.Status.ARCHIVED
         product.save(update_fields=['status', 'updated_at'])
+        AuditLogService.log(
+            'update',
+            object_type='product',
+            object_id=product.pk,
+            object_repr=product.name,
+            category='catalog',
+            metadata={'status_changed': {'from': previous,
+                                         'to': product.status}},
+            description=f'Product archived: {product.name}.',
+        )
         return Response(ProductSerializer(product).data)
 
 
@@ -49,6 +82,15 @@ class AdminCategoryCreateView(AdminAPIView):
             name=data['name'], slug=data['slug'], description=data.get(
                 'description', ''),
             is_active=data.get('isActive', True))
+        AuditLogService.log(
+            'create',
+            object_type='category',
+            object_id=category.pk,
+            object_repr=category.name,
+            category='catalog',
+            status_code=201,
+            description=f'Category created: {category.name}.',
+        )
         return Response(CategorySerializer(category).data, status=201)
 
 
@@ -66,6 +108,17 @@ class AdminStockAdjustmentView(AdminAPIView):
 class ExpireReservationsView(AdminAPIView):
     def post(self, request):
         return Response({'expired': expire_reservations()})
+
+
+def _field_diff(before, after):
+    """Return {field: {'from': old, 'to': new}} for changed scalar fields."""
+    changes = {}
+    for key in after:
+        if key in ('images', 'details'):
+            continue
+        if before.get(key) != after.get(key):
+            changes[key] = {'from': before.get(key), 'to': after.get(key)}
+    return changes
 
 
 def product_to_input(product):

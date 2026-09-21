@@ -3,7 +3,7 @@ export interface NewsletterResult {
   count: number;
 }
 
-const STORAGE_KEY = 'atelier_newsletter_v1';
+const STORAGE_KEY = 'modeza_newsletter_v1';
 
 function readSubscribers(): string[] {
   try {

@@ -97,7 +97,7 @@ export const AccountPage: React.FC = () => {
       result.error ||
         (result.needsVerification
           ? 'Check your email to verify your account.'
-          : 'Welcome back to Atelier.')
+          : 'Welcome back to MODEZA.')
     );
     setIsSubmitting(false);
   };
@@ -128,10 +128,10 @@ export const AccountPage: React.FC = () => {
               <UserRound className="h-5 w-5 text-[#8A745C]" />
             </span>
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#827E77]">
-              Atelier Member
+              MODEZA Member
             </p>
             <h1 className="font-serif text-3xl tracking-tight text-[#181716]">
-              {mode === 'signIn' ? 'Welcome back' : 'Join the Atelier'}
+              {mode === 'signIn' ? 'Welcome back' : 'Join the MODEZA'}
             </h1>
             <p className="text-sm text-[#63605A]">
               {mode === 'signIn'
@@ -205,7 +205,7 @@ export const AccountPage: React.FC = () => {
                     label="Email address"
                     type="email"
                     required
-                    placeholder="you@atelier.com"
+                    placeholder="you@modeza.com"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     autoComplete="email"
@@ -235,7 +235,7 @@ export const AccountPage: React.FC = () => {
                   }}
                   className="mt-5 w-full text-xs text-[#63605A] transition-colors hover:text-[#181716]"
                 >
-                  {mode === 'signIn' ? 'New to Atelier? Create an account' : 'Already have an account? Sign in'}
+                  {mode === 'signIn' ? 'New to MODEZA? Create an account' : 'Already have an account? Sign in'}
                 </button>
               </>
             )}
@@ -245,7 +245,7 @@ export const AccountPage: React.FC = () => {
     );
   }
 
-  const firstName = (user.user_metadata?.full_name || '').split(' ')[0] || 'Atelier Client';
+  const firstName = (user.user_metadata?.full_name || '').split(' ')[0] || 'MODEZA Client';
   const userEmail = user.email || user.user_metadata?.email || '';
   const initials = (firstName.charAt(0) + (user.user_metadata?.full_name?.split(' ')[1]?.charAt(0) || '')).toUpperCase() || userEmail.charAt(0).toUpperCase();
 
@@ -285,7 +285,7 @@ export const AccountPage: React.FC = () => {
               </span>
               <div className="min-w-0">
                 <p className="truncate font-serif text-lg leading-tight text-[#181716]">
-                  {user.user_metadata?.full_name || 'Atelier Client'}
+                  {user.user_metadata?.full_name || 'MODEZA Client'}
                 </p>
                 <p className="truncate text-xs text-[#827E77]">{userEmail}</p>
               </div>

@@ -374,7 +374,7 @@ async function run() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer atelier-staff-jwt-token-2026',
+          Authorization: 'Bearer modeza-staff-jwt-token-2026',
         },
         body: JSON.stringify({
           name: 'The Organic Linen Oversized Shirt',
@@ -441,7 +441,7 @@ async function run() {
         body: JSON.stringify({
           customer: {
             fullName: 'Zainab Noor',
-            email: 'zainab.noor@atelier.co.ke',
+            email: 'zainab.noor@modeza.co.ke',
             phone: '+254722998877',
             addressLine1: 'Karen Blixen Lane, Villa 12',
             city: 'Nairobi',
@@ -573,7 +573,7 @@ async function run() {
         body: JSON.stringify({
           customer: {
             fullName: 'Elena Rostova',
-            email: 'elena@atelier.co.ke',
+            email: 'elena@modeza.co.ke',
             phone: '+254711223344',
             addressLine1: 'Gigiri Crescent 42',
             city: 'Nairobi',
@@ -614,7 +614,7 @@ async function run() {
         body: JSON.stringify({
           customer: {
             fullName: 'Elena Rostova',
-            email: 'elena@atelier.co.ke',
+            email: 'elena@modeza.co.ke',
             phone: '+254711223344',
             addressLine1: 'Gigiri Crescent 42',
             city: 'Nairobi',
@@ -696,7 +696,7 @@ async function run() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-webhook-signature': 'atelier_webhook_secret_2026',
+          'x-webhook-signature': 'modeza_webhook_secret_2026',
         },
         body: JSON.stringify({
           event: 'mpesa.stk_callback.success',

@@ -19,6 +19,14 @@ services:
     envVars:
       - key: DJANGO_DEBUG
         value: "False"
+      - key: LOG_FORMAT
+        value: "json"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: AUDIT_LOG_RETENTION_DAYS
+        value: "365"
+      - key: USE_X_FORWARDED_FOR
+        value: "True"
       # Only the deployed backend host is allowed.
       - key: DJANGO_ALLOWED_HOSTS
         value: "atlier-boutique.onrender.com"

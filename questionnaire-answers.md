@@ -1,10 +1,10 @@
-# Atelier Boutique Project Questionnaire Answers
+# MODEZA Boutique Project Questionnaire Answers
 
 > These answers are based on the current repository. Items marked **Not confirmed** or **Not implemented** need a business decision or further implementation.
 
 ## 1. Project & Business
 
-1. **Project name:** Atelier Boutique / Boutique Fashion Store
+1. **Project name:** MODEZA Boutique / Boutique Fashion Store
 2. **Business:** Fashion ecommerce
 3. **Type:** Ecommerce
 4. **Target market:** Kenya appears to be the primary market

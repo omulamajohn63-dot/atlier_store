@@ -24,6 +24,7 @@ import { RecentlyViewedPage } from './pages/RecentlyViewedPage';
 import { LegalPage } from './pages/LegalPage';
 import { WishlistProvider } from './context/WishlistContext';
 import { NotificationsProvider } from './context/NotificationsContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Product } from './types';
 import { Layers } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -112,7 +113,9 @@ export default function App() {
             <WishlistProvider>
               <CartProvider>
                 <NotificationsProvider>
-                  <AppContent />
+                  <ErrorBoundary>
+                    <AppContent />
+                  </ErrorBoundary>
                 </NotificationsProvider>
               </CartProvider>
             </WishlistProvider>

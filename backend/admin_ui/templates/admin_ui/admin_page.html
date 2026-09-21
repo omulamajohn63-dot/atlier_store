@@ -1,9 +1,9 @@
 {% extends "admin_ui/base_admin.html" %}
 
-{% block title %}{{ page_data.title }} | ATELIER Admin{% endblock %}
+{% block title %}{{ page_data.title }} | MODEZA Admin{% endblock %}
 
 {% block breadcrumbs %}
-<li>ATELIER</li>
+<li>MODEZA</li>
 <li><i class="ph ph-caret-right"></i></li>
 <li class="active">{{ page_data.title }}</li>
 {% endblock %}
@@ -163,6 +163,8 @@
                     <option value="/admin/dashboard/categories/{{ row.id }}/delete/" style="font-size: 20px; padding: 10px 12px;">Delete</option>
                   {% elif page_data.page == 'orders' %}
                     <option value="/admin/dashboard/orders/{{ row.id }}/" style="font-size: 20px; padding: 10px 12px;">View</option>
+                  {% elif page_data.page == 'customers' %}
+                    <option value="/admin/dashboard/customers/{{ row.id }}/" style="font-size: 20px; padding: 10px 12px;">View</option>
                   {% else %}
                     <option value="#" style="font-size: 20px; padding: 10px 12px;">View</option>
                   {% endif %}
@@ -191,6 +193,8 @@
               </td>
             {% elif key == 'name' and page_data.page == 'products' %}
               <td><a href="/admin/dashboard/products/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
+            {% elif key == 'customer' and page_data.page == 'customers' %}
+              <td><a href="/admin/dashboard/customers/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'status' or key == 'payment_status' or key == 'role' %}
               <td><span class="status-badge status-{{ val|lower|cut:' ' }}">{{ val }}</span></td>
             {% else %}

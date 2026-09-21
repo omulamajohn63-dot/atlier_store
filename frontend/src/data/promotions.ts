@@ -5,7 +5,7 @@ import { DiscountCode } from '../types';
  */
 export const PROMOTIONAL_CODES: DiscountCode[] = [
   {
-    code: 'ATELIER10',
+    code: 'MODEZA10',
     description: '10% Privileged Member Courtesy across all pieces',
     type: 'percentage',
     value: 10,

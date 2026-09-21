@@ -1,4 +1,4 @@
-# ATELIER Boutique — Commerce Storefront
+# MODEZA Boutique — Commerce Storefront
 
 Full-stack fashion boutique: **Django** REST API + admin (deployed to **Render**)
 backed by **Postgres**, and a **React/Vite** storefront (deployed to **Vercel** as a
@@ -45,6 +45,9 @@ npm run test:api              # bundled API integration tests
      `PAYMENT_WEBHOOK_SECRET`, `MPESA_CALLBACK_SECRET`, MPesa Daraja creds, `MPESA_CALLBACK_URL`.
    - `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=<app.onrender.com>`,
      `DJANGO_SECURE_SSL_REDIRECT=True`, `FRONTEND_ORIGIN=<vercel-url>`.
+   - Observability: `LOG_FORMAT=json`, `LOG_LEVEL=INFO`,
+     `AUDIT_LOG_RETENTION_DAYS=365`, `USE_X_FORWARDED_FOR=True`, and an optional
+     `THROTTLE_AUDIT_RATE` for the client audit-event endpoint.
    - Add a managed **Postgres** database and paste its connection string into `DATABASE_URL`.
 4. Migrations now run automatically on every container start (`python manage.py migrate
    --noinput` in the Dockerfile), so the schema is applied as soon as the first deploy
@@ -105,6 +108,18 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
       `https://<backend>/admin/dashboard/login/` accepts it.
 - [ ] `https://<frontend>/#/` serves the SPA and deep links (e.g. `/product/…`) refresh correctly.
 - [ ] Guest adds to cart → signs in → checkout prefill shows account data.
+- [ ] `https://<backend>/admin/dashboard/audit-logs/` lists orders, payments,
+      logins and security events; `POST https://<backend>/api/audit/events`
+      returns 202 for storefront events.
 - [ ] M-Pesa callbacks can reach `https://<backend>/api/payments/mpesa/callback`
       (sandbox first via `MPESA_ENV=sandbox`).
 - [ ] CORS: frontend origin is in `FRONTEND_ORIGIN`; cookie-flags work over HTTPS.
+
+## Observability (logging & audit)
+
+Every request carries a `X-Request-ID` (echoed in responses) that is attached to
+structured log lines and audit records. `AuditLogService` centralizes audit writes
+with sanitization, an admin **Activity Logs** page at `/admin/dashboard/audit-logs/`,
+and `python manage.py cleanup_audit_logs --days N` for retention. The browser reports
+storefront events (signup/login/checkout/…) to the throttled, authenticated
+`POST /api/audit/events` endpoint. See `backend/docs/LOGGING.md` for the full details.

@@ -1,0 +1,89 @@
+<form method="get" action="/admin/dashboard/activity/" class="alog-filter-form">
+  <div class="alog-filter-group">
+    <label for="alog-q">Search</label>
+    <input type="search" id="alog-q" name="q" value="{{ filters.q }}" placeholder="request id, object, description..." size="24">
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-action">Action</label>
+    <select id="alog-action" name="action">
+      <option value="">All actions</option>
+      {% for option in action_options %}
+        <option value="{{ option.value }}" {% if filters.action == option.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-category">Category</label>
+    <select id="alog-category" name="category">
+      <option value="">All categories</option>
+      {% for option in category_options %}
+        <option value="{{ option }}" {% if filters.category == option %}selected{% endif %}>{{ option|title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-resource">Resource</label>
+    <select id="alog-resource" name="resource">
+      <option value="">All resources</option>
+      {% for option in resource_options %}
+        <option value="{{ option }}" {% if filters.resource == option %}selected{% endif %}>{{ option|title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-severity">Severity</label>
+    <select id="alog-severity" name="severity">
+      <option value="">All severities</option>
+      {% for option in severity_options %}
+        <option value="{{ option.value }}" {% if filters.severity == option.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-result">Result</label>
+    <select id="alog-result" name="result">
+      <option value="">All results</option>
+      {% for option in result_options %}
+        <option value="{{ option.value }}" {% if filters.result == option.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-actor">Admin</label>
+    <select id="alog-actor" name="actor">
+      <option value="">All admins</option>
+      {% for option in actor_options %}
+        <option value="{{ option.value }}" {% if filters.actor == option.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-ip">IP address</label>
+    <input type="text" id="alog-ip" name="ip" value="{{ filters.ip }}" placeholder="e.g. 192.168.1.1" size="14">
+  </div>
+  {% if is_request_filter %}
+  <div class="alog-filter-group">
+    <label for="alog-request-id">Request ID</label>
+    <input type="text" id="alog-request-id" name="request_id" value="{{ filters.request_id }}" placeholder="req_..." size="18">
+  </div>
+  {% endif %}
+  <div class="alog-filter-group">
+    <label for="alog-date-from">From</label>
+    <input type="date" id="alog-date-from" name="date_from" value="{{ filters.date_from }}">
+  </div>
+  <div class="alog-filter-group">
+    <label for="alog-date-to">To</label>
+    <input type="date" id="alog-date-to" name="date_to" value="{{ filters.date_to }}">
+  </div>
+  <div class="alog-filter-group">
+    <button type="submit" class="btn btn-primary"><i class="ph ph-funnel"></i> Apply</button>
+  </div>
+  {% if active_filters %}
+  <div class="alog-filter-group">
+    <a href="{{ clear_url }}" class="btn btn-secondary" aria-label="Clear all filters"><i class="ph ph-x"></i> Clear</a>
+  </div>
+  {% endif %}
+  <input type="hidden" name="range" value="{{ range_key }}">
+</form>
+
+{% include "admin_ui/components/logs/_active_filters.html" %}

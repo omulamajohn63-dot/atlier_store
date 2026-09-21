@@ -101,13 +101,13 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
           {
             status: 'confirmed',
             title: 'Order Confirmed & Authorized',
-            description: 'Order registered in authoritative atelier database.',
+            description: 'Order registered in authoritative modeza database.',
             timestamp: serverOrder.createdAt,
             completed: true,
           },
           {
             status: 'processing',
-            title: 'Atelier Preparation',
+            title: 'MODEZA Preparation',
             description: 'Garments passed artisan inspection.',
             timestamp: serverOrder.updatedAt,
             completed: serverOrder.status !== 'pending',
@@ -124,7 +124,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
   };
 
   const handleCancel = async (orderNum: string) => {
-    if (!window.confirm(`Are you sure you wish to cancel order ${orderNum}? Reserved atelier stock will be returned.`)) {
+    if (!window.confirm(`Are you sure you wish to cancel order ${orderNum}? Reserved modeza stock will be returned.`)) {
       return;
     }
     setActionSuccessMsg('');
@@ -166,7 +166,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#F5EFEB] text-[#8A745C]">
             <PackageCheck className="w-3.5 h-3.5" />
-            <span>Atelier Preparation</span>
+            <span>MODEZA Preparation</span>
           </span>
         );
       case 'shipped':
@@ -215,7 +215,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
           Client Services &bull; Order Tracking
         </span>
         <h1 className="font-serif text-3xl sm:text-4xl text-[#181716] font-normal tracking-tight">
-          Track Your Atelier Order
+          Track Your MODEZA Order
         </h1>
         <p className="text-sm text-[#63605A] leading-relaxed">
           Monitor your garment's journey from artisan cutting in Porto to carbon-neutral courier handover.
@@ -316,7 +316,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
           {/* Timeline Milestones */}
           <div className="space-y-4">
             <h3 className="text-xs font-semibold text-[#181716] uppercase tracking-wider">
-              Atelier Progress Timeline
+              MODEZA Progress Timeline
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 relative">
               {activeOrder.timeline.map((step, idx) => (

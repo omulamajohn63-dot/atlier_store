@@ -1,0 +1,108 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Security Center | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Security</li>
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Security Center</h2>
+    <p class="page-subtitle">Authentication failures, permission denials and suspicious events.</p>
+  </div>
+</div>
+
+<div class="alog-summary-grid">
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-prohibit-inset"></i> Failed logins</div>
+    <div class="alog-summary-value">{{ summary.failed_logins|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-shield-slash"></i> Denied access</div>
+    <div class="alog-summary-value">{{ summary.permission_denials|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-shield-warning"></i> Suspicious</div>
+    <div class="alog-summary-value">{{ summary.suspicious|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-sign-in"></i> Admin logins</div>
+    <div class="alog-summary-value">{{ summary.admin_logins|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-key"></i> Password resets</div>
+    <div class="alog-summary-value">{{ summary.password_resets|default:0 }}</div>
+  </div>
+  <div class="card alog-summary-card">
+    <div class="alog-summary-label"><i class="ph ph-shield-check"></i> Security events</div>
+    <div class="alog-summary-value">{{ summary.total|default:0 }}</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header" style="padding: 16px 24px; flex-wrap: wrap; gap: 12px;">
+    <span class="card-title" style="display:inline-flex; align-items:center; gap:8px;"><i class="ph ph-calendar-blank"></i> Date range</span>
+  </div>
+  <div class="card-body" style="padding: 12px 24px 16px;">
+    <nav class="alog-range-nav" style="margin-bottom: 0;" aria-label="Date range">
+      {% for link in range_links %}
+        <a class="alog-range-link {% if range_key == link.key %}active{% endif %}" href="{{ link.url }}">{{ link.label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</div>
+
+{% if failed_login_logs %}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <span class="card-title">Failed logins</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">{{ summary.failed_logins|default:0 }} total</span>
+  </div>
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Actor</th>
+          <th>Description</th>
+          <th>IP</th>
+          <th>Path</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in failed_login_logs %}
+        <tr>
+          <td style="white-space: nowrap;">{{ log.created_at|date:"M d, Y H:i" }}</td>
+          <td>{{ log.ui_actor }}</td>
+          <td>{{ log.description|default:"—" }}</td>
+          <td><span class="alog-ip">{{ log.ip_address|default:"—" }}</span></td>
+          <td><span class="alog-mono">{{ log.path|default:"—" }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Recent security events</span>
+    <span style="font-size: 12px; color: var(--text-secondary);">{{ summary.total|default:0 }} total</span>
+  </div>
+  {% include "admin_ui/components/logs/_timeline.html" %}
+</div>
+
+{% include "admin_ui/components/logs/_event_drawer.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% include "admin_ui/components/logs/_scripts.html" %}
+{% endblock %}
