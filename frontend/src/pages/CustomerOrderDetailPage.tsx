@@ -298,12 +298,12 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                 </h2>
                 <div className="mt-4 divide-y divide-[#F3F1ED] overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white">
                   {order.items.map((item) => (
-                    <div key={item.id} className="flex items-center gap-4 p-4 sm:gap-5 sm:p-5">
+                    <div key={item.id} className="flex flex-wrap items-center gap-4 p-4 sm:gap-5 sm:p-5">
                       <OrderItemThumb
                         item={item}
                         className="h-20 w-16 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-24 sm:w-20"
                       />
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-[7.5rem] flex-1">
                         <h3 className="font-serif text-sm text-[#181716] sm:text-base">{item.productName}</h3>
                         <p className="mt-1 text-xs text-[#63605A]">{item.variantDetails || '—'}</p>
                         <p className="mt-1 text-xs text-[#827E77]">

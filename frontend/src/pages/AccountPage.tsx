@@ -256,7 +256,7 @@ export const AccountPage: React.FC = () => {
         <aside className="self-start lg:sticky lg:top-24 lg:col-span-1">
           {/* Mobile nav */}
           <div className="lg:hidden">
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Account sections">
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar" role="tablist" aria-label="Account sections">
               {FLAT_NAV.map(({ label, href }) => {
                 const active = route.path === href;
                 return (

@@ -74,7 +74,7 @@ export const AccountProfilePage: React.FC = () => {
           <p className="text-xs leading-relaxed text-[#63605A]">
             Saved instantly to your MODEZA member profile.
           </p>
-          <Button type="submit" isLoading={isSaving} disabled={!isConfigured} className="gap-2 uppercase tracking-wider text-xs">
+          <Button type="submit" isLoading={isSaving} disabled={!isConfigured} className="w-full justify-center gap-2 uppercase tracking-wider text-xs sm:w-auto">
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
             Save Profile
           </Button>

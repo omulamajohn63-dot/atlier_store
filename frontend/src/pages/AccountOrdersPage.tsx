@@ -99,7 +99,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
       </div>
 
       {/* Product thumbnails */}
-      <div className="flex items-center gap-2.5 px-5 pt-5 sm:gap-3 sm:px-6">
+      <div className="flex items-center gap-2.5 overflow-x-auto px-5 pt-5 no-scrollbar sm:gap-3 sm:px-6">
         {visibleItems.map((item) => (
           <button
             key={item.id}

@@ -118,7 +118,7 @@ export const AccountSecurityPage: React.FC = () => {
             type="submit"
             isLoading={isSaving}
             disabled={!isConfigured || !user}
-            className="gap-2 uppercase tracking-wider text-xs"
+            className="w-full justify-center gap-2 uppercase tracking-wider text-xs sm:w-auto"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
             Update Password
