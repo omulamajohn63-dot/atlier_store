@@ -74,7 +74,7 @@ export const CartPage: React.FC = () => {
   const progressPercent = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 pb-28 lg:pb-0 2xl:max-w-[88rem]">
       {/* Header */}
       <div className="border-b border-[#E8E5DF] pb-6">
         <nav className="text-xs text-[#827E77] flex items-center gap-2 mb-3" aria-label="Breadcrumb">
@@ -117,8 +117,9 @@ export const CartPage: React.FC = () => {
           </Button>
         </motion.div>
       ) : (
-        /* Populated Cart Layout (Grid: Items Table + Summary Sidebar) */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        <>
+          {/* Populated Cart Layout (Grid: Items Table + Summary Sidebar) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           {/* Cart Items List (Col 8) */}
           <div className="lg:col-span-8 space-y-4">
             {/* Free shipping banner with progress bar */}
@@ -372,6 +373,25 @@ export const CartPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Mobile sticky checkout bar (lg:hidden) */}
+        <div className="lg:hidden fixed inset-x-0 bottom-0 z-[300] border-t border-[#E8E5DF] bg-white/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur shadow-[0_-4px_20px_rgb(24_23_22/0.06)]">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 shrink-0">
+              <p className="text-[10px] uppercase tracking-wider text-[#827E77]">Estimated Total</p>
+              <p className="font-serif text-lg text-[#181716] leading-tight">{formatPrice(estimatedTotal)}</p>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => goToCheckout()}
+              className="flex-1 uppercase tracking-wider text-xs gap-1.5"
+            >
+              <span>Proceed to Checkout</span>
+              <ArrowRight className="w-4 h-4 shrink-0" />
+            </Button>
+          </div>
+        </div>
+        </>
       )}
     </div>
   );

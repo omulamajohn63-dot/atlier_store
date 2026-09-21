@@ -36,8 +36,8 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   const isAtMax = quantity >= max;
 
   const sizeClasses = {
-    sm: { container: 'h-8', btn: 'w-8', icon: 'w-3.5 h-3.5', text: 'text-xs', gap: 'px-2' },
-    md: { container: 'h-10', btn: 'w-10', icon: 'w-4 h-4', text: 'text-sm', gap: 'px-3' },
+    sm: { container: 'h-9', btn: 'w-9', icon: 'w-3.5 h-3.5', text: 'text-xs', gap: 'px-2' },
+    md: { container: 'h-11', btn: 'w-11', icon: 'w-4 h-4', text: 'text-sm', gap: 'px-3' },
     lg: { container: 'h-12', btn: 'w-12', icon: 'w-5 h-5', text: 'text-base', gap: 'px-4' },
   };
 

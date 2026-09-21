@@ -6,7 +6,7 @@ import { ShopOccasion } from '../router/RouterContext';
 import { useRouter } from '../router/RouterContext';
 import { Search, SlidersHorizontal, ArrowUpDown, X, Package, Filter } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { audit } from '../lib/logger';
 
 export interface ShopPageProps {
@@ -141,7 +141,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 2xl:max-w-[88rem]">
       {/* 1. SHOP HEADER & BREADCRUMB */}
       <div className="border-b border-[#E8E5DF] pb-8 relative">
         {/* Decorative gradient */}
@@ -289,52 +289,83 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         </div>
       </div>
 
-      {/* Mobile filter panel */}
-      {showFilters && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="lg:hidden bg-[#FFFFFF] border border-[#E8E5DF] rounded-2xl p-4 space-y-4 shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#181716]">Filters</span>
-            <button
-              type="button"
+      {/* Mobile filter bottom sheet (drawer) - lg:hidden */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowFilters(false)}
+            className="fixed inset-0 z-[500] bg-[#181716]/40 backdrop-blur-[2px] lg:hidden"
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFilters && (
+          <motion.aside
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            className="fixed inset-x-0 bottom-0 z-[600] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-[#E8E5DF] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
+            aria-label="Filters"
+          >
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#E8E5DF]" />
+
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#181716]">
+                Filters
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowFilters(false)}
+                className="text-[#827E77] hover:text-[#181716] p-1.5 rounded-full hover:bg-[#F3F1ED] transition-colors"
+                aria-label="Close filters"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <label className="flex items-center gap-2.5 text-xs text-[#63605A] cursor-pointer select-none bg-[#FAF9F6] px-3.5 py-3 rounded-xl border border-[#E8E5DF]">
+              <input
+                type="checkbox"
+                checked={onlyInStock}
+                onChange={(e) => setOnlyInStock(e.target.checked)}
+                className="rounded text-[#181716] focus:ring-[#8A745C] cursor-pointer"
+              />
+              <span>In Stock Only</span>
+            </label>
+
+            <div className="mt-3 flex items-center gap-1.5 bg-[#FAF9F6] px-3.5 py-3 rounded-xl border border-[#E8E5DF] text-xs text-[#63605A]">
+              <ArrowUpDown className="w-3.5 h-3.5 text-[#827E77]" />
+              <span className="text-[#827E77]">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="bg-transparent text-[#181716] font-medium focus:outline-none cursor-pointer pr-1 flex-1"
+                aria-label="Sort products"
+              >
+                <option value="featured">Featured First</option>
+                <option value="newest">New Arrivals</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+              </select>
+            </div>
+
+            <Button
+              variant="primary"
+              size="lg"
+              className="mt-4 w-full"
               onClick={() => setShowFilters(false)}
-              className="text-[#827E77] hover:text-[#181716] p-1 rounded-full hover:bg-[#F3F1ED] transition-colors"
             >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <label className="flex items-center gap-2.5 text-xs text-[#63605A] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={onlyInStock}
-              onChange={(e) => setOnlyInStock(e.target.checked)}
-              className="rounded text-[#181716] focus:ring-[#8A745C] cursor-pointer"
-            />
-            <span>In Stock Only</span>
-          </label>
-
-          <div className="flex items-center gap-1.5 bg-[#FAF9F6] px-3.5 py-2.5 rounded-xl border border-[#E8E5DF] text-xs text-[#63605A]">
-            <ArrowUpDown className="w-3.5 h-3.5 text-[#827E77]" />
-            <span className="text-[#827E77]">Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="bg-transparent text-[#181716] font-medium focus:outline-none cursor-pointer pr-1 flex-1"
-              aria-label="Sort products"
-            >
-              <option value="featured">Featured First</option>
-              <option value="newest">New Arrivals</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-            </select>
-          </div>
-        </motion.div>
-      )}
+              Apply Filters
+            </Button>
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
       {/* 3. PRODUCT GRID OR EMPTY STATE */}
       {displayedProducts.length === 0 ? (
@@ -361,7 +392,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           </Button>
         </motion.div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
           {displayedProducts.map((product, index) => (
             <motion.div
               key={product.id}

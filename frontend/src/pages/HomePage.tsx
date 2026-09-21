@@ -79,7 +79,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#181716] font-normal tracking-tight leading-[1.12] text-balance"
+                className="font-serif text-4xl sm:text-5xl lg:text-6xl 2xl:text-7xl text-[#181716] font-normal tracking-tight leading-[1.12] text-balance"
               >
                 Architectural ease, sculpted from organic fibers.
               </motion.h1>
@@ -374,7 +374,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               <Sparkles className="w-4 h-4" />
               MODEZA Edit 2026
             </span>
-            <h2 className="font-serif text-4xl sm:text-5xl mt-2 leading-tight text-balance">
+            <h2 className="font-serif text-4xl sm:text-5xl 2xl:text-6xl mt-2 leading-tight text-balance">
               A softer uniform for considered days.
             </h2>
             <p className="text-sm sm:text-base text-[#F1ECE4] leading-relaxed max-w-xl text-pretty">

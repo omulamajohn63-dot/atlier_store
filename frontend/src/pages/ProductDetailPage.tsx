@@ -125,7 +125,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const uniqueColors = Array.from(new Set(product.variants.map((v) => v.color)));
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16 pb-28 lg:pb-0 2xl:max-w-[88rem]">
       {/* 1. BREADCRUMBS */}
       <nav className="text-xs text-[#827E77] flex items-center gap-2 flex-wrap" aria-label="Breadcrumb">
         <button onClick={() => navigate('/')} className="hover:text-[#181716] transition-colors">
@@ -550,6 +550,37 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
           </div>
         </motion.div>
       </div>
+
+      {/* Mobile sticky purchase bar (lg:hidden) */}
+      <motion.div
+        initial={{ y: 80 }}
+        animate={{ y: 0 }}
+        transition={{ delay: 0.3, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="fixed inset-x-0 bottom-0 z-[300] border-t border-[#E8E5DF] bg-white/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur shadow-[0_-4px_20px_rgb(24_23_22/0.06)] lg:hidden"
+      >
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wider text-[#827E77]">Total</p>
+            <Price amount={selectedVariant.price * quantity} size="md" />
+          </div>
+          <QuantitySelector
+            quantity={quantity}
+            max={selectedVariant.stockQuantity}
+            onChange={setQuantity}
+            disabled={isSoldOut}
+            size="sm"
+          />
+          <Button
+            variant="primary"
+            size="md"
+            disabled={isSoldOut}
+            onClick={handleAddToCart}
+            className="shrink-0 text-xs uppercase tracking-wider"
+          >
+            {isSoldOut ? 'Sold Out' : addedToast ? 'Added' : 'Add to Cart'}
+          </Button>
+        </div>
+      </motion.div>
 
       {/* 3. RELATED PRODUCTS ("You May Also Appreciate") */}
       {relatedProducts.length > 0 && (

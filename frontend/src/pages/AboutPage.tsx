@@ -11,7 +11,7 @@ export const AboutPage: React.FC = () => {
       <section className="border-b border-[#E8E5DF] bg-[#181716] text-[#FAF9F6]">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C6A77A]">The MODEZA story</p>
-          <h1 className="mt-5 max-w-3xl font-serif text-4xl font-normal leading-tight sm:text-6xl">
+          <h1 className="mt-5 max-w-3xl font-serif text-4xl font-normal leading-tight sm:text-6xl 2xl:text-7xl">
             Considered clothing for a life well lived.
           </h1>
           <p className="mt-6 max-w-2xl text-sm leading-7 text-[#D8D0C5] sm:text-base">

@@ -15,7 +15,7 @@ export const WishlistPage: React.FC = () => {
     .filter((product): product is NonNullable<typeof product> => Boolean(product));
 
   return (
-    <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+    <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 sm:py-14 lg:px-8 2xl:max-w-[88rem]">
       <header className="flex flex-col gap-5 border-b border-[#E8E5DF] pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8A745C]">Saved pieces</p>

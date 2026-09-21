@@ -48,7 +48,7 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 z-[500] flex items-start justify-center p-4 sm:p-6 overflow-y-auto">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -69,7 +69,7 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className={`relative w-full ${maxWidthStyles[maxWidth]} bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#E8E5DF] z-10 my-auto animate-slide-up`}
+            className={`relative w-full ${maxWidthStyles[maxWidth]} bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#E8E5DF] z-10 my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto animate-slide-up`}
           >
             {(title || showCloseButton) && (
               <div className="flex items-center justify-between pb-4 mb-4 border-b border-[#F3F1ED]">

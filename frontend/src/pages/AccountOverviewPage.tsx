@@ -35,7 +35,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, href, hint }) =
       onClick={() => navigate(href)}
       className="group rounded-2xl border border-[#E8E5DF] bg-white p-5 text-left shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-[#D8D3CB] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">{label}</span>
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
           <span className="text-[#8A745C]">{icon}</span>
@@ -76,7 +76,7 @@ export const AccountOverviewPage: React.FC = () => {
         description="A glance at your MODEZA — orders, wishlist and the latest from your boutique."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 md:grid-cols-3">
         <StatCard
           label="Active Orders"
           value={activeOrders}
@@ -152,10 +152,10 @@ export const AccountOverviewPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate(`/account/orders/${encodeURIComponent(order.orderNumber)}`)}
-                    className="group flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8A745C] sm:gap-5"
+                    className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8A745C] sm:gap-5 sm:px-6"
                   >
                     {thumb && (
-                      <OrderItemThumb item={thumb} className="h-16 w-14 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-20 sm:w-[4.5rem]" />
+                      <OrderItemThumb item={thumb} className="h-14 w-12 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-20 sm:w-[4.5rem]" />
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-mono text-sm font-semibold text-[#181716]">
@@ -166,7 +166,7 @@ export const AccountOverviewPage: React.FC = () => {
                       </div>
                     </div>
                     <OrderStatusPill status={order.status} className="hidden sm:inline-flex" />
-                    <span className="shrink-0 font-serif text-base text-[#181716]">
+                    <span className="shrink-0 font-serif text-sm text-[#181716] sm:text-base">
                       {formatPrice(order.total)}
                     </span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-[#A29E96] transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
@@ -211,7 +211,7 @@ export const AccountOverviewPage: React.FC = () => {
                     if (!notification.isRead) void markAsRead(notification.id);
                     if (notification.link) navigate(notification.link);
                   }}
-                  className={`flex w-full items-start gap-3 px-6 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8A745C] ${
+                  className={`flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8A745C] sm:px-6 ${
                     notification.isRead ? 'bg-white' : 'bg-[#FFFDF8]'
                   }`}
                 >

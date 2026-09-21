@@ -14,7 +14,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss, onMark
     <div
       aria-live="polite"
       aria-atomic="true"
-      className="fixed bottom-6 right-6 z-[800] flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+      className="pointer-events-none fixed inset-x-4 bottom-6 z-[800] flex max-w-sm flex-col gap-2 sm:inset-x-auto sm:right-6 sm:w-full"
     >
       <AnimatePresence>
         {toasts.map((toast) => {
@@ -110,7 +110,7 @@ export const SimpleToast: React.FC<SimpleToastProps> = ({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={`fixed bottom-6 right-6 z-[800] pointer-events-auto rounded-xl shadow-xl p-4 flex items-center gap-3 text-sm text-[#181716] border ${bgColors[type]}`}
+      className={`pointer-events-auto fixed inset-x-4 bottom-6 z-[800] flex w-auto max-w-sm items-center gap-3 rounded-xl border p-4 text-sm text-[#181716] shadow-xl sm:inset-x-auto sm:right-6 sm:w-auto ${bgColors[type]}`}
       onClick={onClose}
       role="alert"
     >

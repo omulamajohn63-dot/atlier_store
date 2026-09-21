@@ -132,6 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
             productCategories={productCategories}
             currentCategory={currentCategory}
             cartCount={cartCount}
+            wishlistCount={wishlistCount}
           />
         )}
       </AnimatePresence>
@@ -331,7 +332,7 @@ const DropdownLink: React.FC<DropdownLinkProps> = ({ label, onClick, icon }) => 
 );
 
 const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
-  <div className="absolute left-1/2 w-[170px] -translate-x-1/2 text-center lg:left-0 lg:w-[170px] lg:translate-x-0">
+  <div className="absolute left-1/2 w-[124px] -translate-x-1/2 text-center sm:w-[170px] lg:left-0 lg:w-[170px] lg:translate-x-0">
     <button
       type="button"
       onClick={() => onNavigate('/')}
@@ -341,7 +342,7 @@ const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNaviga
       <img
         src={modezaLogoUrl}
         alt="MODEZA Haute Prêt-à-Porter"
-        className="mx-auto h-10 w-auto object-contain transition-opacity group-hover:opacity-75 sm:h-12"
+        className="mx-auto h-9 max-w-full w-auto object-contain transition-opacity group-hover:opacity-75 sm:h-12"
       />
     </button>
   </div>
@@ -375,11 +376,11 @@ const RightActions: React.FC<{
         <Search className="w-5 h-5 stroke-[1.5]" />
       </IconButton>
 
-      <div className="relative">
+      <div className="relative hidden lg:block">
         <button
           type="button"
           onClick={() => setIsNotificationsOpen((current) => !current)}
-          className="relative p-2 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED]"
+          className="relative p-2.5 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED]"
           aria-label={`Notifications, ${unreadCount} unread`}
           title="Notifications"
         >
@@ -469,6 +470,7 @@ const RightActions: React.FC<{
       </div>
 
       <IconButton
+        className="hidden sm:block"
         onClick={() => onNavigate('/account')}
         ariaLabel="Customer account"
         title="Customer account"
@@ -477,6 +479,7 @@ const RightActions: React.FC<{
       </IconButton>
 
       <IconButton
+        className="hidden sm:block"
         onClick={() => onNavigate('/wishlist')}
         ariaLabel={`Wishlist with ${wishlistCount} saved items`}
         title="Wishlist"
@@ -494,7 +497,7 @@ const RightActions: React.FC<{
       <button
         type="button"
         onClick={onOpenCart}
-        className="relative flex items-center gap-2 p-2 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED]"
+        className="relative flex items-center gap-2 p-2.5 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED]"
         aria-label={`View shopping cart with ${cartCount} items`}
         title="Open Cart"
       >
@@ -516,12 +519,13 @@ const IconButton: React.FC<{
   onClick?: () => void;
   ariaLabel: string;
   title: string;
+  className?: string;
   children: React.ReactNode;
-}> = ({ onClick, ariaLabel, title, children }) => (
+}> = ({ onClick, ariaLabel, title, className = '', children }) => (
   <button
     type="button"
     onClick={onClick}
-    className="p-2 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] focus-visible:ring-offset-2"
+    className={`p-2.5 text-[#181716] transition-colors rounded-full hover:bg-[#F3F1ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] focus-visible:ring-offset-2 hover:text-[#8A745C] ${className}`}
     aria-label={ariaLabel}
     title={title}
   >
@@ -537,7 +541,8 @@ const MobileMenu: React.FC<{
   productCategories: NavigationItem[];
   currentCategory?: string;
   cartCount: number;
-}> = ({ isOpen, onClose, onNavigate, categories, productCategories, currentCategory, cartCount }) => {
+  wishlistCount: number;
+}> = ({ isOpen, onClose, onNavigate, categories, productCategories, currentCategory, cartCount, wishlistCount }) => {
   if (!isOpen) return null;
 
   return (
@@ -622,6 +627,8 @@ const MobileMenu: React.FC<{
           </MobileSection>
 
           <div className="mt-8 space-y-2 border-t border-[#E8E5DF] pt-6">
+            <MobileLink label="My Account" onClick={() => onNavigate('/account')} />
+            <MobileLink label={`Wishlist (${wishlistCount})`} onClick={() => onNavigate('/wishlist')} />
             <MobileLink label="Track Order" onClick={() => onNavigate('/track')} />
             <MobileLink label={`Cart (${cartCount})`} onClick={() => onNavigate('/cart')} />
           </div>

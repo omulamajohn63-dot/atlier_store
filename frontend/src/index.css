@@ -88,6 +88,27 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Remove iOS tap highlight flash on interactive elements */
+button,
+[role="button"],
+a,
+input,
+select,
+textarea,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide scrollbar on horizontally scrolling strips (mobile pill navigators, filter chips) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .font-serif {
   font-family: "Playfair Display", Georgia, serif;
 }
