@@ -9,6 +9,8 @@ import { useNotifications } from '../context/NotificationsContext';
 import { Badge } from './ui/Badge';
 import { motion, AnimatePresence } from 'motion/react';
 
+const BRAND_LOGO_URL = `${(import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')}/static/images/favicon.png`;
+
 export interface NavbarProps {
   onOpenSearch?: () => void;
 }
@@ -335,6 +337,7 @@ const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNaviga
       className="group block text-center"
       aria-label="ATELIER Home"
     >
+      <img src={BRAND_LOGO_URL} alt="" className="mx-auto mb-1 h-8 w-8 object-contain sm:h-9 sm:w-9" />
       <span className="block font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] group-hover:text-[#8A745C] transition-colors">
         ATELIER
       </span>

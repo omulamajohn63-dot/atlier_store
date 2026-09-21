@@ -4,6 +4,8 @@ import { Button } from './ui/Button';
 import { addNewsletterSubscriber } from '../utils/newsletter';
 import { Sparkles, Truck, RotateCcw, ShieldCheck, Mail, MapPin, Phone, ArrowRight, Instagram, Twitter, Facebook, Youtube, CheckCircle2 } from 'lucide-react';
 
+const BRAND_LOGO_URL = `${(import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')}/static/images/favicon.png`;
+
 export const Footer: React.FC = () => {
   const { navigate } = useRouter();
   const adminUrl = import.meta.env.VITE_ADMIN_URL || 'http://127.0.0.1:8000/admin/dashboard/';
@@ -75,6 +77,7 @@ export const Footer: React.FC = () => {
                 onClick={() => navigate('/')}
                 className="text-left font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] block hover:text-[#8A745C] transition-colors"
               >
+                <img src={BRAND_LOGO_URL} alt="" className="mb-2 h-10 w-10 object-contain" />
                 ATELIER
               </button>
               <p className="text-sm text-[#63605A] leading-relaxed max-w-md">
