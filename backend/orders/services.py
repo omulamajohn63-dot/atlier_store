@@ -3,7 +3,8 @@ import uuid
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from admin_ui.models import notify_customer, notify_staff
+from admin_ui.models import notify_customer
+from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 from cart.models import Cart
 from inventory.services import release_reservation, reserve_variant
@@ -16,7 +17,7 @@ VAT_RATE = 0.16
 
 
 def _audit_order(action, order, result='success', metadata=None, status_code=None):
-    AuditLogService.log(
+    return AuditLogService.log(
         action,
         object_type='order',
         object_id=order.pk,
@@ -41,7 +42,7 @@ def receive_order(order):
     order.status = Order.Status.RECEIVED
     order.save(update_fields=['status', 'updated_at'])
     _audit_order(
-        'status_change', order,
+        'order_received', order,
         metadata={'from': previous_status, 'to': Order.Status.RECEIVED,
                   'reason': 'received'},
     )
@@ -79,20 +80,18 @@ def mark_received_paid(order):
     if is_delivery_payment and order.payment_status != Order.PaymentStatus.PAID:
         order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=['status', 'payment_status', 'updated_at'])
-    _audit_order(
-        'status_change', order,
+    audit_log = _audit_order(
+        'order_received', order,
         metadata={'from': previous_status, 'to': Order.Status.RECEIVED,
                   'payment_from': previous_payment,
                   'payment_to': order.payment_status,
                   'reason': 'received_and_paid'},
     )
-
-    notify_staff(
-        'order',
-        'Order received',
-        f'Order {order.order_number} has been marked as received.',
-        link=f'/admin/dashboard/orders/{order.pk}/',
+    AdminNotificationService.notify_for_audit(
+        audit_log,
         event_key=f'order-received:{order.pk}',
+        message=f'Order {order.order_number} has been marked as received.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
     )
 
     if order.user is not None:
@@ -193,11 +192,18 @@ def create_order(cart_key, payload, user=None):
             line_total_minor=line_total_minor,
         )
     cart.items.all().delete()
-    _audit_order(
-        'create', order,
+    audit_log = _audit_order(
+        'order_created', order,
         status_code=201,
         metadata={'total_minor': order.total_minor,
                   'payment_method': order.payment_method},
+    )
+    AdminNotificationService.notify_for_audit(
+        audit_log,
+        event_key=f'order-created:{order.pk}',
+        message=f'New order {order.order_number} was placed '
+                f'({order.customer.get("fullName") or "a customer"}).',
+        link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if user is not None:
         notify_customer(
@@ -227,10 +233,16 @@ def approve_order(order):
         order.payment_status = Order.PaymentStatus.PAID
     order.status = Order.Status.CONFIRMED
     order.save(update_fields=['status', 'payment_status', 'updated_at'])
-    _audit_order(
-        'status_change', order,
+    audit_log = _audit_order(
+        'order_confirmed', order,
         metadata={'from': previous_status, 'to': Order.Status.CONFIRMED,
                   'reason': 'approved'},
+    )
+    AdminNotificationService.notify_for_audit(
+        audit_log,
+        event_key=f'order-confirmed:{order.pk}',
+        message=f'Order {order.order_number} has been confirmed.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if order.user is not None:
         notify_customer(
@@ -250,16 +262,15 @@ def refund_order(order):
         return order
     order.payment_status = Order.PaymentStatus.REFUNDED
     order.save(update_fields=['payment_status', 'updated_at'])
-    _audit_order(
-        'refund', order,
+    audit_log = _audit_order(
+        'refund_completed', order,
         metadata={'to_payment_status': Order.PaymentStatus.REFUNDED},
     )
-    notify_staff(
-        'payment',
-        'Refund processed',
-        f'Order {order.order_number} was refunded.',
-        link=f'/admin/dashboard/orders/{order.pk}/',
+    AdminNotificationService.notify_for_audit(
+        audit_log,
         event_key=f'order-refunded:{order.pk}',
+        message=f'Order {order.order_number} was refunded.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if order.user is not None:
         notify_customer(
@@ -290,17 +301,16 @@ def cancel_order(order):
     previous_status = order.status
     order.status = Order.Status.CANCELLED
     order.save(update_fields=['status', 'payment_status', 'updated_at'])
-    _audit_order(
-        'status_change', order,
+    audit_log = _audit_order(
+        'order_cancelled', order,
         metadata={'from': previous_status, 'to': Order.Status.CANCELLED,
                   'reason': 'cancelled'},
     )
-    notify_staff(
-        'order',
-        'Order cancelled',
-        f'Order {order.order_number} was cancelled.',
-        link=f'/admin/dashboard/orders/{order.pk}/',
+    AdminNotificationService.notify_for_audit(
+        audit_log,
         event_key=f'order-cancelled:{order.pk}',
+        message=f'Order {order.order_number} was cancelled.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if order.user is not None:
         notify_customer(

@@ -47,13 +47,26 @@ path from the active request; writes are deferred via `transaction.on_commit`
 inside real atomic blocks so records from rolled-back operations never
 survive.
 
-Canonical events (see `audit/constants.py`) include `create`, `update`,
-`delete`, `login`, `login_failed`, `signup`, `logout`, `password_reset`,
-`permission_denied`, `access_denied`, `status_change`, `payment_initiated`,
-`payment_success`, `payment_failed`, `refund`, `checkout_started`,
-`checkout_failed`, `file_upload`, `file_delete`, `server_error`,
-`security_event`. Unknown actions are coerced to `security_event` with a
-warning.
+Canonical events live in `audit/constants.py` and cover the full customer and
+staff journey — account lifecycle (`signup`, `customer_registered`,
+`registration_failed`, `login`, `login_failed`, `logout`, `password_reset`,
+`password_updated`, `profile_updated`), catalog browsing (`product_viewed`,
+`category_viewed`, `search_performed`), cart (`cart_item_added`,
+`cart_item_updated`, `cart_item_removed`, `cart_cleared`, `cart_add_failed`,
+`cart_update_failed`), orders (`checkout_started`, `checkout_failed`,
+`order_created`, `order_creation_failed`, `order_details_viewed`,
+`order_confirmed`, `order_cancelled`, `order_received`), payments
+(`payment_initiated`, `payment_success`, `payment_failed`,
+`payment_initiation_failed`, `payment_timeout`, `payment_reversed`, `refund`,
+`refund_requested`, `refund_completed`), wishlist/review/support
+(`wishlist_item_added/removed/cleared`, `review_submitted`,
+`support_message_submitted`), generic CRUD (`create`, `update`, `delete`,
+`file_upload`, `file_delete`, `status_change`), inventory
+(`inventory_low_stock`) and security/system (`security_event`,
+`permission_denied`, `access_denied`, `rate_limit_exceeded`, `server_error`,
+`unexpected_server_error`). Each action also carries a default category and
+severity (`CATEGORY_BY_ACTION` / `SEVERITY_BY_ACTION`). Unknown actions are
+coerced to `security_event` with a warning.
 
 ### Client-side events
 
@@ -66,12 +79,22 @@ events like signup/login/checkout are reported by the frontend to
 * only accepts the whitelisted event subset in
   `constants.CLIENT_EVENT_WHITELIST`, coercing everything else to
   `security_event`,
-* sanitizes all payload data before persistence, and
+* sanitizes all payload data before persistence,
+* raises an admin notification for the client-only events in
+  `admin_ui.services.CLIENT_NOTIFY_ALLOW` (`signup`, `registration_failed`), and
 * responds `202 {received: true, action, request_id}`.
 
+Backend-authoritative failures (checkout/payment) are deliberately excluded from
+`CLIENT_NOTIFY_ALLOW`: the API already audits `order_creation_failed` /
+`payment_failed` and would otherwise notify twice.
+
 Frontend reporting lives in `frontend/src/lib/logger.ts` (fire-and-forget,
-sensitive keys redacted) and is wired into `AuthContext`, `CheckoutPage`, the
-API client (`x-request-id` capture) and `ErrorBoundary`.
+sensitive keys redacted) and is wired into `AuthContext` (signup/login/logout,
+`registration_failed`, `profile_updated`), `CheckoutPage`
+(`checkout_started`, `checkout_failed`, `payment_failed`), `WishlistContext`
+(wishlist events), `ProductDetailPage` (`product_viewed`), `ShopPage`
+(`search_performed`, `category_viewed`), the API client (`x-request-id`
+capture) and `ErrorBoundary`.
 
 ### Security events
 
@@ -84,8 +107,56 @@ business logic runs in, so they always persist.
 
 `botique_backend/exceptions.py` wraps every API error in a safe envelope —
 `{"error": {code, message, details}, "request_id"}` (plus a generic message for
-unhandled exceptions, never a traceback) — and audits 401/403/order-400 and
-server-error events. Clients use the `request_id` to report correlated issues.
+unhandled exceptions, never a traceback) — and audits the failure with the
+matching canonical action before responding:
+
+| Trigger | Action |
+| ------- | ------ |
+| 401 | `login_failed` |
+| 403 | `permission_denied` |
+| 429 | `rate_limit_exceeded` (skipped for `/api/audit/*` to avoid self-throttle noise) |
+| 400 on `/api/orders` | `order_creation_failed` |
+| 4xx on `payments/create-intent` | `payment_initiation_failed` |
+| 4xx on `payments/confirm` | `payment_failed` |
+| 4xx on `cart/items` | `cart_update_failed` (PATCH) / `cart_add_failed` (POST) |
+| 500 | `unexpected_server_error` |
+
+Every one of these failures also raises an admin notification through
+`AdminNotificationService.notify_for_audit`, linked to its audit row. Clients
+use the `request_id` to report correlated issues.
+
+## Admin notifications
+
+`admin_ui/services.py` owns `AdminNotificationService`, the single writer of
+admin notifications. It follows a log-first, notify-second contract:
+
+* the `AuditLog` row is always written first (the authoritative record),
+* the notification links back to it (`audit_log` FK plus denormalised
+  `event_type`, `severity`, `actor`, `resource_type`, `resource_id` and
+  `request_id`),
+* writes are deferred with `transaction.on_commit` inside atomic blocks so a
+  rolled-back operation never leaves orphan notifications,
+* the method **never raises** — failures are logged on `admin_ui.notify` and
+  swallowed, and
+* duplicates are prevented per `(recipient, event_key)`.
+
+Which actions notify is centralised in `AUTO_NOTIFY` (order/payment/refund/
+cart-failure, account, security and system events). High-frequency browse
+events (`product_viewed`, `search_performed`, `cart_item_added`,
+`wishlist_*`) intentionally stay audit-only. Notifications are delivered in the
+admin UI by the existing 15-second poll on `base_admin.html`, which now
+re-renders the dropdown live from the unread JSON endpoint; no Channels/Redis is
+involved.
+
+DRF endpoints (staff-only) mirror the server-rendered pages:
+
+| Route | Purpose |
+| ----- | ------- |
+| `GET /api/admin/notifications/` | paginated list with `unread_count` |
+| `GET /api/admin/notifications/unread/` | recent unread (bell poll) |
+| `PATCH /api/admin/notifications/<id>/read/` | mark one read (sets `read_at`) |
+| `POST /api/admin/notifications/read-all/` | mark all read (sets `read_at`) |
+
 
 ## Admin Activity & Logs center
 
@@ -103,9 +174,12 @@ authenticated non-staff → 403 Access Denied page), and read directly from the
 | `/admin/dashboard/security/` | Security Center: logins, failed logins, permission denials, password resets and `security_event`s |
 | `/admin/dashboard/system-health/` | System Health: live read-only checks (DB, API, auth config, storage, payments) that honestly report `Unknown`/`Configured` instead of inventing numbers |
 | `/admin/dashboard/customers/<int:customer_id>/` | Customer profile with that account's audit activity and order history |
+| `/admin/dashboard/notifications/` | Notification center: filter by category, severity and read status; severity badges and per-item read state |
 
 Order and product detail pages also render an "activity" card of events for the
-record. `/admin/dashboard/audit-logs/` remains as a legacy alias of the overview.
+record. The dashboard surfaces a "Recent Customer Activity" feed and a
+"Customer Errors (7 days)" summary alongside the existing KPIs.
+`/admin/dashboard/audit-logs/` remains as a legacy alias of the overview.
 
 Event metadata is sanitized server-side before display; the client drawer
 additionally redacts any key matching

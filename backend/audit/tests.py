@@ -38,6 +38,8 @@ from audit.models import AuditLog
 from audit.services import AuditLogService
 from catalog.models import Category, Product, ProductVariant
 
+from admin_ui.models import AdminNotification
+
 TEST_SECRET = 'test-secret-that-is-at-least-32-bytes'
 INBOUND_REQUEST_ID = 'test-inbound-request-id'
 
@@ -286,8 +288,9 @@ class TestApiErrorAudits(TestCase):
     SUPABASE_JWT_ISSUER='',
 )
 class TestOrderCheckoutAudits(TestCase):
-    """Checkout flow audits: successful checkout records checkout_started and
-    an order 'create'; an empty cart produces a 400 + checkout_failed audit."""
+    """Checkout flow audits: successful checkout records checkout_started and an
+    ``order_created`` event (linked to a staff notification); an empty cart
+    produces a 400 + ``order_creation_failed`` audit and admin notification."""
 
     def setUp(self):
         cache.clear()
@@ -300,6 +303,8 @@ class TestOrderCheckoutAudits(TestCase):
             price_minor=10000, status=Product.Status.ACTIVE)
         self.variant = ProductVariant.objects.create(
             product=self.product, sku='AUDIT-ONE', stock_quantity=10)
+        self.staff = get_user_model().objects.create_user(
+            username='audit-staff', password='x', is_staff=True)
 
     def customer_payload(self):
         return {
@@ -329,9 +334,15 @@ class TestOrderCheckoutAudits(TestCase):
         self.assertTrue(AuditLog.objects.filter(
             action='checkout_started', category='orders',
             result='success').exists())
-        self.assertTrue(AuditLog.objects.filter(
-            action='create', object_type='order',
-            category='orders', status_code=201).exists())
+        order_log = AuditLog.objects.filter(
+            action='order_created', object_type='order',
+            category='orders', status_code=201).first()
+        self.assertIsNotNone(order_log)
+        notification = AdminNotification.objects.filter(
+            event_type='order_created', audit_log=order_log,
+            recipient=self.staff).first()
+        self.assertIsNotNone(notification)
+        self.assertEqual(notification.category, AdminNotification.Category.ORDER)
 
     def test_empty_cart_checkout_failure_is_audited(self):
         with self.captureOnCommitCallbacks(execute=True):
@@ -342,11 +353,14 @@ class TestOrderCheckoutAudits(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('request_id', response.json())
         row = AuditLog.objects.filter(
-            action='checkout_failed', result='failure',
+            action='order_creation_failed', result='failure',
             status_code=400,
         ).order_by('-created_at').first()
         self.assertIsNotNone(row)
         self.assertEqual(row.category, 'orders')
+        self.assertTrue(AdminNotification.objects.filter(
+            event_type='order_creation_failed', audit_log=row,
+            recipient=self.staff).exists())
 
 
 @override_settings(

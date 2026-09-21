@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from audit.services import AuditLogService
 from catalog.models import Product, ProductVariant
 
 from .models import Cart, CartItem
@@ -36,13 +37,30 @@ def add_item(cart, variant_id, quantity):
     variant = ProductVariant.objects.select_for_update().get(pk=variant.pk)
     item, created = CartItem.objects.select_for_update().get_or_create(
         cart=cart, variant=variant, defaults={'quantity': quantity})
+    prior_quantity = None
     if not created:
+        prior_quantity = item.quantity
         quantity += item.quantity
         item.quantity = quantity
         item.save(update_fields=['quantity'])
     if quantity > variant.stock_quantity:
         raise ValidationError(
             {'quantity': f'Only {variant.stock_quantity} items are available.'})
+    AuditLogService.log(
+        'cart_item_added',
+        category='orders',
+        object_type='product_variant',
+        object_id=variant.pk,
+        object_repr=variant.sku,
+        metadata={
+            'product': variant.product.name,
+            'variant_sku': variant.sku,
+            'quantity': item.quantity,
+            'created': created,
+            'prior_quantity': prior_quantity,
+        },
+        description=f'Added {variant.sku} to cart ({item.quantity} units).',
+    )
     return cart
 
 
@@ -59,6 +77,21 @@ def update_item(cart, item_id, quantity):
     if quantity > variant.stock_quantity:
         raise ValidationError(
             {'quantity': f'Only {variant.stock_quantity} items are available.'})
+    prior_quantity = item.quantity
     item.quantity = quantity
     item.save(update_fields=['quantity'])
+    AuditLogService.log(
+        'cart_item_updated',
+        category='orders',
+        object_type='product_variant',
+        object_id=variant.pk,
+        object_repr=variant.sku,
+        metadata={
+            'product': variant.product.name,
+            'variant_sku': variant.sku,
+            'from_quantity': prior_quantity,
+            'to_quantity': quantity,
+        },
+        description=f'Updated {variant.sku} quantity to {quantity}.',
+    )
     return cart

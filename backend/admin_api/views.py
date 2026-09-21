@@ -1,8 +1,10 @@
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsStaffOrAdmin
+from admin_ui.models import AdminNotification
 from audit.services import AuditLogService
 from catalog.models import Category, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
@@ -10,6 +12,23 @@ from inventory.services import adjust_stock, expire_reservations
 
 from .serializers import CategoryWriteSerializer, ProductWriteSerializer, StockAdjustmentSerializer
 from .services import create_product, update_product
+
+
+def _notification_data(notification):
+    return {
+        'id': notification.pk,
+        'category': notification.category,
+        'severity': notification.severity,
+        'title': notification.title,
+        'message': notification.message,
+        'link': notification.link,
+        'eventType': notification.event_type,
+        'resourceType': notification.resource_type,
+        'resourceId': notification.resource_id,
+        'requestId': notification.request_id,
+        'createdAt': notification.created_at.isoformat(),
+        'read': notification.is_read,
+    }
 
 
 class AdminAPIView(APIView):
@@ -108,6 +127,51 @@ class AdminStockAdjustmentView(AdminAPIView):
 class ExpireReservationsView(AdminAPIView):
     def post(self, request):
         return Response({'expired': expire_reservations()})
+
+
+class AdminNotificationsView(AdminAPIView):
+    def get(self, request):
+        notifications = AdminNotification.objects.filter(
+            recipient=request.user).order_by('-created_at')[:100]
+        unread_count = AdminNotification.objects.filter(
+            recipient=request.user, is_read=False).count()
+        return Response({
+            'unread_count': unread_count,
+            'results': [_notification_data(item)
+                        for item in notifications],
+        })
+
+
+class AdminUnreadNotificationsView(AdminAPIView):
+    def get(self, request):
+        unread_count = AdminNotification.objects.filter(
+            recipient=request.user, is_read=False).count()
+        notifications = AdminNotification.objects.filter(
+            recipient=request.user, is_read=False).order_by('-created_at')[:8]
+        return Response({
+            'unread_count': unread_count,
+            'results': [_notification_data(item)
+                        for item in notifications],
+        })
+
+
+class AdminNotificationReadView(AdminAPIView):
+    def patch(self, request, notification_id):
+        notification = get_object_or_404(
+            AdminNotification, pk=notification_id, recipient=request.user)
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save(update_fields=['is_read', 'read_at'])
+        return Response({'ok': True})
+
+
+class AdminNotificationsReadAllView(AdminAPIView):
+    def post(self, request):
+        updated = AdminNotification.objects.filter(
+            recipient=request.user, is_read=False).update(
+            is_read=True, read_at=timezone.now())
+        return Response({'ok': True, 'updated': updated})
 
 
 def _field_diff(before, after):

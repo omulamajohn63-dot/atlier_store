@@ -7,6 +7,7 @@ import { useRouter } from '../router/RouterContext';
 import { Search, SlidersHorizontal, ArrowUpDown, X, Package, Filter } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { motion } from 'motion/react';
+import { audit } from '../lib/logger';
 
 export interface ShopPageProps {
   initialCategory?: CategorySlug;
@@ -61,6 +62,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setSortBy('featured');
     setItemsToShow(6);
   }, [initialCategory, initialCollection, initialOccasion, initialQuery, initialSale]);
+
+  useEffect(() => {
+    if (initialQuery) {
+      void audit('search_performed', 'Storefront search performed.', {}, { query: initialQuery });
+    }
+    if (initialCategory && initialCategory !== 'all') {
+      void audit('category_viewed', 'Viewed category.', {}, { category: initialCategory });
+    }
+  }, [initialCategory, initialQuery]);
 
   // Filter in-stock items if checked
   const filteredProducts = useMemo(() => {

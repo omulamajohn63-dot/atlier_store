@@ -5,6 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from unittest.mock import patch
 from PIL import Image
+from rest_framework.test import APIClient
 
 from audit.models import AuditLog
 from catalog.models import Category, Product, ProductVariant
@@ -86,28 +87,49 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, 'Approve & confirm order')
 
     def test_order_creation_creates_admin_notification(self):
-        from cart.models import Cart
-
-        cart = Cart.objects.create(cart_key='notification-order-cart')
-        Order.objects.create(
-            order_number='AT-NOTIFY-ORDER-001',
-            cart=cart,
-            customer={'fullName': 'Notification Buyer',
-                      'email': 'notify@example.com'},
-            subtotal_minor=1500,
-            total_minor=1800,
-            shipping_cost_minor=300,
-            payment_method='mpesa',
-            payment_status=Order.PaymentStatus.PENDING,
-            status=Order.Status.PENDING,
+        product = Product.objects.create(
+            category=self.category,
+            name='Notification Product',
+            slug='notification-product',
+            description='A product used for the order notification test.',
+            price_minor=1500,
+            status=Product.Status.ACTIVE,
         )
+        variant = ProductVariant.objects.create(
+            product=product, sku='NOTIFY-001', stock_quantity=5)
+
+        client = APIClient()
+        with self.captureOnCommitCallbacks(execute=True):
+            client.post(
+                '/api/cart/items',
+                {'variantId': str(variant.id), 'quantity': 1},
+                format='json', HTTP_X_CART_ID='notification-order-cart')
+            response = client.post(
+                '/api/orders',
+                {
+                    'customer': {
+                        'fullName': 'Notification Buyer',
+                        'email': 'notify@example.com',
+                        'phone': '0712345678',
+                        'addressLine1': '1 Market Street',
+                        'city': 'Nairobi',
+                        'county': 'Nairobi',
+                    },
+                    'shippingMethod': 'standard',
+                    'paymentMethod': 'mpesa',
+                },
+                format='json', HTTP_X_CART_ID='notification-order-cart',
+            )
+        self.assertEqual(response.status_code, 201)
 
         notification = AdminNotification.objects.filter(
             category='order',
             title='Order placed',
+            event_type='order_created',
         ).order_by('-created_at').first()
 
         self.assertIsNotNone(notification)
+        self.assertIsNotNone(notification.audit_log)
         self.assertIn('Notification Buyer', notification.message)
 
     def test_dashboard_renders_pending_revenue_kpi_without_counting_pending_orders_in_total_revenue(self):
@@ -248,7 +270,8 @@ class AdminDashboardTests(TestCase):
             status=Order.Status.PENDING,
         )
 
-        approve_order(order)
+        with self.captureOnCommitCallbacks(execute=True):
+            approve_order(order)
 
         notification = CustomerNotification.objects.filter(
             user=user,
@@ -258,11 +281,15 @@ class AdminDashboardTests(TestCase):
         self.assertIsNotNone(notification)
         self.assertEqual(order.status, Order.Status.CONFIRMED)
         self.assertIn(order.order_number, notification.message)
-        self.assertFalse(AdminNotification.objects.filter(
+
+        staff_notification = AdminNotification.objects.filter(
             category='order',
             title='Order confirmed',
+            event_type='order_confirmed',
             message__icontains=order.order_number,
-        ).exists())
+        ).first()
+        self.assertIsNotNone(staff_notification)
+        self.assertIsNotNone(staff_notification.audit_log)
 
     def test_low_stock_creates_admin_notification(self):
         product = Product.objects.create(

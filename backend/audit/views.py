@@ -4,6 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from admin_ui.services import CLIENT_NOTIFY_ALLOW, AdminNotificationService
+
 from . import constants
 from .serializers import ClientEventSerializer
 from .services import AuditLogService
@@ -43,7 +45,7 @@ class ClientEventView(APIView):
 
         metadata = dict(payload.get("context") or {})
         metadata.update(payload.get("data") or {})
-        AuditLogService.log(
+        audit_log = AuditLogService.log(
             action,
             actor=request.user,
             category=payload.get("category") or "api_client",
@@ -52,6 +54,8 @@ class ClientEventView(APIView):
             path=request.path,
             status_code=202,
         )
+        if action in CLIENT_NOTIFY_ALLOW:
+            AdminNotificationService.notify_for_audit(audit_log)
         return Response(
             {"received": True, "action": action,
              "request_id": AuditLogService.current_request_id()},

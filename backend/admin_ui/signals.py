@@ -9,16 +9,11 @@ from .models import AdminNotification, notify_customer, notify_staff
 
 @receiver(post_save, sender=Order)
 def order_notification_signal(sender, instance, created, **kwargs):
+    # Staff notifications are audit-linked and are emitted by the order
+    # services (orders/services.py) that own each lifecycle transition, so the
+    # admin bell always links back to the authoritative audit record. This
+    # signal only keeps the customer-facing notifications.
     if created:
-        customer_name = (instance.customer or {}).get('fullName') or (instance.customer or {}).get(
-            'full_name') or (instance.customer or {}).get('name') or 'A customer'
-        notify_staff(
-            AdminNotification.Category.ORDER,
-            'Order placed',
-            f'New order {instance.order_number} was placed by {customer_name}.',
-            link=f'/admin/dashboard/orders/{instance.pk}/',
-            event_key=f'order-created:{instance.pk}',
-        )
         if instance.user is not None:
             notify_customer(
                 instance.user,
@@ -31,13 +26,6 @@ def order_notification_signal(sender, instance, created, **kwargs):
         return
 
     if instance.status == Order.Status.CANCELLED:
-        notify_staff(
-            AdminNotification.Category.ORDER,
-            'Order cancelled',
-            f'Order {instance.order_number} was cancelled.',
-            link=f'/admin/dashboard/orders/{instance.pk}/',
-            event_key=f'order-cancelled:{instance.pk}',
-        )
         if instance.user is not None:
             notify_customer(
                 instance.user,
@@ -49,13 +37,6 @@ def order_notification_signal(sender, instance, created, **kwargs):
             )
 
     if instance.payment_status == Order.PaymentStatus.REFUNDED:
-        notify_staff(
-            AdminNotification.Category.PAYMENT,
-            'Refund processed',
-            f'Order {instance.order_number} was refunded.',
-            link=f'/admin/dashboard/orders/{instance.pk}/',
-            event_key=f'order-refunded:{instance.pk}',
-        )
         if instance.user is not None:
             notify_customer(
                 instance.user,

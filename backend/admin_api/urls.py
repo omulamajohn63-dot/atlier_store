@@ -1,6 +1,10 @@
 from django.urls import path
 
-from .views import AdminCategoryCreateView, AdminProductArchiveView, AdminProductCreateView, AdminProductUpdateView, AdminStockAdjustmentView, ExpireReservationsView
+from .views import (AdminCategoryCreateView, AdminNotificationReadView,
+                    AdminNotificationsReadAllView, AdminNotificationsView,
+                    AdminProductArchiveView, AdminProductCreateView,
+                    AdminProductUpdateView, AdminStockAdjustmentView,
+                    AdminUnreadNotificationsView, ExpireReservationsView)
 
 
 urlpatterns = [
@@ -16,4 +20,12 @@ urlpatterns = [
          AdminStockAdjustmentView.as_view(), name='admin-stock-adjustment'),
     path('admin/maintenance/expire-reservations',
          ExpireReservationsView.as_view(), name='admin-expire-reservations'),
+    path('admin/notifications',
+         AdminNotificationsView.as_view(), name='admin-notifications-api'),
+    path('admin/notifications/unread',
+         AdminUnreadNotificationsView.as_view(), name='admin-notifications-unread-api'),
+    path('admin/notifications/<int:notification_id>/read',
+         AdminNotificationReadView.as_view(), name='admin-notification-read-api'),
+    path('admin/notifications/read-all',
+         AdminNotificationsReadAllView.as_view(), name='admin-notifications-read-all-api'),
 ]

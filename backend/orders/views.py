@@ -2,6 +2,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from audit.services import AuditLogService
+
 from .models import Order
 from .serializers import OrderSerializer
 from .services import cancel_order, create_order, mark_received_paid, receive_order
@@ -53,6 +55,15 @@ class OrderDetailView(APIView):
                 cart_key(request) and order.cart and order.cart.cart_key == cart_key(request))
         if not allowed:
             return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot access this order.', 'details': {}}}, status=403)
+        AuditLogService.log(
+            'order_details_viewed',
+            object_type='order',
+            object_id=order.pk,
+            object_repr=order.order_number,
+            category='orders',
+            metadata={'status': order.status},
+            description=f'Order {order.order_number} details viewed.',
+        )
         return Response(OrderSerializer(order, context={'request': request}).data)
 
     def post(self, request, order_number):

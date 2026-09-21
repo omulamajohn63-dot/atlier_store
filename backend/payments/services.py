@@ -5,7 +5,8 @@ from django.conf import settings
 from django.db import transaction
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from admin_ui.models import notify_customer, notify_staff
+from admin_ui.models import notify_customer
+from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 from inventory.models import StockReservation
 from orders.models import Order
@@ -68,7 +69,7 @@ def _mark_intent_succeeded(intent, gateway_reference):
         status=StockReservation.Status.COMMITTED)
     order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=['payment_status', 'updated_at'])
-    AuditLogService.log(
+    audit_log = AuditLogService.log(
         'payment_success',
         object_type='order',
         object_id=order.pk,
@@ -78,12 +79,11 @@ def _mark_intent_succeeded(intent, gateway_reference):
         metadata={'gateway_reference': intent.gateway_reference},
         description=f'Payment succeeded for order {order.order_number}.',
     )
-    notify_staff(
-        'payment',
-        'Payment received',
-        f'Payment received for order {order.order_number}.',
-        link=f'/admin/dashboard/orders/{order.pk}/',
+    AdminNotificationService.notify_for_audit(
+        audit_log,
         event_key=f'payment-success:{order.pk}',
+        message=f'Payment received for order {order.order_number}.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if order.user is not None:
         notify_customer(
@@ -132,4 +132,34 @@ def process_webhook(payload, signature, event_id):
     if event in ('payment_intent.succeeded', 'mpesa.stk_callback.success') and intent:
         order = _mark_intent_succeeded(intent, data.get('transactionId', ''))
         return {'received': True, 'status': 'order_marked_paid', 'orderNumber': order.order_number}
+    if event in ('payment_intent.payment_failed', 'mpesa.stk_callback.failed') and intent:
+        order = intent.order
+        intent.status = PaymentIntent.Status.FAILED
+        intent.save(update_fields=['status', 'updated_at'])
+        audit_log = AuditLogService.log(
+            'payment_timeout',
+            object_type='order',
+            object_id=order.pk,
+            object_repr=order.order_number,
+            category='payments',
+            result='failure',
+            metadata={'event': event, 'payment_intent_id': intent.id},
+            description=f'Payment timed out for order {order.order_number}.',
+        )
+        AdminNotificationService.notify_for_audit(
+            audit_log,
+            event_key=f'payment-timeout:{order.pk}',
+            message=f'Payment for order {order.order_number} did not complete.',
+            link=f'/admin/dashboard/orders/{order.pk}/',
+        )
+        if order.user is not None:
+            notify_customer(
+                order.user,
+                'payment',
+                'Payment failed',
+                f'Payment for order {order.order_number} did not complete. You can try again.',
+                link=f'/account/orders/{order.order_number}',
+                event_key=f'customer-payment-failed:{order.pk}',
+            )
+        return {'received': True, 'status': 'payment_failed', 'orderNumber': order.order_number}
     return {'received': True, 'status': 'unhandled_event'}

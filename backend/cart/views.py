@@ -5,6 +5,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from audit.services import AuditLogService
+
 from .models import CartItem
 from .serializers import CartSerializer
 from .services import add_item, get_or_create_cart, update_item
@@ -34,7 +36,17 @@ class CartView(APIView):
 
     def delete(self, request):
         cart = cart_for_request(request)
+        item_count = cart.items.count()
         cart.items.all().delete()
+        AuditLogService.log(
+            'cart_cleared',
+            category='orders',
+            object_type='cart',
+            object_id=cart.cart_key,
+            object_repr=f'Cart {cart.cart_key}',
+            metadata={'item_count': item_count},
+            description=f'Cleared cart ({item_count} items).',
+        )
         return response_with_cart(request, cart)
 
 
@@ -66,7 +78,22 @@ class CartItemView(APIView):
 
     def delete(self, request, item_id):
         cart = cart_for_request(request)
-        deleted, _ = CartItem.objects.filter(cart=cart, id=item_id).delete()
-        if not deleted:
+        item = CartItem.objects.select_related(
+            'variant').filter(cart=cart, id=item_id).first()
+        if not item:
             return Response({'error': {'code': 'NOT_FOUND', 'message': 'Cart item was not found.', 'details': {}}}, status=404)
+        CartItem.objects.filter(pk=item.pk).delete()
+        AuditLogService.log(
+            'cart_item_removed',
+            category='orders',
+            object_type='product_variant',
+            object_id=item.variant_id,
+            object_repr=item.variant.sku,
+            metadata={
+                'product': item.variant.product.name,
+                'variant_sku': item.variant.sku,
+                'quantity': item.quantity,
+            },
+            description=f'Removed {item.variant.sku} from cart.',
+        )
         return response_with_cart(request, cart)

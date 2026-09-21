@@ -316,6 +316,7 @@ class UnreadNotificationsView(View):
                 'message': item.message,
                 'link': item.link,
                 'category': item.category,
+                'severity': item.severity,
                 'created_at': item.created_at.isoformat(),
             }
             for item in notifications
@@ -333,12 +334,32 @@ class AdminNotificationsPageView(View):
     template_name = 'admin_ui/notifications_page.html'
 
     def get(self, request):
-        notifications = list(AdminNotification.objects.filter(
-            recipient=request.user).order_by('-created_at'))
-        unread_count = sum(1 for item in notifications if not item.is_read)
+        notifications = AdminNotification.objects.filter(recipient=request.user)
+
+        category = (request.GET.get('category') or '').strip()
+        severity = (request.GET.get('severity') or '').strip()
+        status = (request.GET.get('status') or '').strip()
+
+        if category:
+            notifications = notifications.filter(category=category)
+        if severity:
+            notifications = notifications.filter(severity=severity)
+        if status == 'unread':
+            notifications = notifications.filter(is_read=False)
+
+        notifications = list(notifications.order_by('-created_at'))
+        unread_count = AdminNotification.objects.filter(
+            recipient=request.user, is_read=False).count()
         return render(request, self.template_name, {
             'notifications': notifications,
             'unread_count': unread_count,
+            'categories': AdminNotification.Category.choices,
+            'severities': AdminNotification.Severity.choices,
+            'active_filters': {
+                'category': category,
+                'severity': severity,
+                'status': status,
+            },
         })
 
 
@@ -348,7 +369,7 @@ class MarkAllNotificationsReadView(View):
         updated = AdminNotification.objects.filter(
             recipient=request.user,
             is_read=False,
-        ).update(is_read=True)
+        ).update(is_read=True, read_at=timezone.now())
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'ok': True, 'unread_count': 0, 'updated': updated})
         return redirect('admin-notifications')
@@ -365,7 +386,8 @@ class MarkNotificationReadView(View):
             return JsonResponse({'ok': False}, status=404)
 
         notification.is_read = True
-        notification.save(update_fields=['is_read'])
+        notification.read_at = timezone.now()
+        notification.save(update_fields=['is_read', 'read_at'])
         unread_count = AdminNotification.objects.filter(
             recipient=request.user,
             is_read=False,
@@ -1262,6 +1284,29 @@ class DashboardView(View):
         # Keep the list concise and relevant for the template.
         recent_activity = recent_activity[:5]
 
+        customer_actions = (
+            'signup', 'login', 'login_failed', 'registration_failed',
+            'product_viewed', 'category_viewed', 'search_performed',
+            'cart_item_added', 'cart_item_updated', 'cart_item_removed',
+            'cart_cleared', 'checkout_started', 'checkout_failed',
+            'order_created', 'order_creation_failed', 'order_cancelled',
+            'order_confirmed', 'order_received', 'payment_initiated',
+            'payment_success', 'payment_failed', 'payment_initiation_failed',
+            'payment_timeout', 'refund_completed', 'wishlist_item_added',
+            'wishlist_item_removed', 'wishlist_cleared', 'review_submitted',
+            'support_message_submitted', 'profile_updated', 'password_reset',
+        )
+        recent_customer_activity = list(
+            AuditLog.objects.filter(action__in=customer_actions)
+            .order_by('-created_at')[:6])
+        customer_error_summary = list(
+            AuditLog.objects.filter(
+                result='failure',
+                created_at__gte=timezone.now() - timedelta(days=7))
+            .values('action')
+            .annotate(total=Count('id'))
+            .order_by('-total')[:6])
+
         return render(request, self.template_name, {
             'products': products,
             'categories': categories,
@@ -1280,6 +1325,8 @@ class DashboardView(View):
             'orders': recent_orders,
             'low_stock_products': low_stock_variants[:8],
             'recent_activity': recent_activity,
+            'recent_customer_activity': recent_customer_activity,
+            'customer_error_summary': customer_error_summary,
             'sales_overview': sales_overview,
             'sales_range': sales_window_days,
         })

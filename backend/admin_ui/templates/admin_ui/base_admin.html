@@ -415,6 +415,26 @@
     .notif-payment  .notification-category-icon { background: #E8F3EC; color: #2E6A4F; }
     .notif-inventory .notification-category-icon { background: #FFF8E6; color: #996B00; }
     .notif-system   .notification-category-icon { background: #F4F4F4; color: #6B6B6B; }
+    .notif-customer .notification-category-icon { background: #F3EAF7; color: #7048A8; }
+    .notif-security .notification-category-icon { background: #FDF0F0; color: #C92A2A; }
+
+    .notification-item.severity-high {
+      box-shadow: inset 2px 0 0 var(--status-warning);
+    }
+    .notification-item.severity-critical {
+      box-shadow: inset 2px 0 0 var(--status-danger);
+    }
+    .notification-severity {
+      flex-shrink: 0;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-top: 5px;
+      background: var(--status-neutral);
+    }
+    .notification-severity.severity-medium { background: var(--status-warning); }
+    .notification-severity.severity-high { background: var(--status-warning); }
+    .notification-severity.severity-critical { background: var(--status-danger); }
 
     .notification-body {
       flex: 1;
@@ -1084,17 +1104,20 @@
               <div class="notification-list">
                 {% if admin_notifications %}
                   {% for notification in admin_notifications|slice:":5" %}
-                    <a class="notification-item notif-{{ notification.category }}{% if not notification.is_read %} unread{% endif %}"
+                    <a class="notification-item notif-{{ notification.category }} severity-{{ notification.severity }}{% if not notification.is_read %} unread{% endif %}"
                        href="{{ notification.link|default:'/admin/dashboard/' }}"
                        data-notification-id="{{ notification.id }}"
                        data-notification-title="{{ notification.title }}"
                        data-notification-message="{{ notification.message }}"
                        data-category="{{ notification.category }}"
+                       data-severity="{{ notification.severity }}"
                        data-link="{{ notification.link }}">
                       <span class="notification-category-icon">
                         {% if notification.category == 'order' %}<i class="ph ph-receipt"></i>
                         {% elif notification.category == 'payment' %}<i class="ph ph-currency-circle-dollar"></i>
                         {% elif notification.category == 'inventory' %}<i class="ph ph-archive-box"></i>
+                        {% elif notification.category == 'customer' %}<i class="ph ph-user-circle"></i>
+                        {% elif notification.category == 'security' %}<i class="ph ph-shield-warning"></i>
                         {% else %}<i class="ph ph-bell-simple"></i>{% endif %}
                       </span>
                       <div class="notification-body">
@@ -1103,7 +1126,7 @@
                         <div class="notification-time">{{ notification.created_at|date:'M d, Y' }}</div>
                       </div>
                       {% if not notification.is_read %}
-                        <span class="notification-unread-dot"></span>
+                        <span class="notification-severity severity-{{ notification.severity }}"></span>
                       {% endif %}
                     </a>
                   {% empty %}
@@ -1302,7 +1325,7 @@
 
         document.querySelectorAll('.notification-item.unread').forEach(function (item) {
           item.classList.remove('unread');
-          const dot = item.querySelector('.notification-unread-dot');
+          const dot = item.querySelector('.notification-severity');
           if (dot) dot.remove();
         });
         lastKnownUnreadCount = 0;
@@ -1336,6 +1359,75 @@
         }
       }
 
+      const NOTIFICATION_CATEGORY_ICONS = {
+        order: 'receipt',
+        payment: 'currency-circle-dollar',
+        inventory: 'archive-box',
+        customer: 'user-circle',
+        security: 'shield-warning',
+      };
+
+      function notificationIcon(category) {
+        return NOTIFICATION_CATEGORY_ICONS[category] || 'bell-simple';
+      }
+
+      function buildNotificationItem(item) {
+        const anchor = document.createElement('a');
+        anchor.className = 'notification-item notif-' + (item.category || 'system') +
+          ' severity-' + (item.severity || 'info') + ' unread';
+        anchor.href = item.link || '/admin/dashboard/';
+        anchor.dataset.notificationId = item.id;
+        anchor.dataset.notificationTitle = item.title || '';
+        anchor.dataset.notificationMessage = item.message || '';
+        anchor.dataset.category = item.category || 'system';
+        anchor.dataset.severity = item.severity || 'info';
+        anchor.dataset.link = item.link || '';
+
+        const iconWrap = document.createElement('span');
+        iconWrap.className = 'notification-category-icon';
+        const iconEl = document.createElement('i');
+        iconEl.className = 'ph ph-' + notificationIcon(item.category);
+        iconWrap.appendChild(iconEl);
+
+        const body = document.createElement('div');
+        body.className = 'notification-body';
+        const title = document.createElement('div');
+        title.className = 'notification-title';
+        title.textContent = item.title || '';
+        const message = document.createElement('div');
+        message.className = 'notification-message';
+        message.textContent = item.message || '';
+        body.appendChild(title);
+        body.appendChild(message);
+
+        const severity = document.createElement('span');
+        severity.className = 'notification-severity severity-' + (item.severity || 'info');
+
+        anchor.appendChild(iconWrap);
+        anchor.appendChild(body);
+        anchor.appendChild(severity);
+        return anchor;
+      }
+
+      function renderNotificationList(items) {
+        if (!notificationPanel) return;
+        const list = notificationPanel.querySelector('.notification-list');
+        if (!list || !Array.isArray(items)) return;
+        list.innerHTML = '';
+        if (items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'notification-empty';
+          empty.innerHTML = '<span class="notification-empty-icon"><i class="ph ph-bell-simple"></i></span>No notifications yet.';
+          list.appendChild(empty);
+          return;
+        }
+        items.slice(0, 5).forEach(function (item) {
+          const node = buildNotificationItem(item);
+          bindNotificationItem(node);
+          list.appendChild(node);
+        });
+      }
+
       async function refreshUnreadNotifications() {
         try {
           const response = await fetch('/admin/dashboard/notifications/unread/', {
@@ -1356,6 +1448,10 @@
               category: newest.category,
               link: newest.link,
             });
+          }
+
+          if (Array.isArray(data.results) && data.results.length > 0) {
+            renderNotificationList(data.results);
           }
 
           lastKnownUnreadCount = unreadCount;
@@ -1398,7 +1494,7 @@
         });
       }
 
-      document.querySelectorAll('.notification-item').forEach((item) => {
+      function bindNotificationItem(item) {
         item.addEventListener('click', async function (event) {
           const id = this.dataset.notificationId;
           if (!id) return;
@@ -1423,6 +1519,8 @@
 
             if (response.ok) {
               this.classList.remove('unread');
+              const dot = this.querySelector('.notification-severity');
+              if (dot) dot.remove();
               const badge = document.querySelector('.notification-badge');
               if (badge) {
                 const count = document.querySelectorAll('.notification-item.unread').length;
@@ -1438,7 +1536,9 @@
             window.location.href = this.getAttribute('href');
           }
         });
-      });
+      }
+
+      document.querySelectorAll('.notification-item').forEach(bindNotificationItem);
 
       void refreshUnreadNotifications();
       setInterval(refreshUnreadNotifications, 15000);

@@ -4,8 +4,10 @@ Outgoing API errors keep the existing ``{"error": {"code", "message",
 "details"}}`` envelope for backward compatibility with the storefront's
 ``apiClient`` and gain a top-level ``request_id``. Handled exceptions are
 logged; unhandled ones produce a safe 500 envelope (traceback stays
-server-side). 401/403/checkout failures are additionally written to the audit
-trail.
+server-side). 401/403/429 and meaningful customer failures (order creation,
+cart mutations, payment flows) are written to the audit trail, notify the
+admin (audit-linked) for the important ones, and are again self-healing —
+audit/notify hooks never raise.
 """
 
 import logging
@@ -13,6 +15,7 @@ import logging
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
+from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 
 logger = logging.getLogger("modeza")
@@ -27,6 +30,27 @@ STATUS_CODES = {
     409: 'CONFLICT',
     429: 'RATE_LIMITED',
 }
+
+
+def _failure_path(request):
+    return getattr(request, 'path', '') if request is not None else ''
+
+
+def _audit_failure(request, status, **kwargs):
+    """Write an audit + audit-linked notification for a rejected request.
+
+    Never raises (both services swallow their own write errors)."""
+    audit_log = AuditLogService.log(
+        path=_failure_path(request),
+        status_code=status,
+        result='failure',
+        metadata={
+            'path': _failure_path(request),
+            **kwargs.pop('metadata', {}),
+        },
+        **kwargs,
+    )
+    AdminNotificationService.notify_for_audit(audit_log)
 
 
 def api_exception_handler(exc, context):
@@ -75,54 +99,88 @@ def api_exception_handler(exc, context):
 
     payload['request_id'] = AuditLogService.current_request_id()
 
-    # Security/audit hooks. AuditLogService never raises.
+    path = _failure_path(request)
+
+    # Audit + notification hooks. AuditLogService and AdminNotificationService
+    # never raise, so a failed write cannot break the error response itself.
     if status == 401:
-        AuditLogService.log(
-            'login_failed',
+        _audit_failure(
+            request, status,
+            action='login_failed',
             category='auth',
-            result='failure',
             severity='medium',
             description='API authentication failed.',
-            metadata={'path': getattr(request, 'path', '') if request else ''},
-            path=getattr(request, 'path', '') if request else '',
-            status_code=status,
         )
     elif status == 403:
-        AuditLogService.log(
-            'permission_denied',
+        _audit_failure(
+            request, status,
+            action='permission_denied',
             category='security',
-            result='failure',
             severity='medium',
             description='Authorization denied for API request.',
-            metadata={'path': getattr(request, 'path', '') if request else ''},
-            path=getattr(request, 'path', '') if request else '',
-            status_code=status,
+        )
+    elif status == 429:
+        # 429s on the audit endpoint itself are skipped entirely — they are
+        # the storefront's safety valve and would otherwise flood the trail and
+        # every admin inbox every time the client backs off.
+        if not path.startswith('/api/audit'):
+            _audit_failure(
+                request, status,
+                action='rate_limit_exceeded',
+                category='system',
+                severity='medium',
+                description='API request rate limit exceeded.',
+            )
+    elif status == 400 and path.startswith('/api/orders'):
+        _audit_failure(
+            request, status,
+            action='order_creation_failed',
+            category='orders',
+            severity='medium',
+            description='Order creation rejected by the backend.',
         )
     elif (
-        status == 400
-        and request is not None
-        and request.path.startswith('/api/orders')
+        status in (400, 422)
+        and path.startswith('/api/payments/create-intent')
     ):
-        AuditLogService.log(
-            'checkout_failed',
-            category='orders',
-            result='failure',
+        _audit_failure(
+            request, status,
+            action='payment_initiation_failed',
+            category='payments',
             severity='medium',
-            description='Checkout rejected by the backend.',
-            metadata={'path': request.path},
-            path=request.path,
-            status_code=status,
+            description='Payment initiation rejected by the backend.',
+        )
+    elif (
+        status in (400, 422)
+        and path.startswith('/api/payments/confirm')
+    ):
+        _audit_failure(
+            request, status,
+            action='payment_failed',
+            category='payments',
+            severity='medium',
+            description='Payment confirmation failed.',
+        )
+    elif (
+        status in (400, 422)
+        and path.startswith('/api/cart/items')
+    ):
+        action = ('cart_update_failed' if request.method == 'PATCH'
+                  else 'cart_add_failed')
+        _audit_failure(
+            request, status,
+            action=action,
+            category='orders',
+            severity='medium',
+            description='Cart mutation rejected by the backend.',
         )
     elif status == 500:
-        AuditLogService.log(
-            'server_error',
+        _audit_failure(
+            request, status,
+            action='unexpected_server_error',
             category='system',
-            result='failure',
             severity='high',
             description='Unhandled server error on API request.',
-            metadata={'path': getattr(request, 'path', '') if request else ''},
-            path=getattr(request, 'path', '') if request else '',
-            status_code=status,
         )
 
     if response is not None:

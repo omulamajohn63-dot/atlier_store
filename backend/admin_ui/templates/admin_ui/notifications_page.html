@@ -12,7 +12,7 @@
 <div class="page-header">
   <div>
     <h2 class="page-title">Notifications</h2>
-    <p class="page-subtitle">{{ unread_count }} unread out of {{ notifications|length }} total</p>
+    <p class="page-subtitle">{{ unread_count }} unread · {{ notifications|length }} shown</p>
   </div>
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
     {% if unread_count %}
@@ -26,6 +26,37 @@
   </div>
 </div>
 
+<div class="card" style="margin-bottom: 16px;">
+  <form method="get" style="padding: 16px 24px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+    <div>
+      <label class="form-label" for="filter-category">Category</label>
+      <select class="form-control" id="filter-category" name="category" style="min-width: 160px;">
+        <option value="">All categories</option>
+        {% for value, label in categories %}
+          <option value="{{ value }}" {% if active_filters.category == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="filter-severity">Severity</label>
+      <select class="form-control" id="filter-severity" name="severity" style="min-width: 140px;">
+        <option value="">All severities</option>
+        {% for value, label in severities %}
+          <option value="{{ value }}" {% if active_filters.severity == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="filter-status">Status</label>
+      <select class="form-control" id="filter-status" name="status" style="min-width: 140px;">
+        <option value="">All</option>
+        <option value="unread" {% if active_filters.status == 'unread' %}selected{% endif %}>Unread only</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-secondary"><i class="ph ph-funnel"></i> Filter</button>
+  </form>
+</div>
+
 <div class="card">
   <div class="card-header" style="padding: 16px 24px; gap: 12px; flex-wrap: wrap;">
     <span class="card-title">All alerts</span>
@@ -34,26 +65,26 @@
   <div style="padding: 16px 24px;">
     {% if notifications %}
       {% for notification in notifications %}
-        <a class="notification-item{% if not notification.is_read %} unread{% endif %}"
+        <a class="notification-item notif-{{ notification.category }} severity-{{ notification.severity }}{% if not notification.is_read %} unread{% endif %}"
            href="{{ notification.link|default:'/admin/dashboard/' }}"
            data-notification-id="{{ notification.id }}"
            style="display: block; padding: 14px 16px; border: 1px solid var(--border-light); border-radius: 10px; margin-bottom: 10px; background: #fff; color: var(--text); text-decoration: none; transition: border-color 0.15s ease;">
           <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
             <div>
-              <span class="notification-category" style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{ notification.category }}</span>
+              <span class="notification-category" style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{ notification.category }} · {{ notification.severity }}</span>
               <div class="notification-title" style="font-size: 13px; font-weight: 600; margin-top: 4px;">{{ notification.title }}</div>
               <div class="notification-message" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">{{ notification.message }}</div>
-              <div class="notification-time" style="margin-top: 8px; font-size: 11px; color: var(--text-secondary);">{{ notification.created_at|date:'M d, Y H:i' }}</div>
+              <div class="notification-time" style="margin-top: 8px; font-size: 11px; color: var(--text-secondary);">{{ notification.created_at|date:'M d, Y H:i' }}{% if notification.event_type %} · {{ notification.event_type }}{% endif %}</div>
             </div>
             {% if not notification.is_read %}
-              <span class="notification-unread-dot" style="flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--status-danger); margin-top: 4px;"></span>
+              <span class="notification-severity severity-{{ notification.severity }}" style="flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 4px;"></span>
             {% endif %}
           </div>
         </a>
       {% endfor %}
     {% else %}
       <div class="notification-empty" style="padding: 32px; text-align: center; font-size: 13px; color: var(--text-secondary);">
-        No notifications yet. You're all caught up.
+        No notifications match the current filters.
       </div>
     {% endif %}
   </div>

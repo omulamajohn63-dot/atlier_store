@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabaseClient';
+import { audit } from '../lib/logger';
 
 const WISHLIST_STORAGE_KEY = 'modeza_wishlist_v1';
 
@@ -107,13 +108,28 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const isWishlisted = (productId: string) => wishlistIds.includes(productId);
 
   const toggleWishlist = (productId: string) => {
+    const isRemoving = wishlistIds.includes(productId);
     setWishlistIds((current) => current.includes(productId)
       ? current.filter((id) => id !== productId)
       : [...current, productId]);
+    void audit(
+      isRemoving ? 'wishlist_item_removed' : 'wishlist_item_added',
+      isRemoving ? 'Removed product from wishlist.' : 'Added product to wishlist.',
+      {},
+      { productId },
+    );
   };
 
   const removeFromWishlist = (productId: string) => {
+    if (!wishlistIds.includes(productId)) return;
     setWishlistIds((current) => current.filter((id) => id !== productId));
+    void audit('wishlist_item_removed', 'Removed product from wishlist.', {}, { productId });
+  };
+
+  const clearWishlist = () => {
+    if (wishlistIds.length === 0) return;
+    void audit('wishlist_cleared', 'Cleared the wishlist.', {}, { count: wishlistIds.length });
+    setWishlistIds([]);
   };
 
   return (
@@ -124,7 +140,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isWishlisted,
         toggleWishlist,
         removeFromWishlist,
-        clearWishlist: () => setWishlistIds([]),
+        clearWishlist,
       }}
     >
       {children}

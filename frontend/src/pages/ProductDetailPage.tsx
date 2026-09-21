@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
 import { motion } from 'motion/react';
+import { audit } from '../lib/logger';
 
 export interface ProductDetailPageProps {
   slug: string;
@@ -74,10 +75,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     setQuantity(1);
   }, [slug, product]);
 
-  // Record this piece in the visitor's recently-viewed trail.
+  // Record this piece in the visitor's recently-viewed trail and audit the view.
   useEffect(() => {
     if (product?.id) {
       addRecentlyViewedProduct(product.id);
+      void audit('product_viewed', 'Viewed product detail.', {}, { slug, productId: product.id });
     }
   }, [product?.id]);
 

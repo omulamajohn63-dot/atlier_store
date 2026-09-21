@@ -64,6 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
     });
     if (error) {
+      void audit('registration_failed', 'Storefront account creation failed.', {}, { reason: error.message });
       return { error: error.message };
     }
     void audit('signup', 'New storefront account created.', { provider: 'supabase' }, {
@@ -85,7 +86,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: profile.phone,
       },
     });
-    if (!error && data.user) setUser(data.user);
+    if (!error && data.user) {
+      setUser(data.user);
+      void audit('profile_updated', 'Account profile updated.');
+    }
     return error ? { error: error.message } : {};
   };
 
