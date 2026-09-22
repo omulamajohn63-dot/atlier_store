@@ -1642,7 +1642,8 @@ class ActivityCenterTests(TestCase):
         self.log('login', object_repr='CSV exportable login')
         self.client.force_login(self.staff)
 
-        response = self.client.get('/admin/dashboard/activity/export/?format=csv')
+        response = self.client.get(
+            '/admin/dashboard/activity/export/?format=csv')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -1654,7 +1655,8 @@ class ActivityCenterTests(TestCase):
         self.log('login', object_repr='JSON exportable login')
         self.client.force_login(self.staff)
 
-        response = self.client.get('/admin/dashboard/activity/export/?format=json')
+        response = self.client.get(
+            '/admin/dashboard/activity/export/?format=json')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -1665,15 +1667,18 @@ class ActivityCenterTests(TestCase):
     def test_activity_export_rejects_unknown_format(self):
         self.client.force_login(self.staff)
 
-        response = self.client.get('/admin/dashboard/activity/export/?format=xml')
+        response = self.client.get(
+            '/admin/dashboard/activity/export/?format=xml')
 
         self.assertEqual(response.status_code, 400)
 
     # -- request trace, security, errors, health ---------------------------
 
     def test_request_trace_page_renders_request_timeline(self):
-        self.log('checkout_started', request_id='req_trace123456', path='/api/cart/checkout')
-        self.log('payment_success', request_id='req_trace123456', path='/api/payments/mpesa')
+        self.log('checkout_started', request_id='req_trace123456',
+                 path='/api/cart/checkout')
+        self.log('payment_success', request_id='req_trace123456',
+                 path='/api/payments/mpesa')
         self.client.force_login(self.staff)
 
         response = self.client.get(
@@ -1732,7 +1737,8 @@ class ActivityCenterTests(TestCase):
                  object_type='user', object_id=str(self.customer.pk))
         self.client.force_login(self.staff)
 
-        response = self.client.get(f'/admin/dashboard/customers/{self.customer.pk}/')
+        response = self.client.get(
+            f'/admin/dashboard/customers/{self.customer.pk}/')
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'regular-user')
@@ -1768,7 +1774,8 @@ class ActivityCenterTests(TestCase):
         cart = Cart.objects.create(cart_key='activity-order-cart')
         order = Order.objects.create(
             order_number='AT-ACT-001', cart=cart,
-            customer={'fullName': 'Activity Buyer', 'email': 'buyer@example.com'},
+            customer={'fullName': 'Activity Buyer',
+                      'email': 'buyer@example.com'},
             subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
             payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
             status=Order.Status.PROCESSING,
@@ -1810,9 +1817,8 @@ class ActivityCenterTests(TestCase):
         self.assertContains(response, 'RCP-2030-000999')
         self.assertContains(
             response, f'/admin/dashboard/orders/{order.pk}/receipt/download/')
-        self.assertFalse(
-            f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/' in
-            response.content.decode())
+        self.assertContains(
+            response, f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/')
 
     def test_order_detail_page_shows_regenerate_for_failed_receipt(self):
         from cart.models import Cart

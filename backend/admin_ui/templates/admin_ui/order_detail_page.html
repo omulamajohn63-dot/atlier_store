@@ -143,14 +143,12 @@
       <a class="btn btn-primary" href="{{ receipt_download_url }}">
         <i class="ph ph-download-simple"></i> Download PDF
       </a>
-      {% if receipt.status == 'failed' %}
       <form method="post" action="{{ receipt_regenerate_url }}" style="margin:0;">
         {% csrf_token %}
         <button type="submit" class="btn">
-          <i class="ph ph-arrow-clockwise"></i> Regenerate
+          <i class="ph ph-arrow-clockwise"></i> Regenerate Receipt
         </button>
       </form>
-      {% endif %}
     </div>
   </div>
 </div>
