@@ -129,8 +129,8 @@
     </form>
   </div>
   
-  <div class="table-container">
-    <table class="table">
+  <div class="table-container{% if page_data.page == 'orders' %} orders-table-container{% endif %}">
+    <table class="table{% if page_data.page == 'orders' %} orders-table{% endif %}">
       <thead>
         <tr>
           {% for col in page_data.columns %}
@@ -144,6 +144,8 @@
           {% for key, val in row.items %}
             {% if key == 'id' %}
               <!-- skip id -->
+            {% elif key == 'can_approve' %}
+              <!-- internal action flag, not a visible column -->
             {% elif key == 'checkbox' %}
               <td>
                 <input type="checkbox" class="admin-row-check" name="product_ids" value="{{ row.id }}" />
