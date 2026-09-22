@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useRouter } from '../router/RouterContext';
 import { useOrders } from '../context/OrdersContext';
 import { Button } from '../components/ui/Button';
 import { formatPrice } from '../utils/currency';
-import { CheckCircle2, PackageCheck, ArrowRight, Printer, Mail, MapPin, Eye } from 'lucide-react';
+import { CheckCircle2, PackageCheck, ArrowRight, Printer, Download, Mail, MapPin, Eye } from 'lucide-react';
 import { api } from '../services/apiClient';
 import { Order } from '../types';
+import { ReceiptDTO } from '../types/api';
 
 export interface OrderSuccessPageProps {
   orderNumber?: string;
@@ -21,6 +22,10 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
     }
     return orders[0] || null;
   });
+  const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
 
   useEffect(() => {
     if (orderNumber && !order) {
@@ -73,6 +78,50 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
       }
     }
   }, [orderNumber, order, getOrder]);
+
+  const handleDownloadReceipt = useCallback(async () => {
+    if (!receipt) return;
+    setDownloading(true);
+    setReceiptError('');
+    try {
+      const blob = await api.downloadReceipt(receipt.receiptNumber);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${receipt.receiptNumber}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReceiptError(err instanceof Error ? err.message : 'The receipt could not be downloaded.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [receipt]);
+
+  useEffect(() => {
+    if (!order || order.paymentStatus !== 'paid') {
+      setReceipt(null);
+      return;
+    }
+    let cancelled = false;
+    setReceiptLoading(true);
+    api
+      .getOrderReceipt(order.orderNumber)
+      .then((data) => {
+        if (!cancelled && data.status === 'generated') setReceipt(data);
+      })
+      .catch(() => {
+        if (!cancelled) setReceipt(null);
+      })
+      .finally(() => {
+        if (!cancelled) setReceiptLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [order]);
 
   const resolvedOrder = order;
   const refCode = resolvedOrder ? resolvedOrder.orderNumber : (orderNumber || '');
@@ -197,6 +246,24 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
           <ArrowRight className="w-4 h-4" />
         </Button>
 
+        {receiptLoading ? (
+          <Button variant="outline" size="lg" disabled className="gap-2 text-xs" aria-busy="true">
+            <Download className="w-3.5 h-3.5" />
+            <span>Checking receipt…</span>
+          </Button>
+        ) : receipt ? (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => void handleDownloadReceipt()}
+            disabled={downloading}
+            className="gap-2 text-xs uppercase tracking-wider"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{downloading ? 'Downloading…' : 'Download Receipt (PDF)'}</span>
+          </Button>
+        ) : null}
+
         <Button
           variant="outline"
           size="lg"
@@ -207,6 +274,12 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
           <span>Print Receipt</span>
         </Button>
       </div>
+
+      {receiptError && (
+        <p role="alert" className="pt-2 text-xs text-[#9B1C1C]">
+          {receiptError}
+        </p>
+      )}
     </div>
   );
 };
