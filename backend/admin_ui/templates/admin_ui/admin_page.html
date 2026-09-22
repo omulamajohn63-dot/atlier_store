@@ -150,25 +150,29 @@
               </td>
             {% elif key == 'actions' %}
               <td style="text-align: right;">
-                <select class="admin-action-select" aria-label="More actions" title="More actions" onchange="if (this.value) window.location.href=this.value" style="appearance: none; -webkit-appearance: none; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 40px; min-width: 40px; height: 32px; padding: 0 28px 0 10px; font-size: 22px; line-height: 1; cursor: pointer; text-align: center; background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%); background-position: calc(100% - 14px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px); background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;">
-                  <option value="" selected>⋯</option>
+                <details class="admin-actions-menu">
+                  <summary aria-label="Open actions for this row" title="Row actions">
+                    <i class="ph ph-dots-three-outline-vertical" aria-hidden="true"></i>
+                  </summary>
+                  <div class="admin-actions-panel">
                   {% if page_data.page == 'products' %}
-                    <option value="/admin/dashboard/products/{{ row.id }}/" style="font-size: 20px; padding: 10px 12px;">View</option>
-                    <option value="/admin/dashboard/products/{{ row.id }}/edit/" style="font-size: 20px; padding: 10px 12px;">Edit</option>
-                    <option value="/admin/dashboard/products/{{ row.id }}/duplicate/" style="font-size: 20px; padding: 10px 12px;">Duplicate</option>
-                    <option value="/admin/dashboard/confirm/?action=archive-product&product_id={{ row.id }}" style="font-size: 20px; padding: 10px 12px; background: #2c76ff; color: #fff;">Archive</option>
-                    <option value="/admin/dashboard/confirm/?action=delete-product&product_id={{ row.id }}" style="font-size: 20px; padding: 10px 12px;">Delete</option>
+                    <a href="/admin/dashboard/products/{{ row.id }}/"><i class="ph ph-eye"></i> View</a>
+                    <a href="/admin/dashboard/products/{{ row.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit</a>
+                    <a href="/admin/dashboard/products/{{ row.id }}/duplicate/"><i class="ph ph-copy"></i> Duplicate</a>
+                    <a href="/admin/dashboard/confirm/?action=archive-product&product_id={{ row.id }}"><i class="ph ph-archive"></i> Archive</a>
+                    <a class="danger" href="/admin/dashboard/confirm/?action=delete-product&product_id={{ row.id }}"><i class="ph ph-trash"></i> Delete</a>
                   {% elif page_data.page == 'categories' %}
-                    <option value="/admin/dashboard/categories/{{ row.id }}/edit/" style="font-size: 20px; padding: 10px 12px;">Edit</option>
-                    <option value="/admin/dashboard/categories/{{ row.id }}/delete/" style="font-size: 20px; padding: 10px 12px;">Delete</option>
+                    <a href="/admin/dashboard/categories/{{ row.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit</a>
+                    <a class="danger" href="/admin/dashboard/categories/{{ row.id }}/delete/"><i class="ph ph-trash"></i> Delete</a>
                   {% elif page_data.page == 'orders' %}
-                    <option value="/admin/dashboard/orders/{{ row.id }}/" style="font-size: 20px; padding: 10px 12px;">View</option>
+                    <a href="/admin/dashboard/orders/{{ row.id }}/"><i class="ph ph-eye"></i> View order</a>
                   {% elif page_data.page == 'customers' %}
-                    <option value="/admin/dashboard/customers/{{ row.id }}/" style="font-size: 20px; padding: 10px 12px;">View</option>
+                    <a href="/admin/dashboard/customers/{{ row.id }}/"><i class="ph ph-user"></i> View customer</a>
                   {% else %}
-                    <option value="#" style="font-size: 20px; padding: 10px 12px;">View</option>
+                    <a href="#"><i class="ph ph-eye"></i> View</a>
                   {% endif %}
-                </select>
+                  </div>
+                </details>
                 {% if page_data.page == 'products' %}
                 <div style="display:none;">
                   <a href="/admin/dashboard/products/{{ row.id }}/">View</a>
@@ -193,6 +197,8 @@
               </td>
             {% elif key == 'name' and page_data.page == 'products' %}
               <td><a href="/admin/dashboard/products/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
+            {% elif key == 'order' and page_data.page == 'orders' %}
+              <td><a href="/admin/dashboard/orders/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'customer' and page_data.page == 'customers' %}
               <td><a href="/admin/dashboard/customers/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'status' or key == 'payment_status' or key == 'role' %}
