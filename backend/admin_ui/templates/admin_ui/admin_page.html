@@ -166,6 +166,12 @@
                     <a class="danger" href="/admin/dashboard/categories/{{ row.id }}/delete/"><i class="ph ph-trash"></i> Delete</a>
                   {% elif page_data.page == 'orders' %}
                     <a href="/admin/dashboard/orders/{{ row.id }}/"><i class="ph ph-eye"></i> View order</a>
+                    {% if row.can_approve %}
+                    <form method="post" action="/admin/dashboard/orders/{{ row.id }}/approve/">
+                      {% csrf_token %}
+                      <button type="submit"><i class="ph ph-check-circle"></i> Confirm order</button>
+                    </form>
+                    {% endif %}
                   {% elif page_data.page == 'customers' %}
                     <a href="/admin/dashboard/customers/{{ row.id }}/"><i class="ph ph-user"></i> View customer</a>
                   {% else %}

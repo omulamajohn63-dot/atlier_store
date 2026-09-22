@@ -898,6 +898,31 @@
       background: var(--bg);
       outline: none;
     }
+    .admin-actions-panel form {
+      margin: 0;
+    }
+    .admin-actions-panel button {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 10px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--status-success);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: left;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .admin-actions-panel button:hover,
+    .admin-actions-panel button:focus-visible {
+      background: var(--status-success-bg);
+      outline: none;
+    }
     .admin-actions-panel a.danger {
       color: var(--status-danger);
     }

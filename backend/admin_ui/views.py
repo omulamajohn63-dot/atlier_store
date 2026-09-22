@@ -341,7 +341,8 @@ class AdminNotificationsPageView(View):
     template_name = 'admin_ui/notifications_page.html'
 
     def get(self, request):
-        notifications = AdminNotification.objects.filter(recipient=request.user)
+        notifications = AdminNotification.objects.filter(
+            recipient=request.user)
 
         category = (request.GET.get('category') or '').strip()
         severity = (request.GET.get('severity') or '').strip()
@@ -912,6 +913,16 @@ class AdminPageView(View):
                     'total': f'KES {Decimal(order.total_minor) / Decimal(100):.2f}',
                     'payment': order.get_payment_status_display(),
                     'status': order.get_status_display(),
+                    'can_approve': (
+                        order.status == Order.Status.PENDING
+                        and (
+                            order.payment_status == Order.PaymentStatus.PAID
+                            or order.payment_method in {
+                                'cash_on_delivery',
+                                'pay_on_delivery',
+                            }
+                        )
+                    ),
                     'actions': 'View',
                 })
             page_data = dict(page_data)
@@ -1559,6 +1570,10 @@ class ProductEditPageView(View):
         if not product:
             messages.error(request, 'Product not found.')
             return redirect('admin-dashboard')
+        _audit_catalog(
+            'product_viewed', product,
+            metadata={'surface': 'admin_product_edit'},
+        )
         form = ProductUpdateForm(
             initial={
                 'product_id': product.pk,
@@ -1607,6 +1622,10 @@ class ProductDetailPageView(View):
         if not product:
             messages.error(request, 'Product not found.')
             return redirect('admin-dashboard')
+        _audit_catalog(
+            'product_viewed', product,
+            metadata={'surface': 'admin_product_detail'},
+        )
         primary_variant = product.variants.order_by('sku').first()
         stock_adjust_url = (
             f'/admin/dashboard/inventory/adjust/?variant={primary_variant.id}'
@@ -1778,7 +1797,8 @@ class OrderReceiptRegenerateView(View):
             return HttpResponse('Order not found.', status=404)
         receipt = Receipt.objects.filter(order=order).first()
         if not receipt:
-            messages.error(request, 'No receipt has been issued for this order.')
+            messages.error(
+                request, 'No receipt has been issued for this order.')
             return redirect('admin-order-detail', order_id=order.pk)
         try:
             receipt = regenerate_receipt(receipt)

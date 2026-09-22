@@ -705,11 +705,17 @@ class AdminDashboardTests(TestCase):
         )
         self.client.force_login(self.staff)
 
-        response = self.client.get(f'/admin/dashboard/products/{product.id}/')
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.get(
+                f'/admin/dashboard/products/{product.id}/')
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Product Details')
         self.assertContains(response, 'Linen Top')
+        self.assertTrue(AuditLog.objects.filter(
+            action='product_viewed', object_id=str(product.id),
+            metadata__surface='admin_product_detail',
+        ).exists())
 
     def test_staff_can_increase_stock_from_product_detail_page(self):
         product = Product.objects.create(
@@ -754,11 +760,16 @@ class AdminDashboardTests(TestCase):
         )
         self.client.force_login(self.staff)
 
-        response = self.client.get(
-            f'/admin/dashboard/products/{product.id}/edit/')
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.get(
+                f'/admin/dashboard/products/{product.id}/edit/')
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Linen Top')
+        self.assertTrue(AuditLog.objects.filter(
+            action='product_viewed', object_id=str(product.id),
+            metadata__surface='admin_product_edit',
+        ).exists())
 
     def test_staff_can_open_admin_user_invite_page(self):
         self.client.force_login(self.staff)
@@ -828,6 +839,36 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, order.order_number)
         self.assertContains(response, 'Jane Doe')
         self.assertContains(response, 'Paid')
+
+    def test_admin_orders_dropdown_can_confirm_pending_paid_order(self):
+        from cart.models import Cart
+
+        cart = Cart.objects.create(cart_key='order-admin-dropdown-cart')
+        order = Order.objects.create(
+            order_number='AT-ORDER-ADMIN-DROPDOWN-001',
+            cart=cart,
+            customer={'full_name': 'Jane Doe', 'email': 'jane@example.com'},
+            subtotal_minor=1200,
+            total_minor=1400,
+            shipping_cost_minor=200,
+            payment_method='mpesa',
+            payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.PENDING,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/orders/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'href="/admin/dashboard/orders/{order.id}/"',
+        )
+        self.assertContains(
+            response,
+            f'action="/admin/dashboard/orders/{order.id}/approve/"',
+        )
+        self.assertContains(response, 'Confirm order')
 
     def test_staff_can_filter_orders_by_status_and_payment_status(self):
         from cart.models import Cart
