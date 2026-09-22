@@ -57,6 +57,13 @@ AUDIT_ACTIONS = (
     "payment_reversed",
     "refund_requested",
     "refund_completed",
+    # Receipts (automatic, backend-written on payment success).
+    "receipt_generated",
+    "receipt_generation_failed",
+    "receipt_regenerated",
+    "receipt_downloaded",
+    "receipt_email_sent",
+    "receipt_email_failed",
     # Wishlist / reviews / support (client-reported; no dedicated backend).
     "wishlist_item_added",
     "wishlist_item_removed",
@@ -162,6 +169,12 @@ CATEGORY_BY_ACTION = {
     "refund": "payments",
     "refund_requested": "payments",
     "refund_completed": "payments",
+    "receipt_generated": "payments",
+    "receipt_generation_failed": "payments",
+    "receipt_regenerated": "payments",
+    "receipt_downloaded": "payments",
+    "receipt_email_sent": "payments",
+    "receipt_email_failed": "payments",
     "wishlist_item_added": "catalog",
     "wishlist_item_removed": "catalog",
     "wishlist_cleared": "catalog",
@@ -201,6 +214,9 @@ SEVERITY_BY_ACTION = {
     "delete": "medium",
     "password_reset": "medium",
     "inventory_low_stock": "medium",
+    "receipt_generation_failed": "high",
+    "receipt_email_failed": "medium",
+    "receipt_downloaded": "medium",
 }
 
 

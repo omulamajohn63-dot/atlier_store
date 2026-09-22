@@ -67,6 +67,12 @@ ACTION_META = {
     'payment_initiation_failed': {'label': 'Payment Init Failed', 'icon': 'ph-credit-card'},
     'payment_timeout':     {'label': 'Payment Timed Out',       'icon': 'ph-clock'},
     'payment_reversed':    {'label': 'Payment Reversed',        'icon': 'ph-arrow-u-up-left'},
+    'receipt_generated':   {'label': 'Receipt Issued',          'icon': 'ph-receipt'},
+    'receipt_generation_failed': {'label': 'Receipt Generation Failed', 'icon': 'ph-receipt-x'},
+    'receipt_regenerated': {'label': 'Receipt Regenerated',     'icon': 'ph-arrow-clockwise'},
+    'receipt_downloaded':  {'label': 'Receipt Downloaded',      'icon': 'ph-download-simple'},
+    'receipt_email_sent':  {'label': 'Receipt Emailed',         'icon': 'ph-envelope-open'},
+    'receipt_email_failed': {'label': 'Receipt Email Failed',   'icon': 'ph-envelope-simple-x'},
     'refund':              {'label': 'Refunded',                'icon': 'ph-arrow-u-up-left'},
     'refund_requested':    {'label': 'Refund Requested',        'icon': 'ph-arrow-u-up-left'},
     'refund_completed':    {'label': 'Refund Completed',        'icon': 'ph-arrow-u-up-left'},
@@ -122,13 +128,15 @@ ERROR_ACTIONS = {
     'checkout_failed', 'order_creation_failed', 'cart_add_failed',
     'cart_update_failed', 'login_failed', 'registration_failed',
     'rate_limit_exceeded', 'permission_denied', 'access_denied',
+    'receipt_generation_failed', 'receipt_email_failed',
 }
 SUCCESS_ACTIONS = {
     'create', 'payment_success', 'payment_initiated', 'login', 'signup',
     'customer_registered', 'refund', 'refund_completed', 'order_created',
     'order_confirmed', 'order_received', 'cart_item_added', 'review_submitted',
     'support_message_submitted', 'profile_updated', 'password_updated',
-    'wishlist_item_added',
+    'wishlist_item_added', 'receipt_generated', 'receipt_regenerated',
+    'receipt_email_sent',
 }
 
 RESOURCE_TYPE_LABELS = {

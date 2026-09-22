@@ -4,6 +4,7 @@ import {
   CartDTO,
   OrderDTO,
   PaymentIntentDTO,
+  ReceiptDTO,
   PaginatedProductsResponse,
 } from '../types/api';
 import { CustomerNotification } from '../types';
@@ -98,6 +99,46 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
   }
 
   return res.json() as Promise<T>;
+}
+
+async function downloadBlob(endpoint: string, requireAuth = true): Promise<Blob> {
+  const cartId = getOrCreateCartId();
+  const headers = new Headers();
+  headers.set('x-cart-id', cartId);
+
+  if (requireAuth) {
+    const session = (await supabase?.auth.getSession())?.data.session;
+    if (session?.access_token) {
+      headers.set('Authorization', `Bearer ${session.access_token}`);
+    } else {
+      const error = new Error('Authentication is required for this request.') as Error & { code?: string; status?: number };
+      error.code = 'AUTH_REQUIRED';
+      error.status = 401;
+      throw error;
+    }
+  }
+
+  const res = await fetch(`${API_BASE_URL}${endpoint}`, { headers, credentials: 'include' as const });
+  const requestId = res.headers.get('x-request-id');
+  if (requestId) setLastRequestId(requestId);
+
+  if (!res.ok) {
+    let errorJson: { error?: { code?: string; message?: string; details?: unknown } } = {};
+    try {
+      errorJson = await res.json();
+    } catch {
+      // ignore
+    }
+    const errorObj = errorJson?.error;
+    const message = errorObj?.message || `Download failed with status ${res.status}.`;
+    const code = errorObj?.code || 'UNKNOWN_ERROR';
+    const error = new Error(message) as Error & { code?: string; details?: unknown; status?: number };
+    error.code = code;
+    error.status = res.status;
+    throw error;
+  }
+
+  return res.blob();
 }
 
 export const api = {
@@ -204,6 +245,18 @@ export const api = {
 
   async getOrders(): Promise<{ count: number; results: OrderDTO[] }> {
     return request<{ count: number; results: OrderDTO[] }>('/api/orders', {}, true, true);
+  },
+
+  // Receipts
+  async getOrderReceipt(orderNumber: string): Promise<ReceiptDTO> {
+    return request<ReceiptDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/receipt`, {}, true, true);
+  },
+
+  async downloadReceipt(receiptNumber: string): Promise<Blob> {
+    return downloadBlob(
+      `/api/receipts/${encodeURIComponent(receiptNumber)}/download`,
+      true,
+    );
   },
 
   // Payments

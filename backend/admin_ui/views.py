@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import os
 import uuid
 from datetime import timedelta
@@ -18,6 +19,7 @@ from django.db.models import Count, Q, Sum
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import FileResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -34,6 +36,8 @@ from botique_backend.storage import object_key_from_url, supabase_storage_enable
 from inventory.services import adjust_stock
 from orders.models import Order, OrderItem
 from orders.services import approve_order
+from receipts.models import Receipt
+from receipts.services import read_pdf_bytes, regenerate_receipt
 
 from .audit_ui import (
     RANGE_CHOICES,
@@ -70,6 +74,9 @@ def is_staff(user):
 
 def is_superuser(user):
     return user.is_authenticated and user.is_superuser
+
+
+logger = logging.getLogger('admin_ui.views')
 
 
 def _audit_catalog(action, item, metadata=None, status_code=None):
@@ -1679,6 +1686,13 @@ class OrderDetailPageView(View):
         )[:40]
         activity = decorate_audit_logs(list(activity))
 
+        receipt = Receipt.objects.select_related('order').filter(
+            order=order).first()
+        receipt_amount = (
+            Decimal(receipt.amount_minor) / Decimal(100)
+            if receipt else None
+        )
+
         return render(request, self.template_name, {
             'order': order,
             'customer_name': customer_name,
@@ -1692,7 +1706,90 @@ class OrderDetailPageView(View):
             'can_approve': can_approve,
             'activity_logs': activity,
             'logs': activity,
+            'receipt': receipt,
+            'receipt_amount': receipt_amount,
+            'receipt_download_url': (
+                f'/admin/dashboard/orders/{order.pk}/receipt/download/'
+                if receipt else ''
+            ),
+            'receipt_regenerate_url': (
+                f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/'
+                if receipt else ''
+            ),
         })
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class OrderReceiptDownloadView(View):
+    """Stream the receipt PDF to a staff member (admin download)."""
+
+    def get(self, request, order_id):
+        order = Order.objects.filter(pk=order_id).first()
+        if not order:
+            return HttpResponse('Order not found.', status=404)
+        receipt = Receipt.objects.filter(order=order).first()
+        if not receipt:
+            return HttpResponse('No receipt for this order.', status=404)
+        try:
+            pdf_bytes = read_pdf_bytes(receipt)
+        except Exception:
+            logger.exception(
+                'Admin receipt download failed for %s.', receipt.receipt_number)
+            AuditLogService.log(
+                'receipt_downloaded',
+                object_type='receipt',
+                object_id=receipt.pk,
+                object_repr=receipt.receipt_number,
+                category='payments',
+                result='failure',
+                metadata={'reason': 'storage_read_failed',
+                          'order_number': order.order_number},
+                description=f'Receipt {receipt.receipt_number} download failed.',
+            )
+            messages.error(request, 'The receipt document is unavailable.')
+            return redirect('admin-order-detail', order_id=order.pk)
+
+        AuditLogService.log(
+            'receipt_downloaded',
+            actor=request.user,
+            object_type='receipt',
+            object_id=receipt.pk,
+            object_repr=receipt.receipt_number,
+            category='payments',
+            metadata={'order_number': order.order_number},
+            description=f'Receipt {receipt.receipt_number} downloaded by staff.',
+        )
+        from io import BytesIO
+        return FileResponse(
+            BytesIO(pdf_bytes),
+            content_type='application/pdf',
+            as_attachment=True,
+            filename=f'{receipt.receipt_number}.pdf',
+        )
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class OrderReceiptRegenerateView(View):
+    """Repair path for a failed/stale receipt, from the admin UI."""
+
+    def post(self, request, order_id):
+        order = Order.objects.filter(pk=order_id).first()
+        if not order:
+            return HttpResponse('Order not found.', status=404)
+        receipt = Receipt.objects.filter(order=order).first()
+        if not receipt:
+            messages.error(request, 'No receipt has been issued for this order.')
+            return redirect('admin-order-detail', order_id=order.pk)
+        try:
+            receipt = regenerate_receipt(receipt)
+        except Exception:
+            logger.exception(
+                'Admin receipt regeneration failed for %s.', receipt.receipt_number)
+            messages.error(request, 'The receipt could not be regenerated.')
+        else:
+            messages.success(
+                request, f'Receipt {receipt.receipt_number} regenerated.')
+        return redirect('admin-order-detail', order_id=order.pk)
 
 
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')

@@ -60,6 +60,38 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with', 'x-cart-id',
 ]
 
+# ---------------------------------------------------------------------------
+# Store branding (used by receipt PDFs and receipt emails)
+# ---------------------------------------------------------------------------
+STORE_NAME = os.getenv('STORE_NAME', 'MODEZA Boutique')
+STORE_EMAIL = os.getenv('STORE_EMAIL', 'hello@modeza.co.ke')
+STORE_PHONE = os.getenv('STORE_PHONE', '+254 700 123 456')
+STORE_WEBSITE = os.getenv('STORE_WEBSITE', 'https://modeza.co.ke')
+STORE_ADDRESS = os.getenv('STORE_ADDRESS', 'Nairobi, Kenya')
+
+# ---------------------------------------------------------------------------
+# Outbound email (automatic receipts & notifications)
+#
+# SMTP is activated whenever EMAIL_HOST is set (Render production). Otherwise
+# the console backend prints messages to the log — a safe zero-config default
+# for local development that can never fail a delivery attempt.
+# ---------------------------------------------------------------------------
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+if EMAIL_HOST:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    EMAIL_USE_TLS = os.getenv(
+        'EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
+    EMAIL_USE_SSL = os.getenv(
+        'EMAIL_USE_SSL', 'False').lower() in {'1', 'true', 'yes', 'on'}
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    'DEFAULT_FROM_EMAIL', f'{STORE_NAME} <receipts@modeza.co.ke>')
+
 
 # Application definition
 
@@ -81,6 +113,7 @@ INSTALLED_APPS = [
     'inventory',
     'orders',
     'payments',
+    'receipts',
     'store',
 ]
 
@@ -386,6 +419,11 @@ LOGGING = {
             'propagate': False,
         },
         'admin_ui': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'receipts': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
             'propagate': False,

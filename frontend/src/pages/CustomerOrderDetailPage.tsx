@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Check,
   CreditCard,
+  Download,
   MapPin,
   Printer,
   Truck,
@@ -18,6 +19,7 @@ import { OrderProgress } from '../components/orders/OrderProgress';
 import { OrderItemThumb } from '../components/orders/OrderItemThumb';
 import { api } from '../services/apiClient';
 import { Order, PaymentStatus } from '../types';
+import { ReceiptDTO } from '../types/api';
 import { formatPrice } from '../utils/currency';
 import { formatOrderDate, mapServerOrder, totalQuantity } from '../utils/orderMapper';
 import {
@@ -59,6 +61,10 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
     if (!propOrderNumber) return null;
     return getOrder(propOrderNumber) || null;
   });
+  const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -127,6 +133,50 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
       })
       .finally(() => setLoading(false));
   }, [propOrderNumber, getOrder]);
+
+  const handleDownloadReceipt = useCallback(async () => {
+    if (!receipt) return;
+    setDownloading(true);
+    setReceiptError('');
+    try {
+      const blob = await api.downloadReceipt(receipt.receiptNumber);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${receipt.receiptNumber}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setReceiptError(err instanceof Error ? err.message : 'The receipt could not be downloaded.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [receipt]);
+
+  useEffect(() => {
+    if (!order || order.paymentStatus !== 'paid') {
+      setReceipt(null);
+      return;
+    }
+    let cancelled = false;
+    setReceiptLoading(true);
+    api
+      .getOrderReceipt(order.orderNumber)
+      .then((data) => {
+        if (!cancelled && data.status === 'generated') setReceipt(data);
+      })
+      .catch(() => {
+        if (!cancelled) setReceipt(null);
+      })
+      .finally(() => {
+        if (!cancelled) setReceiptLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [order]);
 
   if (!propOrderNumber) {
     return (
@@ -435,6 +485,24 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                     Cancel Order
                   </Button>
                 )}
+                {receiptLoading ? (
+                  <Button type="button" variant="outline" size="md" disabled className="gap-2 text-xs" aria-busy="true">
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    Checking receipt…
+                  </Button>
+                ) : receipt ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => void handleDownloadReceipt()}
+                    disabled={downloading}
+                    className="gap-2 text-xs uppercase tracking-wider"
+                  >
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    {downloading ? 'Downloading…' : 'Download Receipt (PDF)'}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="outline"
@@ -446,6 +514,15 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                   Print Receipt
                 </Button>
               </section>
+
+              {receiptError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-xs leading-relaxed text-[#9B1C1C]"
+                >
+                  {receiptError}
+                </div>
+              )}
 
               {error && (
                 <div

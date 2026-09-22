@@ -1,0 +1,391 @@
+"""Receipt lifecycle services.
+
+Single-writer design mirrors the rest of Modeza:
+
+* :func:`generate_receipt` is the only creation path and is invoked from
+  ``payments.services`` the moment a payment succeeds. It is **idempotent**
+  (one receipt per order) and **never raises** — a failing receipt must never
+  undo a successful payment.
+* :func:`regenerate_receipt` re-renders an existing receipt (admin repair path)
+  and is allowed to surface errors to the caller.
+* :func:`email_receipt` delivers the PDF attachment and never raises.
+"""
+
+import logging
+
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.core.mail import EmailMessage
+from django.db import transaction
+from django.utils import timezone
+
+from admin_ui.models import notify_customer
+from admin_ui.services import AdminNotificationService
+from audit.services import AuditLogService
+
+from .models import Receipt, ReceiptSequence
+from .pdf import render_receipt_pdf
+
+logger = logging.getLogger('receipts')
+
+
+# ---------------------------------------------------------------------------
+# Numbering
+# ---------------------------------------------------------------------------
+
+@transaction.atomic
+def next_receipt_number():
+    """Mint the next sequential ``RCP-YYYY-NNNNNN`` number.
+
+    The per-year counter row is locked with ``select_for_update`` so
+    concurrent payments cannot be assigned the same number.
+    """
+    year = timezone.now().year
+    sequence, _ = ReceiptSequence.objects.select_for_update().get_or_create(
+        year=year)
+    sequence.last_number += 1
+    sequence.save(update_fields=['last_number', 'updated_at'])
+    return f'RCP-{year}-{sequence.last_number:06d}'
+
+
+def build_snapshot(order):
+    """Freeze the billed customer, line items and totals for the PDF."""
+    customer = order.customer or {}
+    return {
+        'customer': {
+            'fullName': customer.get('fullName') or customer.get('full_name') or '',
+            'email': customer.get('email') or '',
+            'phone': customer.get('phone') or '',
+            'addressLine1': customer.get(
+                'addressLine1') or customer.get('address_line1') or '',
+            'addressLine2': customer.get(
+                'addressLine2') or customer.get('address_line2') or '',
+            'city': customer.get('city') or '',
+            'stateOrProvince': customer.get('county') or customer.get(
+                'stateOrProvince') or customer.get('state') or '',
+            'postalCode': customer.get('postalCode') or '',
+        },
+        'items': [
+            {
+                'product_name': item.product_name,
+                'variant_sku': item.variant_sku,
+                'variant_size': item.variant_size,
+                'variant_color': item.variant_color,
+                'image_url': item.image_url,
+                'unit_price_minor': item.unit_price_minor,
+                'quantity': item.quantity,
+                'line_total_minor': item.line_total_minor,
+            }
+            for item in order.items.all()
+        ],
+        'subtotal_minor': order.subtotal_minor,
+        'shipping_cost_minor': order.shipping_cost_minor,
+        'tax_minor': order.tax_minor,
+        'total_minor': order.total_minor,
+        'shipping_method': order.shipping_method,
+        'payment_method': order.payment_method,
+        'currency': order.currency or 'KES',
+    }
+
+
+def get_receipt_for_order(order):
+    return Receipt.objects.filter(order=order).first()
+
+
+# ---------------------------------------------------------------------------
+# Generation / regeneration
+# ---------------------------------------------------------------------------
+
+def generate_receipt(order, *, intent=None):
+    """Create (or return) the receipt for a paid order. Idempotent, no-op safe.
+
+    Intended to run inside the payment transaction. Any failure is recorded on
+    the existing receipt row (status ``failed``) and audited as
+    ``receipt_generation_failed`` so the payment itself is never affected.
+    """
+    try:
+        return _generate_impl(order, intent)
+    except Exception:
+        logger.exception(
+            'Receipt generation failed for order %s.', order.order_number)
+        try:
+            AuditLogService.log(
+                'receipt_generation_failed',
+                object_type='order',
+                object_id=order.pk,
+                object_repr=order.order_number,
+                category='payments',
+                result='failure',
+                severity='high',
+                metadata={'order_number': order.order_number},
+                description=(
+                    f'Receipt generation failed for order {order.order_number}.'),
+            )
+        except Exception:
+            logger.exception('Audit write for failed receipt skipped.')
+        return Receipt.objects.filter(order=order).first()
+
+
+def _generate_impl(order, intent):
+    existing = get_receipt_for_order(order)
+    if existing is not None and existing.status == Receipt.Status.GENERATED:
+        return existing
+
+    gateway_reference = _clean_gateway_reference(order, intent)
+    checkout_request_id = _clean_checkout_request_id(intent)
+
+    if existing is None:
+        receipt_number = next_receipt_number()
+        receipt = Receipt.objects.create(
+            order=order,
+            receipt_number=receipt_number,
+            snapshot=build_snapshot(order),
+            amount_minor=order.total_minor,
+            currency=order.currency or 'KES',
+            gateway_reference=gateway_reference,
+            checkout_request_id=checkout_request_id,
+        )
+    else:
+        receipt = existing
+        receipt.snapshot = build_snapshot(order)
+        receipt.amount_minor = order.total_minor
+        receipt.currency = order.currency or 'KES'
+        if gateway_reference:
+            receipt.gateway_reference = gateway_reference
+        if checkout_request_id:
+            receipt.checkout_request_id = checkout_request_id
+        receipt.save(update_fields=[
+            'snapshot', 'amount_minor', 'currency',
+            'gateway_reference', 'checkout_request_id', 'updated_at'])
+
+    try:
+        _render_and_store(receipt)
+    except Exception:
+        logger.exception(
+            'PDF render/store failed for receipt %s.', receipt.receipt_number)
+        note = f'Failed at {timezone.now().isoformat()}'
+        Receipt.objects.filter(pk=receipt.pk).update(
+            status=Receipt.Status.FAILED, notes=note, updated_at=timezone.now())
+        receipt.status = Receipt.Status.FAILED
+        receipt.notes = note
+        AuditLogService.log(
+            'receipt_generation_failed',
+            object_type='receipt',
+            object_id=receipt.pk,
+            object_repr=receipt.receipt_number,
+            category='payments',
+            result='failure',
+            severity='high',
+            metadata={'order_number': order.order_number,
+                      'step': 'pdf_render'},
+            description=f'Receipt {receipt.receipt_number} could not be generated.',
+        )
+        return receipt
+
+    audit_log = AuditLogService.log(
+        'receipt_generated',
+        object_type='receipt',
+        object_id=receipt.pk,
+        object_repr=receipt.receipt_number,
+        category='payments',
+        metadata={
+            'order_number': order.order_number,
+            'gateway_reference': receipt.gateway_reference,
+            'amount_minor': receipt.amount_minor,
+            'pdf_key': receipt.pdf_key,
+        },
+        description=f'Receipt {receipt.receipt_number} generated for '
+                    f'order {order.order_number}.',
+    )
+    AdminNotificationService.notify_for_audit(
+        audit_log,
+        event_key=f'receipt-issued:{order.pk}',
+        message=f'Receipt {receipt.receipt_number} issued for '
+                f'order {order.order_number}.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
+    )
+    if order.user is not None:
+        notify_customer(
+            order.user,
+            'payment',
+            'Receipt available',
+            f'Your official receipt {receipt.receipt_number} for order '
+            f'{order.order_number} is ready.',
+            link=f'/account/orders/{order.order_number}',
+            event_key=f'customer-receipt:{order.pk}',
+        )
+
+    transaction.on_commit(
+        lambda pk=receipt.pk: dispatch_receipt_email(pk))
+    return receipt
+
+
+def regenerate_receipt(receipt):
+    """Re-render the PDF for an existing receipt. Raises on failure."""
+    order = receipt.order
+    receipt.snapshot = build_snapshot(order)
+    receipt.amount_minor = order.total_minor
+    receipt.currency = order.currency or 'KES'
+    receipt = _render_and_store(receipt)
+    audit_log = AuditLogService.log(
+        'receipt_regenerated',
+        object_type='receipt',
+        object_id=receipt.pk,
+        object_repr=receipt.receipt_number,
+        category='payments',
+        metadata={'order_number': order.order_number,
+                  'pdf_key': receipt.pdf_key},
+        description=f'Receipt {receipt.receipt_number} regenerated for '
+                    f'order {order.order_number}.',
+    )
+    AdminNotificationService.notify_for_audit(
+        audit_log,
+        event_key=f'receipt-regenerated:{order.pk}',
+        message=f'Receipt {receipt.receipt_number} was regenerated for '
+                f'order {order.order_number}.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
+    )
+    return receipt
+
+
+def _render_and_store(receipt):
+    """Render the PDF, persist to storage and record storage metadata."""
+    order = receipt.order
+    pdf_bytes = render_receipt_pdf(receipt)
+    pdf_key = f'receipts/{order.order_number}/{receipt.receipt_number}.pdf'
+    content = ContentFile(pdf_bytes)
+    content.content_type = 'application/pdf'
+    name = default_storage.save(pdf_key, content)
+    receipt.pdf_key = name
+    receipt.pdf_url = default_storage.url(name)
+    receipt.payload_size = len(pdf_bytes)
+    receipt.generated_at = timezone.now()
+    receipt.status = Receipt.Status.GENERATED
+    receipt.notes = ''
+    receipt.save(update_fields=[
+        'pdf_key', 'pdf_url', 'payload_size', 'generated_at',
+        'status', 'notes', 'updated_at'])
+    return receipt
+
+
+# ---------------------------------------------------------------------------
+# Delivery (email)
+# ---------------------------------------------------------------------------
+
+def dispatch_receipt_email(receipt_id):
+    """Run email delivery after commit. Never raises out of on_commit."""
+    try:
+        receipt = Receipt.objects.select_related('order').get(pk=receipt_id)
+        email_receipt(receipt)
+    except Receipt.DoesNotExist:
+        pass
+    except Exception:
+        logger.exception('Receipt email dispatch failed for %s.', receipt_id)
+
+
+def email_receipt(receipt, *, force=False):
+    """Attach and send the receipt PDF. Idempotent; never raises."""
+    if receipt.email_sent_at and not force:
+        return receipt
+
+    customer = receipt.snapshot.get('customer') or {}
+    recipient = (customer.get('email') or '').strip()
+    if not recipient:
+        receipt.email_attempts += 1
+        receipt.email_error = 'No customer email on file.'
+        receipt.save(update_fields=['email_attempts', 'email_error', 'updated_at'])
+        return receipt
+
+    try:
+        pdf_bytes = read_pdf_bytes(receipt)
+        subject = (
+            f'Your Modeza receipt {receipt.receipt_number} '
+            f'for order {receipt.order.order_number}')
+        body = (
+            f'Dear {customer.get("fullName") or "customer"},\n\n'
+            f'Thank you for shopping with '
+            f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}.\n'
+            f'Your official receipt {receipt.receipt_number} for order '
+            f'{receipt.order.order_number} is attached.\n\n'
+            f'Total paid: {receipt.currency} '
+            f'{float(receipt.amount_minor or 0) / 100:.2f}\n\n'
+            f'If you believe this was sent in error, contact us at '
+            f'{getattr(settings, "STORE_EMAIL", "")}.\n\n'
+            f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}\n'
+            f'{getattr(settings, "STORE_ADDRESS", "")}'
+        )
+        email = EmailMessage(
+            subject,
+            body,
+            settings.DEFAULT_FROM_EMAIL,
+            [recipient],
+        )
+        email.attach(f'{receipt.receipt_number}.pdf', pdf_bytes,
+                     'application/pdf')
+        email.send(fail_silently=False)
+
+        receipt.email_sent_at = timezone.now()
+        receipt.email_attempts += 1
+        receipt.email_error = ''
+        receipt.save(update_fields=[
+            'email_sent_at', 'email_attempts', 'email_error', 'updated_at'])
+
+        AuditLogService.log(
+            'receipt_email_sent',
+            object_type='receipt',
+            object_id=receipt.pk,
+            object_repr=receipt.receipt_number,
+            category='payments',
+            metadata={'recipient': recipient},
+            description=f'Receipt {receipt.receipt_number} emailed to {recipient}.',
+        )
+        return receipt
+
+    except Exception as exc:  # noqa: BLE001 - delivery must never raise
+        receipt.email_attempts += 1
+        receipt.email_error = str(exc)[:300]
+        receipt.save(update_fields=['email_attempts', 'email_error', 'updated_at'])
+        AuditLogService.log(
+            'receipt_email_failed',
+            object_type='receipt',
+            object_id=receipt.pk,
+            object_repr=receipt.receipt_number,
+            category='payments',
+            result='failure',
+            severity='medium',
+            metadata={'recipient': recipient},
+            description=f'Emailed receipt {receipt.receipt_number} failed.',
+        )
+        logger.warning('Receipt email failed for %s: %s',
+                       receipt.receipt_number, exc)
+        return receipt
+
+
+def read_pdf_bytes(receipt):
+    """Read the stored PDF for a receipt as raw bytes."""
+    if not receipt.pdf_key:
+        raise ValueError(
+            f'Receipt {receipt.receipt_number} has no stored PDF.')
+    with default_storage.open(receipt.pdf_key, 'rb') as handle:
+        return handle.read()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _clean_gateway_reference(order, intent):
+    ref = ''
+    if intent is not None:
+        ref = getattr(intent, 'gateway_reference', '') or ''
+    if not ref:
+        ref = (order.customer or {}).get('gateway_reference') or ''
+    return ref
+
+
+def _clean_checkout_request_id(intent):
+    if intent is None:
+        return ''
+    # The M-Pesa CheckoutRequestID is stored on client_secret.
+    return getattr(intent, 'client_secret', '') or ''

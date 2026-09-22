@@ -139,3 +139,18 @@ export interface PaymentIntentDTO {
   clientSecret: string;
   gatewayReference?: string;
 }
+
+export interface ReceiptDTO {
+  id: string;
+  receiptNumber: string;
+  orderNumber: string;
+  status: 'generated' | 'failed';
+  currency: string;
+  amount: number;
+  issueDate?: string;
+  gatewayReference?: string;
+  checkoutRequestId?: string;
+  emailSentAt?: string;
+  downloadPath: string;
+  createdAt: string;
+}

@@ -102,6 +102,60 @@
   </div>
 </div>
 
+{% if receipt %}
+<div class="card" style="margin-top: 24px;">
+  <div class="card-header">
+    <span class="card-title"><i class="ph ph-receipt"></i> Official receipt</span>
+    <span class="status-badge status-{{ receipt.status|lower }}">{{ receipt.get_status_display }}</span>
+  </div>
+  <div style="padding: 20px 24px;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+      <div>
+        <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); margin-bottom:6px;">Receipt number</div>
+        <div style="font-weight:600;">{{ receipt.receipt_number }}</div>
+      </div>
+      <div>
+        <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); margin-bottom:6px;">Amount paid</div>
+        <div style="font-weight:600;">{{ receipt.currency }} {{ receipt_amount|floatformat:2 }}</div>
+      </div>
+      {% if receipt.gateway_reference %}
+      <div>
+        <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); margin-bottom:6px;">Gateway reference</div>
+        <div style="font-weight:600;">{{ receipt.gateway_reference }}</div>
+      </div>
+      {% endif %}
+      <div>
+        <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); margin-bottom:6px;">Generated</div>
+        <div style="font-weight:600;">{{ receipt.generated_at|date:"d M Y H:i" }}</div>
+      </div>
+      <div>
+        <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-secondary); margin-bottom:6px;">Email</div>
+        {% if receipt.email_sent_at %}
+        <div style="font-weight:600;">Sent {{ receipt.email_sent_at|date:"d M Y H:i" }}</div>
+        {% elif receipt.email_error %}
+        <div style="color:var(--status-danger);">Failed ({{ receipt.email_error }})</div>
+        {% else %}
+        <div style="color:var(--text-secondary);">Pending / not sent</div>
+        {% endif %}
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <a class="btn btn-primary" href="{{ receipt_download_url }}">
+        <i class="ph ph-download-simple"></i> Download PDF
+      </a>
+      {% if receipt.status == 'failed' %}
+      <form method="post" action="{{ receipt_regenerate_url }}" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" class="btn">
+          <i class="ph ph-arrow-clockwise"></i> Regenerate
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card" style="margin-top: 24px;">
   <div class="card-header">
     <span class="card-title"><i class="ph ph-scroll"></i> Order activity</span>

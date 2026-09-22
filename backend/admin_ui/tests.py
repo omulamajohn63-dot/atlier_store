@@ -1782,3 +1782,189 @@ class ActivityCenterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Order activity')
         self.assertContains(response, 'Order AT-ACT-001')
+
+    def test_order_detail_page_renders_receipt_panel(self):
+        from cart.models import Cart
+        from receipts.models import Receipt
+
+        cart = Cart.objects.create(cart_key='receipt-order-cart')
+        order = Order.objects.create(
+            order_number='AT-RCP-001', cart=cart,
+            customer={'fullName': 'Receipt Buyer', 'email': 'r@example.com'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.CONFIRMED,
+        )
+        Receipt.objects.create(
+            order=order, receipt_number='RCP-2030-000999',
+            amount_minor=1450, currency='KES',
+            gateway_reference='GTW-001', status=Receipt.Status.GENERATED,
+            payload_size=123,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get(f'/admin/dashboard/orders/{order.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Official receipt')
+        self.assertContains(response, 'RCP-2030-000999')
+        self.assertContains(
+            response, f'/admin/dashboard/orders/{order.pk}/receipt/download/')
+        self.assertFalse(
+            f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/' in
+            response.content.decode())
+
+    def test_order_detail_page_shows_regenerate_for_failed_receipt(self):
+        from cart.models import Cart
+        from receipts.models import Receipt
+
+        cart = Cart.objects.create(cart_key='failed-receipt-cart')
+        order = Order.objects.create(
+            order_number='AT-RCP-FAIL', cart=cart,
+            customer={'fullName': 'Fail Buyer', 'email': 'f@example.com'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.CONFIRMED,
+        )
+        Receipt.objects.create(
+            order=order, receipt_number='RCP-2030-000988',
+            amount_minor=1450, currency='KES',
+            status=Receipt.Status.FAILED, notes='Failed at render',
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get(f'/admin/dashboard/orders/{order.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        url = f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/'
+        self.assertContains(response, url)
+
+    def test_admin_can_download_receipt_pdf(self):
+        from cart.models import Cart
+        from receipts.models import Receipt
+        from unittest.mock import patch
+
+        cart = Cart.objects.create(cart_key='dl-receipt-cart')
+        order = Order.objects.create(
+            order_number='AT-RCP-DL', cart=cart,
+            customer={'fullName': 'DL Buyer'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.CONFIRMED,
+        )
+        Receipt.objects.create(
+            order=order, receipt_number='RCP-2030-000977',
+            amount_minor=1450, currency='KES', status=Receipt.Status.GENERATED,
+            pdf_key='receipts/AT-RCP-DL/RCP-2030-000977.pdf',
+        )
+        self.client.force_login(self.staff)
+
+        with patch('admin_ui.views.read_pdf_bytes',
+                   return_value=b'%PDF-1.4 test receipt'):
+            response = self.client.get(
+                f'/admin/dashboard/orders/{order.pk}/receipt/download/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(
+            b''.join(response.streaming_content).startswith(b'%PDF'))
+
+    def test_admin_can_regenerate_failed_receipt(self):
+        import tempfile
+
+        from django.test import override_settings
+        from cart.models import Cart
+        from receipts.models import Receipt
+
+        cart = Cart.objects.create(cart_key='reg-receipt-cart')
+        order = Order.objects.create(
+            order_number='AT-RCP-REG', cart=cart,
+            customer={'fullName': 'Reg Buyer', 'email': 're@example.com'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.CONFIRMED,
+        )
+        receipt = Receipt.objects.create(
+            order=order, receipt_number='RCP-2030-000966',
+            amount_minor=1450, currency='KES',
+            status=Receipt.Status.FAILED, notes='Failed at render',
+        )
+        self.client.force_login(self.staff)
+
+        media = tempfile.mkdtemp(prefix='modeza-admin-receipt-')
+        with override_settings(STORAGES={
+                'default': {
+                    'BACKEND': 'django.core.files.storage.FileSystemStorage',
+                    'OPTIONS': {'location': media},
+                },
+                'staticfiles': {
+                    'BACKEND': (
+                        'whitenoise.storage.'
+                        'CompressedManifestStaticFilesStorage'),
+                },
+        }):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/')
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/orders/{order.pk}/')
+        receipt.refresh_from_db()
+        self.assertEqual(receipt.status, Receipt.Status.GENERATED)
+        self.assertTrue(receipt.pdf_key)
+        self.assertGreater(receipt.payload_size, 0)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action='receipt_regenerated',
+                object_id=str(receipt.pk)).exists())
+
+    def test_receipt_actions_require_staff_session(self):
+        from cart.models import Cart
+        from receipts.models import Receipt
+
+        cart = Cart.objects.create(cart_key='anon-receipt-cart')
+        order = Order.objects.create(
+            order_number='AT-RCP-ANON', cart=cart,
+            customer={'fullName': 'Anon Buyer'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.CONFIRMED,
+        )
+        Receipt.objects.create(
+            order=order, receipt_number='RCP-2030-000955',
+            amount_minor=1450, currency='KES', status=Receipt.Status.GENERATED,
+            pdf_key='receipts/AT-RCP-ANON/RCP-2030-000955.pdf',
+        )
+
+        for url in (
+                f'/admin/dashboard/orders/{order.pk}/receipt/download/',
+                f'/admin/dashboard/orders/{order.pk}/receipt/regenerate/'):
+            response = self.client.get(url)
+            self.assertIn(f'/admin/dashboard/login/?next={url}',
+                          response.get('Location', ''))
+
+    def test_customer_session_cannot_download_receipt(self):
+        from cart.models import Cart
+        from receipts.models import Receipt
+
+        cart = Cart.objects.create(cart_key='cust-receipt-cart')
+        order = Order.objects.create(
+            order_number='AT-RCP-CUST', cart=cart,
+            customer={'fullName': 'Cust Buyer'},
+            subtotal_minor=1200, total_minor=1450, shipping_cost_minor=250,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.CONFIRMED,
+        )
+        Receipt.objects.create(
+            order=order, receipt_number='RCP-2030-000944',
+            amount_minor=1450, currency='KES', status=Receipt.Status.GENERATED,
+            pdf_key='receipts/AT-RCP-CUST/RCP-2030-000944.pdf',
+        )
+        self.client.force_login(self.customer)
+
+        response = self.client.get(
+            f'/admin/dashboard/orders/{order.pk}/receipt/download/')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/dashboard/login/',
+                      response.get('Location', ''))
