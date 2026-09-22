@@ -116,8 +116,6 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
     const local = getOrder(orderNum);
     if (local) {
       setOrder(local);
-      setError('');
-      return;
     }
 
     setLoading(true);

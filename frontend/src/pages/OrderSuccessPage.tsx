@@ -7,6 +7,7 @@ import { CheckCircle2, PackageCheck, ArrowRight, Printer, Download, Mail, MapPin
 import { api } from '../services/apiClient';
 import { Order } from '../types';
 import { ReceiptDTO } from '../types/api';
+import { mapServerOrder } from '../utils/orderMapper';
 
 export interface OrderSuccessPageProps {
   orderNumber?: string;
@@ -29,56 +30,22 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
   const [receiptError, setReceiptError] = useState('');
 
   useEffect(() => {
-    if (orderNumber && !order) {
-      const found = getOrder(orderNumber);
-      if (found) {
-        setOrder(found);
-      } else {
-        api.getOrder(orderNumber).then((serverOrder) => {
-          setOrder({
-            id: serverOrder.id,
-            orderNumber: serverOrder.orderNumber,
-            customer: {
-              firstName: serverOrder.customer.fullName.split(' ')[0] || serverOrder.customer.fullName,
-              lastName: serverOrder.customer.fullName.split(' ').slice(1).join(' ') || '',
-              email: serverOrder.customer.email,
-              phone: serverOrder.customer.phone,
-              addressLine1: serverOrder.customer.addressLine1,
-              addressLine2: serverOrder.customer.addressLine2,
-              city: serverOrder.customer.city,
-              stateOrProvince: serverOrder.customer.county,
-              postalCode: serverOrder.customer.postalCode || '',
-              country: 'Kenya',
-            },
-            items: serverOrder.items.map((i) => ({
-              id: i.id,
-              productId: i.productId,
-              variantId: i.variantId,
-              productName: i.productName,
-              variantDetails: `${i.variantSize || ''} ${i.variantColor || ''}`.trim(),
-              sku: i.variantSku,
-              unitPrice: i.unitPrice,
-              quantity: i.quantity,
-              subtotal: i.lineTotal,
-              image: i.imageUrl || '',
-            })),
-            subtotal: serverOrder.subtotal,
-            shippingMethod: serverOrder.shippingMethod,
-            shippingCost: serverOrder.shippingCost,
-            tax: serverOrder.tax,
-            total: serverOrder.total,
-            status: serverOrder.status,
-            paymentStatus: serverOrder.paymentStatus,
-            timeline: [],
-            createdAt: serverOrder.createdAt,
-            updatedAt: serverOrder.updatedAt,
-          });
-        }).catch(() => {
-          // ignore
-        });
-      }
+    if (!orderNumber) return;
+
+    const cachedOrder = getOrder(orderNumber);
+    if (cachedOrder) {
+      setOrder(cachedOrder);
     }
-  }, [orderNumber, order, getOrder]);
+
+    api
+      .getOrder(orderNumber)
+      .then((serverOrder) => {
+        setOrder(mapServerOrder(serverOrder));
+      })
+      .catch(() => {
+        // Keep the cached order visible if the authoritative refresh is unavailable.
+      });
+  }, [orderNumber, getOrder]);
 
   const handleDownloadReceipt = useCallback(async () => {
     if (!receipt) return;
