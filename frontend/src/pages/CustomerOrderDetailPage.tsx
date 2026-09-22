@@ -63,7 +63,6 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
   });
   const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
-  const [receiptUnavailable, setReceiptUnavailable] = useState(false);
   const [receiptError, setReceiptError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
@@ -177,15 +176,13 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
   }, [receipt]);
 
   useEffect(() => {
-    if (!order || order.paymentStatus !== 'paid') {
+    if (!order || order.status !== 'confirmed') {
       setReceipt(null);
-      setReceiptUnavailable(false);
       setReceiptError('');
       return;
     }
     let cancelled = false;
     setReceipt(null);
-    setReceiptUnavailable(false);
     setReceiptError('');
     setReceiptLoading(true);
     api
@@ -202,7 +199,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
         if (cancelled) return;
         const error = err as Error & { code?: string; status?: number };
         if (error.status === 404 && error.code === 'RECEIPT_NOT_FOUND') {
-          setReceiptUnavailable(true);
+          setReceiptError('The official receipt is not available yet. Please try again shortly.');
           return;
         }
         setReceiptError(error.message || 'The official receipt could not be checked.');
@@ -539,20 +536,19 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                     <Download className="h-3.5 w-3.5" aria-hidden="true" />
                     {downloading ? 'Downloading…' : 'Download Receipt (PDF)'}
                   </Button>
-                ) : null}
+                ) : (
+                  <Button type="button" variant="outline" size="md" disabled className="gap-2 text-xs">
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    Receipt unavailable
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => {
-                    if (receipt) {
-                      void handleOpenReceipt();
-                    } else if (receiptUnavailable) {
-                      window.print();
-                    }
-                  }}
-                  disabled={downloading || receiptLoading || (!receipt && !receiptUnavailable)}
-                  className="gap-2 text-xs"
+                  onClick={() => void handleOpenReceipt()}
+                  disabled={downloading || receiptLoading || !receipt}
+                  className="gap-2 text-xs uppercase tracking-wider"
                 >
                   <Printer className="h-3.5 w-3.5" aria-hidden="true" />
                   Print Receipt
