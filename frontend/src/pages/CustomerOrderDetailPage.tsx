@@ -63,6 +63,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
   });
   const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptUnavailable, setReceiptUnavailable] = useState(false);
   const [receiptError, setReceiptError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
@@ -157,14 +158,20 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
 
   const handleOpenReceipt = useCallback(async () => {
     if (!receipt) return;
+    const receiptWindow = window.open('', '_blank');
+    if (!receiptWindow) {
+      setReceiptError('Please allow pop-ups to open the receipt.');
+      return;
+    }
     setDownloading(true);
     setReceiptError('');
     try {
       const blob = await api.downloadReceipt(receipt.receiptNumber);
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
+      receiptWindow.location.href = url;
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
+      receiptWindow.close();
       setReceiptError(err instanceof Error ? err.message : 'The receipt could not be opened.');
     } finally {
       setDownloading(false);
@@ -174,17 +181,33 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
   useEffect(() => {
     if (!order || order.paymentStatus !== 'paid') {
       setReceipt(null);
+      setReceiptUnavailable(false);
+      setReceiptError('');
       return;
     }
     let cancelled = false;
+    setReceipt(null);
+    setReceiptUnavailable(false);
+    setReceiptError('');
     setReceiptLoading(true);
     api
       .getOrderReceipt(order.orderNumber)
       .then((data) => {
-        if (!cancelled && data.status === 'generated') setReceipt(data);
+        if (cancelled) return;
+        if (data.status === 'generated') {
+          setReceipt(data);
+          return;
+        }
+        setReceiptError('The official receipt is not available yet.');
       })
-      .catch(() => {
-        if (!cancelled) setReceipt(null);
+      .catch((err) => {
+        if (cancelled) return;
+        const error = err as Error & { code?: string; status?: number };
+        if (error.status === 404 && error.code === 'RECEIPT_NOT_FOUND') {
+          setReceiptUnavailable(true);
+          return;
+        }
+        setReceiptError(error.message || 'The official receipt could not be checked.');
       })
       .finally(() => {
         if (!cancelled) setReceiptLoading(false);
@@ -523,8 +546,14 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => (receipt ? void handleOpenReceipt() : window.print())}
-                  disabled={downloading}
+                  onClick={() => {
+                    if (receipt) {
+                      void handleOpenReceipt();
+                    } else if (receiptUnavailable) {
+                      window.print();
+                    }
+                  }}
+                  disabled={downloading || receiptLoading || (!receipt && !receiptUnavailable)}
                   className="gap-2 text-xs"
                 >
                   <Printer className="h-3.5 w-3.5" aria-hidden="true" />
