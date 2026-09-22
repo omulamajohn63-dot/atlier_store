@@ -18,6 +18,7 @@ from django.db import connection
 from django.db.models import Count, Q, Sum
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.http import FileResponse
 from django.shortcuts import redirect, render
@@ -63,6 +64,7 @@ from .forms import (
     CategoryForm,
     ProductCreateForm,
     ProductUpdateForm,
+    ProductVariantBulkForm,
     ProductVariantForm,
     StockAdjustmentForm,
 )
@@ -1710,6 +1712,57 @@ class ProductVariantCreatePageView(View):
 
 
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductVariantBulkCreatePageView(View):
+    template_name = 'admin_ui/variant_bulk_form_page.html'
+
+    def get_product(self, product_id):
+        return Product.objects.filter(pk=product_id).first()
+
+    def get(self, request, product_id):
+        product = self.get_product(product_id)
+        if not product:
+            messages.error(request, 'Product not found.')
+            return redirect('admin-products')
+        return self.render_form(request, product, ProductVariantBulkForm(product=product))
+
+    def post(self, request, product_id):
+        product = self.get_product(product_id)
+        if not product:
+            messages.error(request, 'Product not found.')
+            return redirect('admin-products')
+        form = ProductVariantBulkForm(request.POST, product=product)
+        if form.is_valid():
+            data = form.cleaned_data
+            with transaction.atomic():
+                for sku, size, quantity in data['variant_specs']:
+                    variant = ProductVariant.objects.create(
+                        product=product,
+                        sku=sku,
+                        size=size,
+                        color=data['color'],
+                        color_hex=data['color_hex'],
+                        price_minor=(int(data['price'] * 100)
+                                     if data['price'] is not None else None),
+                        stock_quantity=quantity,
+                        is_active=True,
+                    )
+                    _audit_catalog('create', variant, metadata={
+                        'product_id': str(product.pk), 'bulk': True})
+            messages.success(request, 'Variants added.')
+            return redirect('admin-product-detail', product_id=product.pk)
+        return self.render_form(request, product, form)
+
+    def render_form(self, request, product, form):
+        return render(request, self.template_name, {
+            'form': form,
+            'product': product,
+            'page_title': 'Add variants',
+            'page_subtitle': f'Add sizes and quantities for {product.name}.',
+            'submit_label': 'Add variants',
+        })
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductVariantEditPageView(View):
     template_name = 'admin_ui/variant_form_page.html'
 
@@ -1741,19 +1794,26 @@ class ProductVariantEditPageView(View):
             request.POST, product=variant.product, variant=variant)
         if form.is_valid():
             data = form.cleaned_data
-            before = {'sku': variant.sku, 'size': variant.size, 'color': variant.color,
-                      'stock_quantity': variant.stock_quantity}
+            before = {'sku': variant.sku, 'size': variant.size,
+                      'color': variant.color, 'color_hex': variant.color_hex,
+                      'price_minor': variant.price_minor,
+                      'stock_quantity': variant.stock_quantity,
+                      'is_active': variant.is_active}
             variant.sku = data['sku']
             variant.size = data['size']
             variant.color = data['color']
             variant.color_hex = data['color_hex']
             variant.price_minor = (int(data['price'] * 100)
                                    if data['price'] is not None else None)
-            variant.stock_quantity = data['stock_quantity']
             variant.is_active = data['is_active']
             variant.save()
-            _audit_catalog('update', variant, metadata={'product_id': str(variant.product_id),
-                                                        'before': before})
+            stock_delta = data['stock_quantity'] - before['stock_quantity']
+            if stock_delta:
+                adjust_stock(
+                    variant.pk, stock_delta,
+                    reason='variant_edit', actor=request.user)
+            _audit_catalog('update', variant, metadata={
+                'product_id': str(variant.product_id), 'before': before})
             messages.success(request, 'Variant updated.')
             return redirect('admin-product-detail', product_id=variant.product_id)
         return self.render_form(request, variant.product, form)
@@ -1777,10 +1837,31 @@ class ProductVariantDeletePageView(View):
             messages.error(request, 'Variant not found.')
             return redirect('admin-products')
         product_id = variant.product_id
-        _audit_catalog('delete', variant, metadata={
-                       'product_id': str(product_id)})
-        variant.delete()
-        messages.success(request, 'Variant deleted.')
+        used_in_orders = OrderItem.objects.filter(
+            variant_id=variant.id).exists()
+        try:
+            if not used_in_orders:
+                variant.delete()
+                _audit_catalog('delete', variant, metadata={
+                               'product_id': str(product_id)})
+                messages.success(request, 'Variant deleted.')
+                return redirect('admin-product-detail', product_id=product_id)
+        except ProtectedError:
+            pass
+        variant.is_active = False
+        variant.save(update_fields=['is_active'])
+        _audit_catalog(
+            'update', variant,
+            metadata={'product_id': str(product_id),
+                      'is_active': False,
+                      'reason': 'used_in_history',
+                      'note': 'Deactivated instead of deleted because the '
+                              'variant appears in historical orders or '
+                              'inventory records.'})
+        messages.success(
+            request,
+            'Variant deactivated because it appears in past orders or has '
+            'inventory history. Historical records are preserved.')
         return redirect('admin-product-detail', product_id=product_id)
 
 

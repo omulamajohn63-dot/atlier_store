@@ -51,12 +51,17 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
       sku: 'SKU-DEF',
       price: product?.price || 24500,
       stockQuantity: 5,
+      isActive: true,
+      isAvailable: true,
     }
   );
   const [quantity, setQuantity] = useState(1);
   const [addedToast, setAddedToast] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [openAccordion, setOpenAccordion] = useState<string | null>('composition');
+
+  const isVariantPurchasable = (variant: ProductVariant) =>
+    (variant.isActive ?? true) && (variant.isAvailable ?? true) && variant.stockQuantity > 0;
 
   // Reset variant and gallery when slug changes or product updates
   useEffect(() => {
@@ -68,7 +73,8 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
       if (match) {
         setSelectedVariant(match);
       } else {
-        const firstAvailable = product.variants.find((v) => v.stockQuantity > 0) || product.variants[0];
+        const firstAvailable =
+          product.variants.find((v) => isVariantPurchasable(v)) || product.variants[0];
         setSelectedVariant(firstAvailable);
       }
     }
@@ -102,7 +108,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   }
 
   const handleAddToCart = async () => {
-    if (!selectedVariant || selectedVariant.stockQuantity <= 0) return;
+    if (!selectedVariant || !isVariantPurchasable(selectedVariant)) return;
     setStockError(null);
     const result = await addToCart(product, selectedVariant, quantity);
     if (result.success) {
@@ -113,8 +119,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     }
   };
 
-  const isSoldOut = selectedVariant.stockQuantity <= 0;
-  const isLowStock = selectedVariant.stockQuantity > 0 && selectedVariant.stockQuantity <= 3;
+  const isSoldOut = !isVariantPurchasable(selectedVariant);
+  const isLowStock =
+    isVariantPurchasable(selectedVariant) && selectedVariant.stockQuantity <= 3;
   const saved = isWishlisted(product.id);
 
   // Related products from same category or featured
@@ -122,7 +129,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     (p) => p.id !== product.id && (p.categorySlug === product.categorySlug || p.isFeatured)
   ).slice(0, 3);
 
-  const uniqueColors = Array.from(new Set(product.variants.map((v) => v.color)));
+  const uniqueColors = Array.from(
+    new Set(product.variants.filter(isVariantPurchasable).map((v) => v.color))
+  );
+  const sizesForColor = product.variants.filter(
+    (v) => v.color === selectedVariant.color
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16 pb-28 lg:pb-0 2xl:max-w-[88rem]">
@@ -283,13 +295,22 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
               </div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 {uniqueColors.map((c) => {
-                  const match = product.variants.find((v) => v.color === c);
+                  const sameColor = product.variants.filter((v) => v.color === c);
+                  const match =
+                    sameColor.find((v) => v.size === selectedVariant.size && isVariantPurchasable(v)) ||
+                    sameColor.find(isVariantPurchasable) ||
+                    sameColor[0];
                   const isSelected = selectedVariant.color === c;
                   return (
                     <button
                       key={c}
                       type="button"
-                      onClick={() => match && setSelectedVariant(match)}
+                      onClick={() => {
+                        if (match) {
+                          setSelectedVariant(match);
+                          setQuantity(1);
+                        }
+                      }}
                       className={`px-4 py-2 rounded-full text-xs border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] ${
                         isSelected
                           ? 'border-[#181716] bg-[#181716] text-[#FAF9F6] font-medium shadow-sm'
@@ -319,9 +340,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
             </div>
 
             <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Available sizes">
-              {product.variants.map((variant) => {
+              {sizesForColor.map((variant) => {
                 const isSelected = selectedVariant.id === variant.id;
-                const outOfStock = variant.stockQuantity <= 0;
+                const unavailable = !isVariantPurchasable(variant);
 
                 return (
                   <button
@@ -329,7 +350,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                     type="button"
                     role="radio"
                     aria-checked={isSelected}
-                    disabled={outOfStock}
+                    disabled={unavailable}
                     onClick={() => {
                       setSelectedVariant(variant);
                       setQuantity(1);
@@ -337,7 +358,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                     className={`h-12 rounded-xl text-xs font-medium border flex items-center justify-center transition-all relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] ${
                       isSelected
                         ? 'bg-[#181716] text-[#FAF9F6] border-[#181716] shadow-md'
-                        : outOfStock
+                        : unavailable
                         ? 'bg-[#F3F1ED] text-[#A29E96] border-[#E8E5DF] cursor-not-allowed line-through'
                         : 'bg-[#FAF9F6] text-[#181716] border-[#E8E5DF] hover:border-[#181716] hover:bg-[#FFFFFF] hover:shadow-sm'
                     }`}

@@ -6,6 +6,12 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError
 
 from catalog.models import Category, Product, ProductVariant
+from catalog.variant_services import (
+    normalize_hex,
+    normalize_sku,
+    sku_collides_within,
+    unique_sku,
+)
 
 
 class AdminLoginForm(AuthenticationForm):
@@ -208,7 +214,11 @@ class ProductVariantForm(forms.Form):
         super().__init__(*args, **kwargs)
 
     def clean_sku(self):
-        sku = self.cleaned_data['sku'].strip()
+        sku = normalize_sku(self.cleaned_data['sku'])
+        if not sku:
+            raise forms.ValidationError(
+                'Enter an SKU. Only letters and numbers are kept, '
+                'everything else becomes a hyphen.')
         queryset = ProductVariant.objects.filter(sku=sku)
         if self.variant:
             queryset = queryset.exclude(pk=self.variant.pk)
@@ -218,23 +228,99 @@ class ProductVariantForm(forms.Form):
         return sku
 
     def clean_color_hex(self):
-        value = self.cleaned_data.get('color_hex', '').strip()
-        if value and (len(value) != 7 or not value.startswith('#')):
-            raise forms.ValidationError('Use a hex colour such as #2E5A44.')
-        return value.upper()
+        value = self.cleaned_data.get('color_hex', '')
+        try:
+            return normalize_hex(value)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages[0]) from exc
 
     def clean(self):
         cleaned = super().clean()
-        queryset = ProductVariant.objects.filter(
-            product=self.product,
-            size=cleaned.get('size', ''),
-            color=cleaned.get('color', ''),
-        )
-        if self.variant:
-            queryset = queryset.exclude(pk=self.variant.pk)
-        if queryset.exists():
+        size = (cleaned.get('size') or '').strip()
+        color = (cleaned.get('color') or '').strip()
+        if sku_collides_within(self.product, size, color,
+                               exclude_id=self.variant.pk if self.variant else None):
             raise forms.ValidationError(
                 'This size and colour combination already exists for the product.')
+        return cleaned
+
+
+class ProductVariantBulkForm(forms.Form):
+    color = forms.CharField(label='Colour', max_length=80, required=False)
+    color_hex = forms.CharField(
+        label='Colour hex', max_length=7, required=False)
+    price = forms.DecimalField(
+        label='Variant price (KES)', max_digits=12, decimal_places=2,
+        min_value=0, required=False,
+        help_text='Leave blank to use the product price.')
+    size_1 = forms.CharField(label='Size 1', max_length=40, required=False)
+    quantity_1 = forms.IntegerField(
+        label='Quantity 1', min_value=0, required=False)
+    size_2 = forms.CharField(label='Size 2', max_length=40, required=False)
+    quantity_2 = forms.IntegerField(
+        label='Quantity 2', min_value=0, required=False)
+    size_3 = forms.CharField(label='Size 3', max_length=40, required=False)
+    quantity_3 = forms.IntegerField(
+        label='Quantity 3', min_value=0, required=False)
+    size_4 = forms.CharField(label='Size 4', max_length=40, required=False)
+    quantity_4 = forms.IntegerField(
+        label='Quantity 4', min_value=0, required=False)
+    size_5 = forms.CharField(label='Size 5', max_length=40, required=False)
+    quantity_5 = forms.IntegerField(
+        label='Quantity 5', min_value=0, required=False)
+    size_6 = forms.CharField(label='Size 6', max_length=40, required=False)
+    quantity_6 = forms.IntegerField(
+        label='Quantity 6', min_value=0, required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.product = kwargs.pop('product')
+        super().__init__(*args, **kwargs)
+
+    def clean_color_hex(self):
+        value = self.cleaned_data.get('color_hex', '')
+        try:
+            return normalize_hex(value)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages[0]) from exc
+
+    def clean(self):
+        cleaned = super().clean()
+        rows = []
+        for index in range(1, 7):
+            size = (cleaned.get(f'size_{index}') or '').strip()
+            quantity = cleaned.get(f'quantity_{index}')
+            if not size:
+                if quantity not in (None, ''):
+                    self.add_error(
+                        f'quantity_{index}', 'Add a size for this quantity.')
+                continue
+            rows.append((size, quantity if quantity is not None else 0))
+
+        if not rows:
+            raise forms.ValidationError('Add at least one size and quantity.')
+
+        color = (cleaned.get('color') or '').strip()
+        seen_sizes = set()
+        generated_skus = set()
+        variant_specs = []
+        for size, quantity in rows:
+            normalized = size.casefold()
+            if normalized in seen_sizes:
+                raise forms.ValidationError(
+                    f'The size {size} is listed more than once.')
+            seen_sizes.add(normalized)
+            if sku_collides_within(self.product, size, color):
+                raise forms.ValidationError(
+                    f'The size and colour combination {size} already exists.')
+            sku = unique_sku(self.product, size, color)
+            if sku in generated_skus:
+                raise forms.ValidationError(
+                    f'The sizes {size} would collide on the same SKU.')
+            generated_skus.add(sku)
+            variant_specs.append((sku, size, quantity))
+
+        cleaned['variant_rows'] = rows
+        cleaned['variant_specs'] = variant_specs
         return cleaned
 
 

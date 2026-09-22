@@ -12,6 +12,64 @@ from orders.services import shipping_cost_minor, tax_cost_minor
 
 
 class OrderApiTests(TestCase):
+    def test_checkout_rejects_variant_deactivated_after_add_to_cart(self):
+        from rest_framework.exceptions import ValidationError
+
+        client = APIClient()
+        category = Category.objects.create(name='Bags', slug='bags')
+        product = Product.objects.create(
+            category=category, name='Leather Bag', slug='leather-bag',
+            description='A structured leather bag for daily use.',
+            price_minor=30000, status=Product.Status.ACTIVE)
+        variant = ProductVariant.objects.create(
+            product=product, sku='BAG-ONE', stock_quantity=5)
+        client.post('/api/cart/items', {'variantId': str(variant.id),
+                     'quantity': 1}, format='json',
+                    HTTP_X_CART_ID='deactivated-checkout-cart')
+        variant.is_active = False
+        variant.save(update_fields=['is_active'])
+
+        created = client.post('/api/orders', {'customer': {
+            'fullName': 'Ada Lovelace', 'email': 'ada@example.com',
+            'phone': '0712345678', 'addressLine1': '1 Market Street',
+            'city': 'Nairobi', 'county': 'Nairobi'}},
+            format='json', HTTP_X_CART_ID='deactivated-checkout-cart')
+
+        self.assertEqual(created.status_code, 400)
+        self.assertFalse(Order.objects.filter(
+            cart__cart_key='deactivated-checkout-cart').exists())
+        self.assertEqual(Cart.objects.get(
+            cart_key='deactivated-checkout-cart').items.count(), 1)
+
+    def test_reserve_variant_refuses_to_oversell_stock(self):
+        from inventory.services import reserve_variant
+        from rest_framework.exceptions import ValidationError
+
+        category = Category.objects.create(name='Bags', slug='bags')
+        product = Product.objects.create(
+            category=category, name='Leather Bag', slug='leather-bag',
+            description='A structured leather bag for daily use.',
+            price_minor=30000, status=Product.Status.ACTIVE)
+        variant = ProductVariant.objects.create(
+            product=product, sku='BAG-OVERS', stock_quantity=3)
+        cart = Cart.objects.create(cart_key='oversell-cart')
+        order = Order.objects.create(
+            order_number='AT-OVERSELL-001', cart=cart,
+            customer={'fullName': 'Oversell Buyer'},
+            subtotal_minor=30000, total_minor=30000,
+            payment_method='mpesa', payment_status=Order.PaymentStatus.PENDING,
+            status=Order.Status.PENDING)
+
+        for _ in range(3):
+            reserve_variant(order, variant, 1)
+
+        with self.assertRaises(ValidationError):
+            reserve_variant(order, variant, 1)
+        variant.refresh_from_db()
+        self.assertEqual(variant.stock_quantity, 0)
+        self.assertEqual(StockReservation.objects.filter(
+            order=order, status=StockReservation.Status.ACTIVE).count(), 3)
+
     def test_shipping_cost_uses_20_percent_of_subtotal(self):
         self.assertEqual(shipping_cost_minor(10000, 'standard'), 2000)
 

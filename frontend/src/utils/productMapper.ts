@@ -30,6 +30,8 @@ export function mapProductDtoToDomain(dto: ProductDTO): Product {
         sku: v.sku,
         price: v.price,
         stockQuantity: v.stockQuantity,
+        isActive: v.isActive,
+        isAvailable: v.isAvailable,
       })
     ),
   };

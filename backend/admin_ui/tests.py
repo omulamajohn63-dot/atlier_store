@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 
 from audit.models import AuditLog
 from catalog.models import Category, Product, ProductVariant
-from orders.models import Order
+from orders.models import Order, OrderItem
 from admin_ui.models import AdminNotification, CustomerNotification
 
 
@@ -820,6 +820,28 @@ class AdminDashboardTests(TestCase):
             f'/admin/dashboard/products/{product.id}/variants/{variant.id}/delete/')
         self.assertRedirects(
             delete_response, f'/admin/dashboard/products/{product.id}/')
+        variant.refresh_from_db()
+        self.assertFalse(variant.is_active)
+        self.assertEqual(
+            ProductVariant.objects.filter(pk=variant.id).count(), 1)
+
+    def test_staff_can_delete_variant_without_history(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Delete Product',
+            slug='delete-product',
+            description='A product whose fresh variant can be removed.',
+            price_minor=9000,
+            status=Product.Status.ACTIVE,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, sku='DELETE-PRODUCT-M', size='M')
+        self.client.force_login(self.staff)
+
+        delete_response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/{variant.id}/delete/')
+        self.assertRedirects(
+            delete_response, f'/admin/dashboard/products/{product.id}/')
         self.assertFalse(ProductVariant.objects.filter(pk=variant.id).exists())
 
     def test_variant_form_rejects_duplicate_product_options(self):
@@ -853,6 +875,308 @@ class AdminDashboardTests(TestCase):
         self.assertFalse(ProductVariant.objects.filter(
             sku='DUPLICATE-002').exists())
 
+    def test_staff_can_bulk_create_size_variants_with_quantities(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Size Matrix Product',
+            slug='size-matrix-product',
+            description='A product with a size matrix.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/bulk/',
+            {
+                'color': 'Black', 'color_hex': '#111111', 'price': '120.00',
+                'size_1': 'Small', 'quantity_1': '4',
+                'size_2': 'Medium', 'quantity_2': '7',
+                'size_3': 'Large', 'quantity_3': '2',
+            },
+        )
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/products/{product.id}/')
+        variants = ProductVariant.objects.filter(
+            product=product).order_by('size')
+        self.assertEqual(variants.count(), 3)
+        self.assertEqual(
+            {variant.size: variant.stock_quantity for variant in variants},
+            {'Small': 4, 'Medium': 7, 'Large': 2},
+        )
+        self.assertEqual(
+            {variant.sku for variant in variants},
+            {'SIZE-MATRIX-PRODUCT-SMALL-BLACK',
+             'SIZE-MATRIX-PRODUCT-MEDIUM-BLACK',
+             'SIZE-MATRIX-PRODUCT-LARGE-BLACK'},
+        )
+
+    def test_bulk_variant_sku_collision_gets_numeric_suffix(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Collision Product',
+            slug='collision-product',
+            description='A product for SKU collision handling.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        ProductVariant.objects.create(
+            product=product, sku='COLLISION-PRODUCT-S-M-BLACK', size='SM',
+            color='Black')
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/bulk/',
+            {
+                'color': 'Black',
+                'size_1': 'S/M', 'quantity_1': '4',
+            },
+        )
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/products/{product.id}/')
+        variants = ProductVariant.objects.filter(
+            product=product).order_by('sku')
+        self.assertEqual(variants.count(), 2)
+        self.assertTrue(variants.filter(
+            sku='COLLISION-PRODUCT-S-M-BLACK-1', size='S/M').exists())
+
+    def test_bulk_variant_rows_colliding_on_same_sku_rejected_atomically(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Same Sku Product',
+            slug='same-sku-product',
+            description='A product where two sizes share one normalized SKU.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/bulk/',
+            {
+                'color': 'Black',
+                'size_1': 'S/M', 'quantity_1': '4',
+                'size_2': 'S-M', 'quantity_2': '5',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, 'would collide on the same SKU')
+        self.assertFalse(ProductVariant.objects.filter(
+            product=product).exists())
+
+    def test_bulk_variant_duplicate_option_never_partially_creates(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Atomic Bulk Product',
+            slug='atomic-bulk-product',
+            description='A product that must never get a partial size matrix.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        ProductVariant.objects.create(
+            product=product, sku='ATOMIC-BULK-PRODUCT-M-BLACK', size='M',
+            color='Black')
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/bulk/',
+            {
+                'color': 'Black',
+                'size_1': 'S', 'quantity_1': '4',
+                'size_2': 'M', 'quantity_2': '5',
+                'size_3': 'L', 'quantity_3': '2',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, 'combination M already exists')
+        existing = set(
+            ProductVariant.objects.filter(product=product)
+            .values_list('size', flat=True))
+        self.assertEqual(existing, {'M'})
+
+    def test_variant_form_normalizes_sku_and_hex(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Normalized Product',
+            slug='normalized-product',
+            description='A product whose variant data gets normalized.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/new/',
+            {
+                'sku': '  dress/top  12 ',
+                'size': 'M',
+                'color': 'Forest Green',
+                'color_hex': '#2e5a44',
+                'price': '135.50',
+                'stock_quantity': '8',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/products/{product.id}/')
+        variant = ProductVariant.objects.get(product=product)
+        self.assertEqual(variant.sku, 'DRESS-TOP-12')
+        self.assertEqual(variant.color_hex, '#2E5A44')
+
+    def test_variant_form_rejects_malformed_color_hex(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Hex Check Product',
+            slug='hex-check-product',
+            description='A product that rejects bad colour hex values.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/new/',
+            {
+                'sku': 'HEX-CHECK-M',
+                'size': 'M',
+                'color': 'Not Real',
+                'color_hex': '#GGGGGG',
+                'price': '',
+                'stock_quantity': '4',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Use a hex colour such as #2E5A44.')
+        self.assertFalse(ProductVariant.objects.filter(
+            product=product).exists())
+
+    def test_bulk_generated_sku_is_truncated_to_80_characters(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='An Exceedingly Long Product Name That Keeps Going And Going',
+            slug='an-exceedingly-long-product-name-that-keeps-going-and-going-and-going',
+            description='A product whose generated SKUs must respect the field limit.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/bulk/',
+            {
+                'color': 'Charcoal Grey',
+                'size_1': 'Small', 'quantity_1': '2',
+            },
+        )
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/products/{product.id}/')
+        variant = ProductVariant.objects.get(product=product)
+        self.assertLessEqual(len(variant.sku), 80)
+
+    def test_editing_stock_writes_inventory_transaction_and_audit(self):
+        from inventory.models import InventoryTransaction
+
+        product = Product.objects.create(
+            category=self.category,
+            name='Stock Ledger Product',
+            slug='stock-ledger-product',
+            description='A product whose stock edits hit the inventory ledger.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, sku='STOCK-LEDGER-M', size='M', stock_quantity=5)
+        self.client.force_login(self.staff)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f'/admin/dashboard/products/{product.id}/variants/{variant.id}/edit/',
+                {
+                    'sku': 'STOCK-LEDGER-M',
+                    'size': 'M',
+                    'color': '',
+                    'color_hex': '',
+                    'price': '',
+                    'stock_quantity': '12',
+                    'is_active': 'on',
+                },
+            )
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/products/{product.id}/')
+        variant.refresh_from_db()
+        self.assertEqual(variant.stock_quantity, 12)
+        txn = InventoryTransaction.objects.filter(
+            variant=variant, reason='variant_edit').latest('created_at')
+        self.assertEqual(txn.quantity_delta, 7)
+        self.assertEqual(txn.previous_quantity, 5)
+        self.assertEqual(txn.new_quantity, 12)
+        audit = AuditLog.objects.filter(
+            object_type='productvariant', action='update',
+            object_id=str(variant.pk)).order_by('-created_at').first()
+        self.assertIsNotNone(audit)
+        self.assertEqual(
+            audit.metadata.get('before', {}).get('stock_quantity'), 5)
+
+    def test_delete_deactivates_variant_used_in_orders(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Used Variant Product',
+            slug='used-variant-product',
+            description='A product with order history protection.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, sku='USED-VARIANT-M', size='M', stock_quantity=5)
+        from cart.models import Cart
+        cart = Cart.objects.create(cart_key='used-variant-cart')
+        Order.objects.create(
+            order_number='AT-USED-VARIANT-001',
+            cart=cart,
+            customer={'fullName': 'Used Variant Buyer',
+                      'email': 'used-variant@example.com'},
+            subtotal_minor=12000,
+            shipping_cost_minor=0,
+            total_minor=12000,
+            payment_method='mpesa',
+            payment_status=Order.PaymentStatus.PENDING,
+            status=Order.Status.PENDING,
+        )
+        OrderItem.objects.create(
+            order=Order.objects.get(order_number='AT-USED-VARIANT-001'),
+            product=product,
+            variant=variant,
+            product_name=product.name,
+            variant_sku=variant.sku,
+            variant_size='M',
+            unit_price_minor=12000,
+            quantity=1,
+            line_total_minor=12000,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/{variant.id}/delete/')
+
+        self.assertRedirects(
+            response, f'/admin/dashboard/products/{product.id}/')
+        variant.refresh_from_db()
+        self.assertFalse(variant.is_active)
+        self.assertEqual(
+            ProductVariant.objects.filter(pk=variant.id).count(), 1)
+        self.assertTrue(OrderItem.objects.filter(
+            variant=variant, variant_sku='USED-VARIANT-M').exists())
     def test_staff_can_open_admin_user_invite_page(self):
         self.client.force_login(self.staff)
 
@@ -899,7 +1223,6 @@ class AdminDashboardTests(TestCase):
 
     def test_admin_orders_page_renders_real_orders_from_database(self):
         from cart.models import Cart
-        from orders.models import Order
 
         cart = Cart.objects.create(cart_key='order-admin-cart')
         order = Order.objects.create(

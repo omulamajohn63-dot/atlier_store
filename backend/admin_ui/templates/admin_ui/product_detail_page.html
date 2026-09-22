@@ -102,9 +102,11 @@
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Variants</h3>
-        <a class="btn btn-primary" href="/admin/dashboard/products/{{ product.id }}/variants/new/">
-          <i class="ph ph-plus"></i> Add variant
-        </a>
+        <div style="display: flex; gap: 8px;">
+          <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/variants/new/">Add one</a>
+          <a class="btn btn-primary" href="/admin/dashboard/products/{{ product.id }}/variants/bulk/"><i class="ph ph-plus"></i> Add sizes</a>
+          <a class="btn btn-secondary" href="{{ stock_adjust_url }}"><i class="ph ph-warehouse"></i> Increase stock</a>
+        </div>
       </div>
       <div class="card-body" style="padding: 0;">
         {% if variant_rows %}
@@ -122,6 +124,7 @@
                 <td>{{ row.variant.stock_quantity }}</td>
                 <td><span class="status-badge {% if row.variant.is_active %}status-active{% else %}status-inactive{% endif %}">{% if row.variant.is_active %}Active{% else %}Inactive{% endif %}</span></td>
                 <td style="text-align: right; white-space: nowrap;">
+                  <a class="btn btn-secondary" href="/admin/dashboard/inventory/adjust/?variant={{ row.variant.id }}">Restock</a>
                   <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/edit/">Edit</a>
                   <form method="post" action="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this variant?');">
                     {% csrf_token %}

@@ -143,7 +143,28 @@ class ProductVariant(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=('product', 'size', 'color'), name='unique_product_variant_option'),
+            models.CheckConstraint(
+                condition=~models.Q(sku=''), name='variant_sku_not_blank'),
         ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        from catalog.variant_services import normalize_hex, sku_collides_within
+
+        errors = {}
+        sku = (self.sku or '').strip()
+        if not sku:
+            errors['sku'] = 'SKU cannot be blank.'
+        if self.color_hex:
+            try:
+                self.color_hex = normalize_hex(self.color_hex)
+            except ValidationError as exc:
+                errors['color_hex'] = exc.messages[0]
+        if not errors and sku_collides_within(
+                self.product, self.size, self.color, exclude_id=self.pk):
+            errors['size'] = 'This size and colour combination already exists.'
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         if self.size and self.color:

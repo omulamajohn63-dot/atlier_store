@@ -22,6 +22,8 @@ export interface ProductVariant {
   sku: string;
   price: number;
   stockQuantity: number;
+  isActive?: boolean;
+  isAvailable?: boolean;
 }
 
 export interface Product {

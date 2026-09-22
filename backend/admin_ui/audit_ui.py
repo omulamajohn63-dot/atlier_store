@@ -140,10 +140,12 @@ SUCCESS_ACTIONS = {
 }
 
 RESOURCE_TYPE_LABELS = {
-    'product': 'Product', 'order': 'Order', 'customer': 'Customer',
-    'user': 'User', 'payment': 'Payment', 'payment_intent': 'Payment',
+    'product': 'Product', 'productvariant': 'Product Variant',
+    'order': 'Order', 'customer': 'Customer', 'user': 'User',
+    'payment': 'Payment', 'payment_intent': 'Payment',
     'inventory': 'Inventory', 'category': 'Category', 'cart': 'Cart',
     'file': 'File', 'review': 'Review', 'wishlist': 'Wishlist',
+    'product_variant': 'Product Variant',
 }
 
 RANGE_CHOICES = (

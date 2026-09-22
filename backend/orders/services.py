@@ -7,6 +7,7 @@ from admin_ui.models import notify_customer
 from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 from cart.models import Cart
+from catalog.models import Product
 from inventory.services import release_reservation, reserve_variant
 from receipts.services import generate_receipt
 
@@ -162,6 +163,11 @@ def create_order(cart_key, payload, user=None):
     subtotal_minor = 0
     for cart_item in items:
         variant = cart_item.variant
+        if (not variant.is_active
+                or variant.product.status != Product.Status.ACTIVE
+                or not variant.product.category.is_active):
+            raise ValidationError(
+                {'cart': 'An item in your cart is no longer available.'})
         price_minor = variant.price_minor if variant.price_minor is not None else variant.product.price_minor
         line_total_minor = price_minor * cart_item.quantity
         subtotal_minor += line_total_minor
