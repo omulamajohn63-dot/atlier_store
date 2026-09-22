@@ -231,61 +231,78 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
       </div>
 
       {/* Actions */}
-      <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)}
-          className="gap-2 uppercase tracking-wider text-xs"
-        >
-          <Eye className="w-4 h-4" />
-          <span>Live Order Tracking</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => navigate('/shop')}
-          className="gap-2 uppercase tracking-wider text-xs"
-        >
-          <span>Continue Exploring</span>
-          <ArrowRight className="w-4 h-4" />
-        </Button>
-
-        {receiptLoading ? (
-          <Button variant="outline" size="lg" disabled className="gap-2 text-xs" aria-busy="true">
-            <Download className="w-3.5 h-3.5" />
-            <span>Checking receipt…</span>
+      <div className="w-full max-w-2xl mx-auto space-y-5 pt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)}
+            className="w-full gap-2 uppercase tracking-wider text-xs"
+          >
+            <Eye className="w-4 h-4" />
+            <span>Live Order Tracking</span>
           </Button>
-        ) : receipt ? (
+
           <Button
             variant="outline"
             size="lg"
-            onClick={() => void handleDownloadReceipt()}
-            disabled={downloading}
-            className="gap-2 text-xs uppercase tracking-wider"
+            onClick={() => navigate('/shop')}
+            className="w-full gap-2 uppercase tracking-wider text-xs"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>{downloading ? 'Downloading…' : 'Download Receipt (PDF)'}</span>
+            <span>Continue Exploring</span>
+            <ArrowRight className="w-4 h-4" />
           </Button>
-        ) : null}
+        </div>
 
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => {
-            if (receipt) {
-              void handleOpenReceipt();
-            } else if (receiptUnavailable) {
-              window.print();
-            }
-          }}
-          disabled={downloading || receiptLoading || (!receipt && !receiptUnavailable)}
-          className="gap-2 text-xs"
-        >
-          <Printer className="w-3.5 h-3.5" />
-          <span>Print Receipt</span>
-        </Button>
+        <div className="border-t border-[#E8E5DF] pt-5">
+          <div className="mb-3 flex items-center justify-center gap-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
+            <span className="h-px w-8 bg-[#E8E5DF]" aria-hidden="true" />
+            <span>Official receipt</span>
+            <span className="h-px w-8 bg-[#E8E5DF]" aria-hidden="true" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {receiptLoading ? (
+              <Button variant="outline" size="lg" disabled className="w-full gap-2 text-xs" aria-busy="true">
+                <Download className="w-3.5 h-3.5" />
+                <span>Checking receipt…</span>
+              </Button>
+            ) : receipt ? (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => void handleDownloadReceipt()}
+                disabled={downloading}
+                className="w-full gap-2 text-xs uppercase tracking-wider"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>{downloading ? 'Downloading…' : 'Download Receipt (PDF)'}</span>
+              </Button>
+            ) : (
+              <Button variant="outline" size="lg" disabled className="w-full gap-2 text-xs">
+                <Download className="w-3.5 h-3.5" />
+                <span>Receipt unavailable</span>
+              </Button>
+            )}
+
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => {
+                if (receipt) {
+                  void handleOpenReceipt();
+                } else if (receiptUnavailable) {
+                  window.print();
+                }
+              }}
+              disabled={downloading || receiptLoading || (!receipt && !receiptUnavailable)}
+              className="w-full gap-2 text-xs uppercase tracking-wider"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Receipt</span>
+            </Button>
+          </div>
+        </div>
       </div>
 
       {receiptError && (

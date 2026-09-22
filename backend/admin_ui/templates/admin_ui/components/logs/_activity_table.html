@@ -20,7 +20,7 @@
           tabindex="0"
           style="cursor: pointer;"
           aria-label="View event details: {{ log.ui_action_label }}">
-        <td style="white-space: nowrap;">{{ log.created_at|date:"M d, Y H:i" }}</td>
+        <td style="white-space: nowrap;">{{ log.created_at|date:"M d, Y H:i:s" }}</td>
         <td>
           <span style="display:inline-flex; align-items:center; gap:6px;">
             <i class="ph {{ log.ui_action_icon }}"></i>

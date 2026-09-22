@@ -14,7 +14,7 @@
         <span class="status-badge status-{% if log.result == 'success' %}success{% else %}danger{% endif %}">{{ log.result }}</span>
         {% endif %}
         <span class="alog-severity alog-sev-{{ log.ui_severity_key }}"><span class="alog-dot"></span>{{ log.ui_severity_label }}</span>
-        <span class="alog-tl-time">{{ log.created_at|date:"M d, Y H:i" }}</span>
+        <span class="alog-tl-time">{{ log.created_at|date:"M d, Y H:i:s" }}</span>
       </div>
       {% if log.description %}
       <div class="alog-tl-desc">{{ log.description }}</div>

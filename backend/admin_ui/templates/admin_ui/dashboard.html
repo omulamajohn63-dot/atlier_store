@@ -287,7 +287,7 @@
               <div style="font-weight: 500; font-size: 13px;">{{ log.description }}</div>
               <div style="color: var(--text-secondary); font-size: 12px;">{{ log.object_repr|default:log.category }}</div>
             </td>
-            <td style="text-align: right; color: var(--text-secondary); font-size: 12px;">{{ log.created_at|date:'M d, H:i' }}</td>
+            <td style="text-align: right; color: var(--text-secondary); font-size: 12px;">{{ log.created_at|date:'M d, H:i:s' }}</td>
           </tr>
           {% empty %}
           <tr><td colspan="3" style="text-align: center; color: var(--text-secondary); padding: 24px;">No customer activity recorded yet.</td></tr>
