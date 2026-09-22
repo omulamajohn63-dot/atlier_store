@@ -95,7 +95,8 @@ def render_receipt_pdf(receipt):
     issued_at = receipt.generated_at or timezone.now()
     issued_local = timezone.localtime(issued_at)
 
-    brand = (getattr(settings, 'STORE_NAME', '') or 'MODEZA Boutique').split(' ')
+    brand = (getattr(settings, 'STORE_NAME', '')
+             or 'MODEZA Boutique').split(' ')
     brand_name = brand[0] if brand else 'MODEZA'
     brand_sub = ' '.join(brand[1:]) or 'BOUTIQUE'
     store_phone = getattr(settings, 'STORE_PHONE', '+254 700 123 456')
@@ -113,7 +114,8 @@ def render_receipt_pdf(receipt):
                     f'<font name="Times-Bold" size="22" color="%s">{_html_escape(brand_name)}</font>'
                     f'<font name="Times-Roman" size="13" color="%s">&nbsp;{_html_escape(brand_sub)}</font>'
                     % (_hex(GREEN), _hex(FAINT)),
-                    ParagraphStyle(name='brand', alignment=TA_LEFT, leading=24),
+                    ParagraphStyle(
+                        name='brand', alignment=TA_LEFT, leading=24),
                 ),
                 Paragraph(
                     '<font name="Helvetica-Bold" size="9" color="%s">OFFICIAL RECEIPT</font>'
@@ -130,7 +132,7 @@ def render_receipt_pdf(receipt):
                 ),
             ]
         ],
-        colWidths=[PAGE[0] - 2 * MARGIN, 150],
+        colWidths=[PAGE[0] - 2 * MARGIN - 150, 150],
     )
     header.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -147,11 +149,14 @@ def render_receipt_pdf(receipt):
     name = _humanize(customer.get('fullName') or customer.get('full_name')
                      or customer.get('name'), 'Guest Customer')
     address_lines = [
-        _humanize(customer.get('addressLine1') or customer.get('address_line1')),
-        _humanize(customer.get('addressLine2') or customer.get('address_line2')),
+        _humanize(customer.get('addressLine1')
+                  or customer.get('address_line1')),
+        _humanize(customer.get('addressLine2')
+                  or customer.get('address_line2')),
     ]
     city = _humanize(customer.get('city'), '')
-    county = _humanize(customer.get('county') or customer.get('stateOrProvince'), '')
+    county = _humanize(customer.get('county')
+                       or customer.get('stateOrProvince'), '')
     place = ', '.join(part for part in (city, county) if part)
     email = _humanize(customer.get('email'))
     phone = _humanize(customer.get('phone'))
@@ -208,17 +213,20 @@ def render_receipt_pdf(receipt):
     data = [headers]
     for idx, item in enumerate(items or []):
         desc = _html_escape(str(item.get('product_name') or ''))
+        sku = _html_escape(str(item.get('variant_sku') or ''))
+        size = _html_escape(str(item.get('variant_size') or ''))
+        colour = _html_escape(str(item.get('variant_color') or ''))
         qty = item.get('quantity') or 0
         unit = _money(item.get('unit_price_minor') or 0)
         amount = _money(item.get('line_total_minor') or 0)
         data.append([
             Paragraph(desc, STYLE_BODY),
-            _html_escape(str(item.get('variant_sku') or '')),
-            _html_escape(str(item.get('variant_size') or '')),
-            _html_escape(str(item.get('variant_color') or '')),
-            str(qty),
-            unit,
-            amount,
+            Paragraph(sku, STYLE_BODY),
+            Paragraph(size, STYLE_BODY),
+            Paragraph(colour, STYLE_BODY),
+            Paragraph(str(qty), STYLE_BODY),
+            Paragraph(unit, STYLE_BODY),
+            Paragraph(amount, STYLE_BODY),
         ])
 
     items_table = Table(data, colWidths=widths, repeatRows=1)
@@ -254,17 +262,16 @@ def render_receipt_pdf(receipt):
         _totals_row('Amount Paid', _money(paid)),
         _totals_row('Balance Due', _money(balance)),
     ]
-    totals = Table(rows, colWidths=[target - 150, 150, 150])
+    totals = Table(rows, colWidths=[target - 150, 150])
     totals.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
         ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 0), (-1, -1), 8),
         ('TEXTCOLOR', (0, 0), (0, -1), MUTED),
         ('TEXTCOLOR', (1, 0), (1, -1), INK),
-        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-        ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
         ('LEFTPADDING', (1, 0), (1, 0), 16),
-        ('TOPPADDING', (0, 3), (-1, 3), 8),
+        ('RIGHTPADDING', (1, 0), (1, -1), 0),
         ('LINEABOVE', (0, 3), (-1, 3), 0.5, LINE),
         ('TOPPADDING', (0, 3), (-1, 3), 6),
         ('FONTNAME', (0, 3), (-1, 3), 'Helvetica-Bold'),
@@ -325,7 +332,6 @@ def _totals_row(label, value, bold=False):
     return [
         Paragraph(label_text, STYLE_BODY),
         Paragraph(value_text, STYLE_BODY),
-        '',
     ]
 
 
