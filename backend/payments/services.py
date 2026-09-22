@@ -95,24 +95,6 @@ def _mark_intent_succeeded(intent, gateway_reference):
             link=f'/account/orders/{order.order_number}',
             event_key=f'customer-payment-success:{order.pk}',
         )
-    # Issue the automatic receipt. generate_receipt is idempotent and designed
-    # to never raise, so a receipt failure can never roll back a successful
-    # payment; the defensive guard exists as a final backstop.
-    try:
-        generate_receipt(order, intent=intent)
-    except Exception:
-        AuditLogService.log(
-            'receipt_generation_failed',
-            object_type='order',
-            object_id=order.pk,
-            object_repr=order.order_number,
-            category='payments',
-            result='failure',
-            severity='high',
-            metadata={'order_number': order.order_number},
-            description=(
-                f'Receipt generation failed for order {order.order_number}.'),
-        )
     return order
 
 

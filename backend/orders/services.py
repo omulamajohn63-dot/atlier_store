@@ -8,6 +8,7 @@ from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 from cart.models import Cart
 from inventory.services import release_reservation, reserve_variant
+from receipts.services import generate_receipt
 
 from .models import Order, OrderItem
 
@@ -209,7 +210,7 @@ def create_order(cart_key, payload, user=None):
         audit_log,
         event_key=f'order-created:{order.pk}',
         message=f'New order {order.order_number} was placed '
-                f'({order.customer.get("fullName") or "a customer"}).',
+        f'({order.customer.get("fullName") or "a customer"}).',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if user is not None:
@@ -234,6 +235,8 @@ def approve_order(order):
         raise ValidationError(
             {'payment_status': 'Only paid orders can be approved.'})
     if order.status == Order.Status.CONFIRMED:
+        if order.payment_status == Order.PaymentStatus.PAID:
+            generate_receipt(order)
         return order
     previous_status = order.status
     if order.payment_status != Order.PaymentStatus.PAID and is_delivery_payment:
@@ -260,6 +263,7 @@ def approve_order(order):
             link=f'/account/orders/{order.order_number}',
             event_key=f'customer-order-confirmed:{order.pk}',
         )
+    generate_receipt(order)
     return order
 
 

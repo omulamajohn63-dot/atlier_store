@@ -98,12 +98,19 @@ def get_receipt_for_order(order):
 # ---------------------------------------------------------------------------
 
 def generate_receipt(order, *, intent=None):
-    """Create (or return) the receipt for a paid order. Idempotent, no-op safe.
+    """Create (or return) the receipt for a confirmed, paid order.
 
-    Intended to run inside the payment transaction. Any failure is recorded on
+    Receipt generation is intentionally gated on admin confirmation so a
+    customer becomes eligible only after the order leaves ``pending``.
+
+    The operation is idempotent and no-op safe. Any failure is recorded on
     the existing receipt row (status ``failed``) and audited as
-    ``receipt_generation_failed`` so the payment itself is never affected.
+    ``receipt_generation_failed`` so the order confirmation itself is never
+    affected.
     """
+    if (order.status != order.Status.CONFIRMED or
+            order.payment_status != order.PaymentStatus.PAID):
+        return Receipt.objects.filter(order=order).first()
     try:
         return _generate_impl(order, intent)
     except Exception:
@@ -196,13 +203,13 @@ def _generate_impl(order, intent):
             'pdf_key': receipt.pdf_key,
         },
         description=f'Receipt {receipt.receipt_number} generated for '
-                    f'order {order.order_number}.',
+        f'order {order.order_number}.',
     )
     AdminNotificationService.notify_for_audit(
         audit_log,
         event_key=f'receipt-issued:{order.pk}',
         message=f'Receipt {receipt.receipt_number} issued for '
-                f'order {order.order_number}.',
+        f'order {order.order_number}.',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
     if order.user is not None:
@@ -237,13 +244,13 @@ def regenerate_receipt(receipt):
         metadata={'order_number': order.order_number,
                   'pdf_key': receipt.pdf_key},
         description=f'Receipt {receipt.receipt_number} regenerated for '
-                    f'order {order.order_number}.',
+        f'order {order.order_number}.',
     )
     AdminNotificationService.notify_for_audit(
         audit_log,
         event_key=f'receipt-regenerated:{order.pk}',
         message=f'Receipt {receipt.receipt_number} was regenerated for '
-                f'order {order.order_number}.',
+        f'order {order.order_number}.',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
     return receipt
@@ -294,7 +301,8 @@ def email_receipt(receipt, *, force=False):
     if not recipient:
         receipt.email_attempts += 1
         receipt.email_error = 'No customer email on file.'
-        receipt.save(update_fields=['email_attempts', 'email_error', 'updated_at'])
+        receipt.save(update_fields=['email_attempts',
+                     'email_error', 'updated_at'])
         return receipt
 
     try:
@@ -345,7 +353,8 @@ def email_receipt(receipt, *, force=False):
     except Exception as exc:  # noqa: BLE001 - delivery must never raise
         receipt.email_attempts += 1
         receipt.email_error = str(exc)[:300]
-        receipt.save(update_fields=['email_attempts', 'email_error', 'updated_at'])
+        receipt.save(update_fields=['email_attempts',
+                     'email_error', 'updated_at'])
         AuditLogService.log(
             'receipt_email_failed',
             object_type='receipt',
