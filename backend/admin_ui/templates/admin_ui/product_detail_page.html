@@ -99,25 +99,45 @@
     </div>
     {% endif %}
 
-    {% if primary_variant %}
     <div class="card">
       <div class="card-header">
-        <h3 class="card-title">Quick Restock</h3>
+        <h3 class="card-title">Variants</h3>
+        <a class="btn btn-primary" href="/admin/dashboard/products/{{ product.id }}/variants/new/">
+          <i class="ph ph-plus"></i> Add variant
+        </a>
       </div>
-      <div class="card-body">
-        <form method="post" action="/admin/dashboard/inventory/adjust/" style="display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;">
-          {% csrf_token %}
-          <input type="hidden" name="variant" value="{{ primary_variant.id }}">
-          <input type="hidden" name="reason" value="restock">
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" for="restock-quantity">Quantity</label>
-            <input id="restock-quantity" name="delta" type="number" min="1" value="10" class="form-control" style="width: 120px;">
-          </div>
-          <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i> Add Stock</button>
-        </form>
+      <div class="card-body" style="padding: 0;">
+        {% if variant_rows %}
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr><th>SKU</th><th>Options</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for row in variant_rows %}
+              <tr>
+                <td style="font-family: monospace; font-size: 12px;">{{ row.variant.sku }}</td>
+                <td>{{ row.variant.size|default:'—' }}{% if row.variant.color %} / {{ row.variant.color }}{% endif %}</td>
+                <td>{{ row.price }}</td>
+                <td>{{ row.variant.stock_quantity }}</td>
+                <td><span class="status-badge {% if row.variant.is_active %}status-active{% else %}status-inactive{% endif %}">{% if row.variant.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+                <td style="text-align: right; white-space: nowrap;">
+                  <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/edit/">Edit</a>
+                  <form method="post" action="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this variant?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p style="padding: 24px; margin: 0; color: var(--text-secondary);">No variants have been added yet.</p>
+        {% endif %}
       </div>
     </div>
-    {% endif %}
   </div>
 
   <div>

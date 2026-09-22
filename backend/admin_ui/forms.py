@@ -79,7 +79,8 @@ class AdminSignupForm(forms.ModelForm):
         if not allow_superuser:
             self.fields['is_superuser'].disabled = True
             self.initial['is_superuser'] = False
-            self.fields['is_superuser'].help_text = ('Only a superuser can grant full control.')
+            self.fields['is_superuser'].help_text = (
+                'Only a superuser can grant full control.')
 
     def clean_is_superuser(self):
         is_superuser = self.cleaned_data.get('is_superuser') or False
@@ -183,6 +184,57 @@ class ProductUpdateForm(forms.Form):
             if Product.objects.filter(slug=slug).exclude(pk=self.product.pk).exists():
                 self.add_error(
                     'slug', 'A product with this slug already exists.')
+        return cleaned
+
+
+class ProductVariantForm(forms.Form):
+    sku = forms.CharField(label='SKU', max_length=80)
+    size = forms.CharField(label='Size', max_length=40, required=False)
+    color = forms.CharField(label='Colour', max_length=80, required=False)
+    color_hex = forms.CharField(
+        label='Colour hex', max_length=7, required=False)
+    price = forms.DecimalField(
+        label='Variant price (KES)', max_digits=12, decimal_places=2,
+        min_value=0, required=False,
+        help_text='Leave blank to use the product price.')
+    stock_quantity = forms.IntegerField(
+        label='Stock quantity', min_value=0, initial=0)
+    is_active = forms.BooleanField(
+        label='Available for sale', required=False, initial=True)
+
+    def __init__(self, *args, **kwargs):
+        self.product = kwargs.pop('product')
+        self.variant = kwargs.pop('variant', None)
+        super().__init__(*args, **kwargs)
+
+    def clean_sku(self):
+        sku = self.cleaned_data['sku'].strip()
+        queryset = ProductVariant.objects.filter(sku=sku)
+        if self.variant:
+            queryset = queryset.exclude(pk=self.variant.pk)
+        if queryset.exists():
+            raise forms.ValidationError(
+                'A variant with this SKU already exists.')
+        return sku
+
+    def clean_color_hex(self):
+        value = self.cleaned_data.get('color_hex', '').strip()
+        if value and (len(value) != 7 or not value.startswith('#')):
+            raise forms.ValidationError('Use a hex colour such as #2E5A44.')
+        return value.upper()
+
+    def clean(self):
+        cleaned = super().clean()
+        queryset = ProductVariant.objects.filter(
+            product=self.product,
+            size=cleaned.get('size', ''),
+            color=cleaned.get('color', ''),
+        )
+        if self.variant:
+            queryset = queryset.exclude(pk=self.variant.pk)
+        if queryset.exists():
+            raise forms.ValidationError(
+                'This size and colour combination already exists for the product.')
         return cleaned
 
 

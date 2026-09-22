@@ -1135,8 +1135,11 @@
           <a class="nav-link {% if admin_page == 'categories' %}active{% endif %}" href="/admin/dashboard/categories/">
             <i class="ph ph-folders"></i><span>Categories</span>
           </a>
-          <a class="nav-link {% if admin_page == 'inventory' %}active{% endif %}" href="/admin/dashboard/inventory/">
+          <a class="nav-link {% if admin_page == 'inventory' and not request.GET.view %}active{% endif %}" href="/admin/dashboard/inventory/">
             <i class="ph ph-archive-box"></i><span>Inventory</span>
+          </a>
+          <a class="nav-link {% if admin_page == 'inventory' and request.GET.view == 'variants' %}active{% endif %}" href="/admin/dashboard/inventory/?view=variants">
+            <i class="ph ph-squares-four"></i><span>Variants</span>
           </a>
         </div>
 

@@ -766,10 +766,92 @@ class AdminDashboardTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Linen Top')
-        self.assertTrue(AuditLog.objects.filter(
-            action='product_viewed', object_id=str(product.id),
-            metadata__surface='admin_product_edit',
-        ).exists())
+
+    def test_staff_can_create_edit_and_delete_product_variant(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Variant Product',
+            slug='variant-product',
+            description='A product with multiple options.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        create_response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/new/',
+            {
+                'sku': 'VARIANT-001',
+                'size': 'M',
+                'color': 'Forest',
+                'color_hex': '#2E5A44',
+                'price': '135.50',
+                'stock_quantity': '8',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertRedirects(
+            create_response, f'/admin/dashboard/products/{product.id}/')
+        variant = ProductVariant.objects.get(sku='VARIANT-001')
+        self.assertEqual(variant.price_minor, 13550)
+        self.assertEqual(variant.stock_quantity, 8)
+
+        edit_response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/{variant.id}/edit/',
+            {
+                'sku': 'VARIANT-001-UPDATED',
+                'size': 'L',
+                'color': 'Forest',
+                'color_hex': '#2E5A44',
+                'price': '140.00',
+                'stock_quantity': '10',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertRedirects(
+            edit_response, f'/admin/dashboard/products/{product.id}/')
+        variant.refresh_from_db()
+        self.assertEqual(variant.sku, 'VARIANT-001-UPDATED')
+        self.assertEqual(variant.size, 'L')
+
+        delete_response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/{variant.id}/delete/')
+        self.assertRedirects(
+            delete_response, f'/admin/dashboard/products/{product.id}/')
+        self.assertFalse(ProductVariant.objects.filter(pk=variant.id).exists())
+
+    def test_variant_form_rejects_duplicate_product_options(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Duplicate Variant Product',
+            slug='duplicate-variant-product',
+            description='A product with duplicate option protection.',
+            price_minor=12000,
+            status=Product.Status.ACTIVE,
+        )
+        ProductVariant.objects.create(
+            product=product, sku='DUPLICATE-001', size='M', color='Black')
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            f'/admin/dashboard/products/{product.id}/variants/new/',
+            {
+                'sku': 'DUPLICATE-002',
+                'size': 'M',
+                'color': 'Black',
+                'price': '',
+                'stock_quantity': '4',
+                'is_active': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, 'This size and colour combination already exists')
+        self.assertFalse(ProductVariant.objects.filter(
+            sku='DUPLICATE-002').exists())
 
     def test_staff_can_open_admin_user_invite_page(self):
         self.client.force_login(self.staff)

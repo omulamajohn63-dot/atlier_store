@@ -63,6 +63,7 @@ from .forms import (
     CategoryForm,
     ProductCreateForm,
     ProductUpdateForm,
+    ProductVariantForm,
     StockAdjustmentForm,
 )
 from .models import AdminNotification, notify_staff
@@ -1627,6 +1628,15 @@ class ProductDetailPageView(View):
             metadata={'surface': 'admin_product_detail'},
         )
         primary_variant = product.variants.order_by('sku').first()
+        variant_rows = [
+            {
+                'variant': variant,
+                'price': (
+                    f'KES {Decimal(variant.price_minor) / Decimal(100):.2f}'
+                    if variant.price_minor is not None else 'Product price'),
+            }
+            for variant in product.variants.order_by('sku')
+        ]
         stock_adjust_url = (
             f'/admin/dashboard/inventory/adjust/?variant={primary_variant.id}'
             if primary_variant else '/admin/dashboard/inventory/adjust/'
@@ -1639,6 +1649,7 @@ class ProductDetailPageView(View):
         return render(request, self.template_name, {
             'product': product,
             'primary_variant': primary_variant,
+            'variant_rows': variant_rows,
             'stock_adjust_url': stock_adjust_url,
             'activity_logs': activity,
             'logs': activity,
@@ -1647,6 +1658,130 @@ class ProductDetailPageView(View):
             'page_primary_action': 'Edit Product',
             'page_primary_url': f'/admin/dashboard/products/{product.id}/edit/',
         })
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductVariantCreatePageView(View):
+    template_name = 'admin_ui/variant_form_page.html'
+
+    def get_product(self, product_id):
+        return Product.objects.filter(pk=product_id).first()
+
+    def get(self, request, product_id):
+        product = self.get_product(product_id)
+        if not product:
+            messages.error(request, 'Product not found.')
+            return redirect('admin-products')
+        return self.render_form(request, product, ProductVariantForm(product=product))
+
+    def post(self, request, product_id):
+        product = self.get_product(product_id)
+        if not product:
+            messages.error(request, 'Product not found.')
+            return redirect('admin-products')
+        form = ProductVariantForm(request.POST, product=product)
+        if form.is_valid():
+            data = form.cleaned_data
+            variant = ProductVariant.objects.create(
+                product=product,
+                sku=data['sku'],
+                size=data['size'],
+                color=data['color'],
+                color_hex=data['color_hex'],
+                price_minor=(int(data['price'] * 100)
+                             if data['price'] is not None else None),
+                stock_quantity=data['stock_quantity'],
+                is_active=data['is_active'],
+            )
+            _audit_catalog('create', variant, metadata={
+                           'product_id': str(product.pk)})
+            messages.success(request, 'Variant added.')
+            return redirect('admin-product-detail', product_id=product.pk)
+        return self.render_form(request, product, form)
+
+    def render_form(self, request, product, form):
+        return render(request, self.template_name, {
+            'form': form,
+            'product': product,
+            'page_title': 'Add variant',
+            'page_subtitle': f'Add a sellable option to {product.name}.',
+            'submit_label': 'Add variant',
+        })
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductVariantEditPageView(View):
+    template_name = 'admin_ui/variant_form_page.html'
+
+    def get_variant(self, product_id, variant_id):
+        return ProductVariant.objects.filter(
+            pk=variant_id, product_id=product_id).select_related('product').first()
+
+    def get(self, request, product_id, variant_id):
+        variant = self.get_variant(product_id, variant_id)
+        if not variant:
+            messages.error(request, 'Variant not found.')
+            return redirect('admin-products')
+        return self.render_form(request, variant.product, ProductVariantForm(
+            product=variant.product, variant=variant, initial={
+                'sku': variant.sku, 'size': variant.size, 'color': variant.color,
+                'color_hex': variant.color_hex,
+                'price': (Decimal(variant.price_minor) / Decimal(100)
+                          if variant.price_minor is not None else None),
+                'stock_quantity': variant.stock_quantity,
+                'is_active': variant.is_active,
+            }))
+
+    def post(self, request, product_id, variant_id):
+        variant = self.get_variant(product_id, variant_id)
+        if not variant:
+            messages.error(request, 'Variant not found.')
+            return redirect('admin-products')
+        form = ProductVariantForm(
+            request.POST, product=variant.product, variant=variant)
+        if form.is_valid():
+            data = form.cleaned_data
+            before = {'sku': variant.sku, 'size': variant.size, 'color': variant.color,
+                      'stock_quantity': variant.stock_quantity}
+            variant.sku = data['sku']
+            variant.size = data['size']
+            variant.color = data['color']
+            variant.color_hex = data['color_hex']
+            variant.price_minor = (int(data['price'] * 100)
+                                   if data['price'] is not None else None)
+            variant.stock_quantity = data['stock_quantity']
+            variant.is_active = data['is_active']
+            variant.save()
+            _audit_catalog('update', variant, metadata={'product_id': str(variant.product_id),
+                                                        'before': before})
+            messages.success(request, 'Variant updated.')
+            return redirect('admin-product-detail', product_id=variant.product_id)
+        return self.render_form(request, variant.product, form)
+
+    def render_form(self, request, product, form):
+        return render(request, self.template_name, {
+            'form': form,
+            'product': product,
+            'page_title': 'Edit variant',
+            'page_subtitle': f'Update a sellable option for {product.name}.',
+            'submit_label': 'Save variant',
+        })
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductVariantDeletePageView(View):
+    def post(self, request, product_id, variant_id):
+        variant = ProductVariant.objects.filter(
+            pk=variant_id, product_id=product_id).first()
+        if not variant:
+            messages.error(request, 'Variant not found.')
+            return redirect('admin-products')
+        product_id = variant.product_id
+        _audit_catalog('delete', variant, metadata={
+                       'product_id': str(product_id)})
+        variant.delete()
+        messages.success(request, 'Variant deleted.')
+        return redirect('admin-product-detail', product_id=product_id)
 
 
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')

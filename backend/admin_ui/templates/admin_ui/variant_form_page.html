@@ -1,0 +1,43 @@
+{% extends "admin_ui/base_admin.html" %}
+
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li><a href="/admin/dashboard/products/">Products</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="/admin/dashboard/products/{{ product.id }}/">{{ product.name|truncatewords:4 }}</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto;">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">{{ page_title }}</h2>
+      <p class="page-subtitle">{{ page_subtitle }}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post" class="form-grid">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}
+        <div class="form-group">
+          {{ field.label_tag }}
+          {{ field }}
+          {% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<div class="form-error">{{ error }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+        <div style="display: flex; gap: 12px; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;">
+          <button class="btn btn-primary" type="submit"><i class="ph ph-check"></i> {{ submit_label }}</button>
+          <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
