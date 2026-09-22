@@ -155,6 +155,22 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
     }
   }, [receipt]);
 
+  const handleOpenReceipt = useCallback(async () => {
+    if (!receipt) return;
+    setDownloading(true);
+    setReceiptError('');
+    try {
+      const blob = await api.downloadReceipt(receipt.receiptNumber);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setReceiptError(err instanceof Error ? err.message : 'The receipt could not be opened.');
+    } finally {
+      setDownloading(false);
+    }
+  }, [receipt]);
+
   useEffect(() => {
     if (!order || order.paymentStatus !== 'paid') {
       setReceipt(null);
@@ -507,7 +523,8 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => window.print()}
+                  onClick={() => (receipt ? void handleOpenReceipt() : window.print())}
+                  disabled={downloading}
                   className="gap-2 text-xs"
                 >
                   <Printer className="h-3.5 w-3.5" aria-hidden="true" />
