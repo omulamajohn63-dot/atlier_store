@@ -1925,7 +1925,6 @@ class ProductDetailPageView(View):
             'product_viewed', product,
             metadata={'surface': 'admin_product_detail'},
         )
-        primary_variant = product.variants.order_by('sku').first()
         variant_rows = [
             {
                 'variant': variant,
@@ -1935,10 +1934,6 @@ class ProductDetailPageView(View):
             }
             for variant in product.variants.order_by('sku')
         ]
-        stock_adjust_url = (
-            f'/admin/dashboard/inventory/adjust/?variant={primary_variant.id}'
-            if primary_variant else '/admin/dashboard/inventory/adjust/'
-        )
         activity = AuditLog.objects.select_related('actor').filter(
             object_type__in=('product', 'productvariant'),
             object_id=str(product.pk),
@@ -1946,9 +1941,7 @@ class ProductDetailPageView(View):
         activity = decorate_audit_logs(list(activity))
         return render(request, self.template_name, {
             'product': product,
-            'primary_variant': primary_variant,
             'variant_rows': variant_rows,
-            'stock_adjust_url': stock_adjust_url,
             'activity_logs': activity,
             'logs': activity,
             'page_title': 'Product Details',

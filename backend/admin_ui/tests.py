@@ -921,7 +921,7 @@ class AdminDashboardTests(TestCase):
             metadata__surface='admin_product_detail',
         ).exists())
 
-    def test_staff_can_increase_stock_from_product_detail_page(self):
+    def test_staff_can_add_variant_and_restock_from_product_detail_page(self):
         product = Product.objects.create(
             category=self.category,
             name='Linen Top',
@@ -940,7 +940,9 @@ class AdminDashboardTests(TestCase):
         response = self.client.get(f'/admin/dashboard/products/{product.id}/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Increase stock')
+        self.assertContains(response, 'Add variant')
+        self.assertContains(
+            response, f'/admin/dashboard/products/{product.id}/variants/new/')
         self.assertContains(response, 'Restock')
 
         restock_response = self.client.post(
