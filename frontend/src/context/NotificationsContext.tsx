@@ -21,7 +21,6 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const previousIdsRef = useRef<string[]>([]);
-  const notificationBaselineReadyRef = useRef(false);
   const pollingDisabledRef = useRef(false);
   const refreshInFlightRef = useRef(false);
 
@@ -42,12 +41,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       const response = await api.getNotifications();
-      const results = response.results || [];
-      if (!notificationBaselineReadyRef.current) {
-        previousIdsRef.current = results.map((item) => item.id);
-        notificationBaselineReadyRef.current = true;
-      }
-      setNotifications(results);
+      setNotifications(response.results || []);
       setUnreadCount(typeof response.unread_count === 'number' ? response.unread_count : (response.results || []).filter((item) => !item.isRead).length);
     } catch (error) {
       setNotifications([]);
@@ -65,7 +59,6 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       setNotifications([]);
       setUnreadCount(0);
       previousIdsRef.current = [];
-      notificationBaselineReadyRef.current = false;
       pollingDisabledRef.current = false;
       return;
     }

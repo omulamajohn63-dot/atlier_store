@@ -1668,6 +1668,14 @@
         });
       });
 
+      const firstUnread = document.querySelector('.notification-item.unread');
+      if (firstUnread) {
+        showToast(firstUnread.dataset.notificationTitle || 'New alert', firstUnread.dataset.notificationMessage || '', {
+          category: firstUnread.dataset.category,
+          link: firstUnread.dataset.link,
+        });
+      }
+
       function bindNotificationItem(item) {
         item.addEventListener('click', async function (event) {
           const id = this.dataset.notificationId;

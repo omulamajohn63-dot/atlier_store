@@ -1131,6 +1131,52 @@ class AdminPageView(View):
         })
 
 
+def _build_sales_overview(sales_window_days):
+    """Build the daily sales series shared by the page render and refresh API."""
+    sales_overview = []
+    end_day = timezone.localdate()
+    max_total = 0
+    for offset in range(sales_window_days):
+        day = end_day - timedelta(days=sales_window_days - 1 - offset)
+        day_start = timezone.make_aware(
+            datetime.combine(day, datetime.min.time()),
+            timezone.get_current_timezone(),
+        )
+        day_end = day_start + timedelta(days=1)
+        total_minor = Order.objects.filter(
+            created_at__gte=day_start, created_at__lt=day_end).aggregate(
+            total=Sum('total_minor'))['total'] or 0
+        daily_total = Decimal(total_minor) / Decimal(100)
+        max_total = max(max_total, float(daily_total))
+        sales_overview.append({
+            'label': day.strftime('%a'),
+            'value': daily_total,
+            'day': day.strftime('%b %d'),
+        })
+    for point in sales_overview:
+        percentage = 0
+        if max_total:
+            percentage = (float(point['value']) / max_total) * 100
+        point['height'] = max(8, percentage)
+    return sales_overview, max_total
+
+
+def _customer_display_name(customer):
+    """Best-effort human-readable customer name from the order JSON field."""
+    customer = customer or {}
+    return (
+        customer.get('fullName')
+        or customer.get('full_name')
+        or customer.get('name')
+        or ' '.join(filter(None, [
+            customer.get('first_name'),
+            customer.get('last_name'),
+        ]))
+        or customer.get('email')
+        or 'Guest customer'
+    )
+
+
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class DashboardView(View):
     template_name = 'admin_ui/dashboard.html'
@@ -1296,32 +1342,7 @@ class DashboardView(View):
         low_stock_count = low_stock_variants.count()
         recent_orders = Order.objects.order_by('-created_at')[:5]
 
-        sales_overview = []
-        end_day = timezone.localdate()
-        max_total = 0
-        for offset in range(sales_window_days):
-            day = end_day - timedelta(days=sales_window_days - 1 - offset)
-            day_start = timezone.make_aware(
-                datetime.combine(day, datetime.min.time()),
-                timezone.get_current_timezone(),
-            )
-            day_end = day_start + timedelta(days=1)
-            total_minor = Order.objects.filter(
-                created_at__gte=day_start, created_at__lt=day_end).aggregate(
-                total=Sum('total_minor'))['total'] or 0
-            daily_total = Decimal(total_minor) / Decimal(100)
-            max_total = max(max_total, float(daily_total))
-            sales_overview.append({
-                'label': day.strftime('%a'),
-                'value': daily_total,
-                'day': day.strftime('%b %d'),
-            })
-
-        for point in sales_overview:
-            percentage = 0
-            if max_total:
-                percentage = (float(point['value']) / max_total) * 100
-            point['height'] = max(8, percentage)
+        sales_overview, _ = _build_sales_overview(sales_window_days)
 
         for order in recent_orders:
             order.total_display = f'KES {Decimal(order.total_minor) / Decimal(100):.2f}'
@@ -1330,18 +1351,7 @@ class DashboardView(View):
         # This mirrors the requested admin dashboard experience without changing the existing data model.
         recent_activity = []
         for order in recent_orders:
-            customer = order.customer or {}
-            name = (
-                customer.get('fullName')
-                or customer.get('full_name')
-                or customer.get('name')
-                or ' '.join(filter(None, [
-                    customer.get('first_name'),
-                    customer.get('last_name'),
-                ]))
-                or customer.get('email')
-                or 'Guest customer'
-            )
+            name = _customer_display_name(order.customer)
             recent_activity.append({
                 'title': f'New order received: #{order.order_number}',
                 'description': f'{name} • KES {Decimal(order.total_minor)/Decimal(100):.2f}',
@@ -1388,6 +1398,7 @@ class DashboardView(View):
             'categories': categories,
             'categories_count': Category.objects.filter(is_active=True).count(),
             'total_stock': sum(variant.stock_quantity for variant in variants),
+            'total_products': products.count(),
             'low_stock_count': low_stock_count,
             'product_form': product_form or ProductCreateForm(),
             'stock_form': stock_form or StockAdjustmentForm(),
@@ -1403,8 +1414,13 @@ class DashboardView(View):
             'recent_activity': recent_activity,
             'recent_customer_activity': recent_customer_activity,
             'customer_error_summary': customer_error_summary,
+            'customer_error_total': sum(
+                (row['total'] for row in customer_error_summary), 0),
             'sales_overview': sales_overview,
+            'sales_period_total_kes': sum(
+                (point['value'] for point in sales_overview), Decimal('0')),
             'sales_range': sales_window_days,
+            'admin_page': 'dashboard',
         })
 
     @staticmethod
@@ -1510,6 +1526,137 @@ class DashboardView(View):
                 settings.MEDIA_URL)
             if storage_path:
                 default_storage.delete(storage_path)
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class DashboardDataView(View):
+    """Silent-refresh endpoint powering the dashboard's live KPI updates."""
+
+    def get(self, request):
+        range_value = request.GET.get('range', '7')
+        try:
+            sales_window_days = int(range_value)
+        except (TypeError, ValueError):
+            sales_window_days = 7
+        sales_window_days = max(7, min(sales_window_days, 90))
+
+        total_revenue_kes = (Decimal(
+            Order.objects.exclude(status=Order.Status.PENDING).exclude(
+                status=Order.Status.CANCELLED
+            ).aggregate(total=Sum('total_minor')).get('total') or 0
+        ) / Decimal('100'))
+        pending_revenue_kes = (Decimal(
+            Order.objects.filter(status=Order.Status.PENDING).aggregate(
+                total=Sum('total_minor')).get('total') or 0
+        ) / Decimal('100'))
+
+        total_orders = Order.objects.count()
+        total_customers = get_user_model().objects.filter(is_staff=False).count()
+        total_products = Product.objects.count()
+        orders_needing_attention = Order.objects.filter(
+            status__in=['pending', 'confirmed', 'processing']).count()
+
+        low_stock_variants = list(
+            ProductVariant.objects.filter(stock_quantity__lte=3)
+            .select_related('product').order_by('stock_quantity')[:8])
+        low_stock_count = ProductVariant.objects.filter(
+            stock_quantity__lte=3).count()
+
+        recent_orders = list(Order.objects.order_by('-created_at')[:5])
+        for order in recent_orders:
+            order.total_display = f'KES {Decimal(order.total_minor) / Decimal(100):.2f}'
+
+        sales_overview, _ = _build_sales_overview(sales_window_days)
+
+        customer_actions = (
+            'signup', 'login', 'login_failed', 'registration_failed',
+            'product_viewed', 'category_viewed', 'search_performed',
+            'cart_item_added', 'cart_item_updated', 'cart_item_removed',
+            'cart_cleared', 'checkout_started', 'checkout_failed',
+            'order_created', 'order_creation_failed', 'order_cancelled',
+            'order_confirmed', 'order_received', 'payment_initiated',
+            'payment_success', 'payment_failed', 'payment_initiation_failed',
+            'payment_timeout', 'refund_completed', 'wishlist_item_added',
+            'wishlist_item_removed', 'wishlist_cleared', 'review_submitted',
+            'support_message_submitted', 'profile_updated', 'password_reset',
+        )
+        recent_customer_activity = list(
+            AuditLog.objects.filter(action__in=customer_actions)
+            .order_by('-created_at')[:6])
+        customer_error_summary = list(
+            AuditLog.objects.filter(
+                result='failure',
+                created_at__gte=timezone.now() - timedelta(days=7))
+            .values('action')
+            .annotate(total=Count('id'))
+            .order_by('-total')[:6])
+
+        recent_activity = []
+        for order in recent_orders:
+            recent_activity.append({
+                'title': f'New order received: #{order.order_number}',
+                'description': (
+                    f'{_customer_display_name(order.customer)} • '
+                    f'KES {Decimal(order.total_minor)/Decimal(100):.2f}'),
+                'timestamp': order.created_at.strftime('%b %d, %Y'),
+                'icon': 'Order',
+            })
+        for product in Product.objects.order_by('-updated_at')[:3]:
+            recent_activity.append({
+                'title': f'Product updated: {product.name}',
+                'description': product.status,
+                'timestamp': product.updated_at.strftime('%b %d, %Y'),
+                'icon': 'Product',
+            })
+        recent_activity = recent_activity[:5]
+
+        payload = {
+            'kpis': {
+                'revenue': f'KES {total_revenue_kes:.0f}',
+                'pending_revenue': f'KES {pending_revenue_kes:.0f}',
+                'orders': total_orders,
+                'customers': total_customers,
+                'products': total_products,
+                'low_stock': low_stock_count,
+                'attention_orders': orders_needing_attention,
+            },
+            'sales_period_total': f'KES {sum((point["value"] for point in sales_overview), Decimal("0")):.0f}',
+            'overview': [{
+                'label': point['label'],
+                'day': point['day'],
+                'value': f"{point['value']:.2f}",
+                'height': point['height'],
+            } for point in sales_overview],
+            'orders': [{
+                'order_number': order.order_number,
+                'customer': _customer_display_name(order.customer),
+                'total_display': order.total_display,
+                'status': order.status.lower() if order.status else '',
+                'status_display': order.get_status_display(),
+            } for order in recent_orders],
+            'low_stock': [{
+                'product': variant.product.name,
+                'sku': variant.sku,
+                'size': variant.size or '',
+                'color': variant.color or '',
+                'stock': variant.stock_quantity,
+                'out': variant.stock_quantity <= 0,
+            } for variant in low_stock_variants],
+            'low_stock_count': low_stock_count,
+            'activity': recent_activity,
+            'customer_activity': [{
+                'action': log.action,
+                'result': log.result or '',
+                'description': log.description,
+                'object_repr': log.object_repr or log.category,
+                'created_at': log.created_at.strftime('%b %d, %H:%M'),
+            } for log in recent_customer_activity],
+            'error_summary': list(customer_error_summary),
+            'error_total': sum(
+                (row['total'] for row in customer_error_summary), 0),
+            'updated_at': timezone.now().isoformat(),
+        }
+        return JsonResponse(payload)
 
 
 @permission_required('categories.create')
