@@ -1,0 +1,82 @@
+{% extends "admin_ui/base_admin.html" %}
+
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li><a href="/admin/dashboard/variants/">Variants</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ page_title }}</h2>
+    <p class="page-subtitle">{{ page_subtitle }}</p>
+  </div>
+  <a class="btn btn-secondary" href="/admin/dashboard/variants/"><i class="ph ph-arrow-left"></i> Back to variants</a>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+  <div class="card-body">
+    <form method="get" action="" style="display: flex; gap: 8px; align-items: center; margin: 0;">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search products by name, SKU or category..." style="flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 8px 12px; font-family: var(--font-sans); font-size: 13px; color: var(--text);">
+      <button type="submit" class="btn btn-secondary"><i class="ph ph-magnifying-glass"></i> Search</button>
+      {% if query %}<a href="?" class="btn btn-secondary"><i class="ph ph-x"></i> Clear</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    {% if product_rows %}
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Category</th>
+            <th>Variants</th>
+            <th>Stock</th>
+            <th>Status</th>
+            <th style="text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in product_rows %}
+          <tr>
+            <td>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                {% if row.image %}
+                <img class="admin-product-thumb" src="{{ row.image }}" alt="{{ row.name }}">
+                {% else %}
+                <div class="admin-product-thumb table-img" style="background: var(--bg); display: flex; align-items: center; justify-content: center;">
+                  <i class="ph ph-image" style="color: var(--text-secondary);"></i>
+                </div>
+                {% endif %}
+                <a href="/admin/dashboard/products/{{ row.id }}/" class="admin-product-name-link">{{ row.name }}</a>
+              </div>
+            </td>
+            <td>{{ row.category }}</td>
+            <td>{{ row.variant_count }}</td>
+            <td>{{ row.stock }}</td>
+            <td><span class="status-badge status-{{ row.status|lower|cut:' ' }}">{{ row.status }}</span></td>
+            <td style="text-align: right;">
+              <a class="btn btn-primary" href="{{ row.new_variant_url }}"><i class="ph ph-plus"></i> Add variant</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding: 48px 24px; text-align: center; color: var(--text-secondary);">
+      <i class="ph ph-package" style="font-size: 48px; margin-bottom: 16px; color: var(--border);"></i>
+      <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 8px 0;">No products found.</h3>
+      <p style="font-size: 13px; margin: 0 0 24px 0;">Create a product before adding a variant to it.</p>
+      <a class="btn btn-primary" href="/admin/dashboard/products/new/"><i class="ph ph-plus"></i> Add product</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

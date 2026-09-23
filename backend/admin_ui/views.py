@@ -667,8 +667,8 @@ class AdminPageView(View):
         'variants': {
             'title': 'Product Variants',
             'subtitle': 'Manage product variations by size, color and stock.',
-            'primary_action': '+ Adjust Stock',
-            'primary_url': '/admin/dashboard/inventory/adjust/',
+            'primary_action': '+ Add Variant',
+            'primary_url': '/admin/dashboard/variants/new/',
             'filters': ['Search variants', 'Category filter', 'Stock filter'],
             'columns': ['Product', 'SKU', 'Size', 'Color', 'Price', 'Stock', 'Status', 'Actions'],
             'rows': [],
@@ -1948,6 +1948,47 @@ class ProductDetailPageView(View):
             'page_subtitle': product.name,
             'page_primary_action': 'Edit Product',
             'page_primary_url': f'/admin/dashboard/products/{product.id}/edit/',
+        })
+
+
+@permission_required('variants.create', 'products.update')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class VariantProductPickerView(View):
+    """Choose a product that a new variant should belong to."""
+
+    template_name = 'admin_ui/variant_picker_page.html'
+
+    def get(self, request):
+        query = (request.GET.get('q') or '').strip()
+        products = Product.objects.select_related('category').prefetch_related(
+            'variants').order_by('name')
+        if query:
+            products = products.filter(
+                Q(name__icontains=query)
+                | Q(sku__icontains=query)
+                | Q(category__name__icontains=query)
+            )
+        product_rows = []
+        for product in products:
+            variants = product.variants.all()
+            normalized_images = Product.normalize_images(product.images)
+            product_rows.append({
+                'id': str(product.pk),
+                'name': product.name,
+                'image': normalized_images[0] if normalized_images else '',
+                'category': product.category.name if product.category else '—',
+                'variant_count': variants.count(),
+                'stock': str(sum(v.stock_quantity for v in variants)),
+                'status': product.get_status_display(),
+                'new_variant_url': f'/admin/dashboard/products/{product.pk}/variants/new/',
+            })
+        return render(request, self.template_name, {
+            'product_rows': product_rows,
+            'query': query,
+            'product_count': products.count(),
+            'page_title': 'Add Variant',
+            'page_subtitle': 'Choose a product to add a new variant to.',
+            'admin_page': 'variants',
         })
 
 

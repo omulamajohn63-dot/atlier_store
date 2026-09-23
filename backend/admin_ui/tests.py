@@ -684,6 +684,8 @@ class AdminDashboardTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Product Variants')
+        self.assertContains(response, 'Add Variant')
+        self.assertContains(response, '/admin/dashboard/variants/new/')
         self.assertContains(response, product.name)
         self.assertContains(response, 'VP-XS')
         self.assertContains(response, 'VP-M')
@@ -691,6 +693,34 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, 'Restock')
         self.assertContains(
             response, f'/admin/dashboard/inventory/adjust/?variant={variant.id}')
+
+    def test_variant_product_picker_lists_products_and_links_to_new_variant_form(self):
+        self.client.force_login(self.staff)
+        product = Product.objects.create(
+            category=self.category,
+            name='Picker Target Product',
+            slug='picker-target-product',
+            description='Picked before adding a variant.',
+            price_minor=30000,
+            status=Product.Status.ACTIVE,
+        )
+        ProductVariant.objects.create(
+            product=product, sku='PK-XS', size='XS', stock_quantity=3)
+
+        response = self.client.get('/admin/dashboard/variants/new/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Add Variant')
+        self.assertContains(response, product.name)
+        self.assertContains(
+            response,
+            f'/admin/dashboard/products/{product.id}/variants/new/')
+
+        form_response = self.client.get(
+            f'/admin/dashboard/products/{product.id}/variants/new/')
+
+        self.assertEqual(form_response.status_code, 200)
+        self.assertContains(form_response, 'Add variant')
 
     def test_products_page_includes_checkbox_column_data(self):
         self.client.force_login(self.staff)
