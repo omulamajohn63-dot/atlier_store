@@ -664,6 +664,15 @@ class AdminPageView(View):
             'columns': ['Product', 'SKU', 'Category', 'Current Stock', 'Low Stock Threshold', 'Status', 'Actions'],
             'rows': [],
         },
+        'variants': {
+            'title': 'Product Variants',
+            'subtitle': 'Manage product variations by size, color and stock.',
+            'primary_action': '+ Adjust Stock',
+            'primary_url': '/admin/dashboard/inventory/adjust/',
+            'filters': ['Search variants', 'Category filter', 'Stock filter'],
+            'columns': ['Product', 'SKU', 'Size', 'Color', 'Price', 'Stock', 'Status', 'Actions'],
+            'rows': [],
+        },
         'orders': {
             'title': 'Orders',
             'subtitle': 'Track and manage customer purchases.',
@@ -751,6 +760,7 @@ class AdminPageView(View):
         'products': 'products.view',
         'categories': 'categories.view',
         'inventory': 'inventory.view',
+        'variants': 'inventory.view',
         'orders': 'orders.view',
         'customers': 'customers.view',
         'admin-users': 'staff.view',
@@ -973,6 +983,35 @@ class AdminPageView(View):
                 })
             page_data = dict(page_data)
             page_data['rows'] = inventory_rows
+
+        if page == 'variants':
+            variant_rows = []
+            variants = ProductVariant.objects.select_related(
+                'product__category').order_by('product__name', 'size', 'color', 'sku')
+            if query:
+                variants = variants.filter(
+                    Q(sku__icontains=query)
+                    | Q(product__name__icontains=query)
+                    | Q(product__category__name__icontains=query)
+                )
+            for variant in variants:
+                product = variant.product
+                stock = variant.stock_quantity
+                price = Decimal(variant.price_minor or 0) / Decimal(100)
+                variant_rows.append({
+                    'id': str(variant.pk),
+                    'product_id': str(product.pk),
+                    'name': product.name,
+                    'sku': variant.sku,
+                    'size': variant.size or '',
+                    'color': variant.color or '',
+                    'price': f'KES {price:.2f}',
+                    'stock': str(stock),
+                    'status': 'Low Stock' if stock <= 3 else 'In Stock' if stock > 0 else 'Out of Stock',
+                    'actions': 'View',
+                })
+            page_data = dict(page_data)
+            page_data['rows'] = variant_rows
 
         if page == 'orders':
             order_rows = []

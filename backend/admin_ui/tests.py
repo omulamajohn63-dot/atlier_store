@@ -653,6 +653,45 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, product.name)
         self.assertContains(response, product.images[0])
 
+    def test_variants_page_renders_real_variant_records(self):
+        self.client.force_login(self.staff)
+        product = Product.objects.create(
+            category=self.category,
+            name='Variants Page Product',
+            slug='variants-page-product',
+            description='Used to verify the dedicated variants page.',
+            price_minor=25000,
+            status=Product.Status.ACTIVE,
+        )
+        variant = ProductVariant.objects.create(
+            product=product,
+            sku='VP-XS',
+            size='XS',
+            color='Olive',
+            price_minor=12500,
+            stock_quantity=5,
+        )
+        ProductVariant.objects.create(
+            product=product,
+            sku='VP-M',
+            size='M',
+            color='Black',
+            price_minor=12500,
+            stock_quantity=2,
+        )
+
+        response = self.client.get('/admin/dashboard/variants/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Product Variants')
+        self.assertContains(response, product.name)
+        self.assertContains(response, 'VP-XS')
+        self.assertContains(response, 'VP-M')
+        self.assertContains(response, variant.id)
+        self.assertContains(response, 'Restock')
+        self.assertContains(
+            response, f'/admin/dashboard/inventory/adjust/?variant={variant.id}')
+
     def test_products_page_includes_checkbox_column_data(self):
         self.client.force_login(self.staff)
         Product.objects.create(

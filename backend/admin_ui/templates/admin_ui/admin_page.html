@@ -176,6 +176,9 @@
                     {% endif %}
                   {% elif page_data.page == 'customers' %}
                     <a href="/admin/dashboard/customers/{{ row.id }}/"><i class="ph ph-user"></i> View customer</a>
+                  {% elif page_data.page == 'variants' %}
+                    <a href="/admin/dashboard/products/{{ row.product_id }}/"><i class="ph ph-eye"></i> View product</a>
+                    <a href="/admin/dashboard/inventory/adjust/?variant={{ row.id }}"><i class="ph ph-arrows-clockwise"></i> Restock</a>
                   {% else %}
                     <a href="#"><i class="ph ph-eye"></i> View</a>
                   {% endif %}
@@ -207,6 +210,8 @@
               <td><a href="/admin/dashboard/products/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'order' and page_data.page == 'orders' %}
               <td><a href="/admin/dashboard/orders/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
+            {% elif key == 'name' and page_data.page == 'variants' %}
+              <td><a href="/admin/dashboard/products/{{ row.product_id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'customer' and page_data.page == 'customers' %}
               <td><a href="/admin/dashboard/customers/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'status' or key == 'payment_status' or key == 'role' %}

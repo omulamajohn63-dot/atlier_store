@@ -119,6 +119,8 @@ urlpatterns = [
          CategoryDeletePageView.as_view(), name='admin-category-delete'),
     path('inventory/', AdminPageView.as_view(),
          {'page': 'inventory'}, name='admin-inventory'),
+    path('variants/', AdminPageView.as_view(),
+         {'page': 'variants'}, name='admin-variants'),
     path('inventory/adjust/', StockAdjustmentPageView.as_view(),
          name='admin-stock-adjust'),
     path('orders/', AdminPageView.as_view(),
