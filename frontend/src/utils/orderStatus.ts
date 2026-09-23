@@ -23,14 +23,14 @@ export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
   },
   confirmed: {
     label: 'Confirmed',
-    dotClass: 'bg-[#8A745C]',
-    pillTextClass: 'text-[#6B5642]',
+    dotClass: 'bg-[#A2574F]',
+    pillTextClass: 'text-[#83443D]',
     rank: 1,
   },
   processing: {
     label: 'Processing',
-    dotClass: 'bg-[#8A745C]',
-    pillTextClass: 'text-[#6B5642]',
+    dotClass: 'bg-[#A2574F]',
+    pillTextClass: 'text-[#83443D]',
     rank: 2,
   },
   shipped: {

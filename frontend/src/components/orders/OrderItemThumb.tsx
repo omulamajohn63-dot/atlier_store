@@ -17,10 +17,10 @@ export const OrderItemThumb: React.FC<OrderItemThumbProps> = ({ item, className 
   const initial = (item.productName || 'A').trim().charAt(0).toUpperCase();
 
   return (
-    <div className={`relative overflow-hidden bg-[#EFECE6] ${className}`}>
+    <div className={`relative overflow-hidden bg-[#F4ECE9] ${className}`}>
       {showPlaceholder ? (
         <div className="flex h-full w-full items-center justify-center">
-          <span className="font-serif text-xl text-[#A6937D]">{initial}</span>
+          <span className="font-serif text-xl text-[#C0857B]">{initial}</span>
         </div>
       ) : (
         <img

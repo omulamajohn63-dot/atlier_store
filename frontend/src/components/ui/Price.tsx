@@ -31,7 +31,7 @@ export const Price: React.FC<PriceProps> = ({
 
   return (
     <div className={`inline-flex items-baseline gap-2 ${className}`}>
-      <span className={`text-[#181716] font-medium tracking-tight ${sizeStyles[size]}`}>
+      <span className={`text-[#A2574F] font-medium tracking-tight ${sizeStyles[size]}`}>
         {showCurrency ? formatPrice(amount, { symbol: currency }) : formatPrice(amount, { symbol: '' })}
       </span>
       {isDiscounted && (
@@ -39,7 +39,7 @@ export const Price: React.FC<PriceProps> = ({
           <span className="text-xs text-[#827E77] line-through font-normal">
             {showCurrency ? formatPrice(compareAtAmount, { symbol: currency }) : formatPrice(compareAtAmount, { symbol: '' })}
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#FFF8F0] border border-[#E7D8B3] text-[10px] font-semibold uppercase tracking-wider text-[#8A745C]">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#E68057] text-[10px] font-semibold uppercase tracking-wider text-[#181716]">
             -{Math.round(((compareAtAmount! - amount) / compareAtAmount!) * 100)}%
           </span>
         </>

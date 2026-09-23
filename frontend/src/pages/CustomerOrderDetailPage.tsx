@@ -236,7 +236,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
           event.preventDefault();
           navigate('/account/orders');
         }}
-        className="inline-flex items-center gap-2 rounded-sm text-xs font-semibold uppercase tracking-[0.14em] text-[#63605A] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+        className="inline-flex items-center gap-2 rounded-sm text-xs font-semibold uppercase tracking-[0.14em] text-[#63605A] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Back to Orders
@@ -284,7 +284,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
             <div className="flex flex-wrap items-center gap-3">
               <OrderStatusPill status={order.status} />
               <span className="inline-flex items-center gap-2 rounded-full border border-[#E8E5DF] bg-white px-3 py-1 shadow-xs">
-                <CreditCard className="h-3 w-3 text-[#8A745C]" aria-hidden="true" />
+                <CreditCard className="h-3 w-3 text-[#A2574F]" aria-hidden="true" />
                 <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#181716] sm:text-[11px]">
                   {paymentMethodLabel(order.paymentMethod)} · {statusLabel[order.paymentStatus]}
                 </span>
@@ -405,7 +405,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
               {/* Delivery address */}
               <section className="rounded-2xl border border-[#E8E5DF] bg-white p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                  <MapPin className="h-3.5 w-3.5 text-[#8A745C]" aria-hidden="true" />
+                  <MapPin className="h-3.5 w-3.5 text-[#A2574F]" aria-hidden="true" />
                   Delivery address
                 </h2>
                 <div className="mt-4 text-sm text-[#181716]">
@@ -463,7 +463,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
               {/* Payment */}
               <section className="rounded-2xl border border-[#E8E5DF] bg-white p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                  <CreditCard className="h-3.5 w-3.5 text-[#8A745C]" aria-hidden="true" />
+                  <CreditCard className="h-3.5 w-3.5 text-[#A2574F]" aria-hidden="true" />
                   Payment
                 </h2>
                 <dl className="mt-4 space-y-2.5 text-xs text-[#63605A]">

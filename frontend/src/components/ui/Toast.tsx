@@ -21,7 +21,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss, onMark
           const iconMap = {
             success: <CheckCircle2 className="w-4 h-4 text-[#2E5A44] shrink-0" />,
             error: <AlertCircle className="w-4 h-4 text-[#9E332B] shrink-0" />,
-            info: <Info className="w-4 h-4 text-[#8A745C] shrink-0" />,
+            info: <Info className="w-4 h-4 text-[#A2574F] shrink-0" />,
           };
 
           const borderColors = {
@@ -50,7 +50,7 @@ export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss, onMark
                     <button
                       type="button"
                       onClick={onMarkAllRead}
-                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-[#C7BDAB] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8A745C] hover:bg-[#FAF9F6] transition-colors"
+                      className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-[#C7BDAB] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#A2574F] hover:bg-[#FAF9F6] transition-colors"
                     >
                       <CheckCheck className="w-3 h-3" />
                       Mark all as read
@@ -95,7 +95,7 @@ export const SimpleToast: React.FC<SimpleToastProps> = ({
   const iconMap = {
     success: <CheckCircle2 className="w-4 h-4 text-[#2E5A44]" />,
     error: <AlertCircle className="w-4 h-4 text-[#9E332B]" />,
-    info: <Info className="w-4 h-4 text-[#8A745C]" />,
+    info: <Info className="w-4 h-4 text-[#A2574F]" />,
   };
 
   const bgColors = {

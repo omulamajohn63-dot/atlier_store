@@ -71,7 +71,7 @@ export const AccountNotificationsPage: React.FC = () => {
         />
         {unreadCount > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E5DF] bg-[#FAF9F6] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#63605A]">
-            <span className="h-2 w-2 rounded-full bg-[#8A745C]" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-[#A2574F]" aria-hidden="true" />
             {unreadCount} unread
           </span>
         )}
@@ -85,7 +85,7 @@ export const AccountNotificationsPage: React.FC = () => {
               type="button"
               onClick={() => setFilter(f)}
               className={`rounded-full px-5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
-                filter === f ? 'bg-[#181716] text-[#FAF9F6] shadow-xs' : 'text-[#63605A] hover:text-[#181716]'
+                filter === f ? 'bg-[#A2574F] text-[#FAF9F6] shadow-xs' : 'text-[#63605A] hover:text-[#181716]'
               }`}
             >
               {f === 'all' ? 'All' : 'Unread'}
@@ -96,7 +96,7 @@ export const AccountNotificationsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => void handleMarkAll()}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E5DF] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8A745C] transition-colors hover:border-[#D8D3CB] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#E8E5DF] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] transition-colors hover:border-[#D8D3CB] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
           >
             <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
             Mark all as read
@@ -133,14 +133,14 @@ export const AccountNotificationsPage: React.FC = () => {
               type="button"
               key={notification.id}
               onClick={() => handleOpen(notification)}
-              className={`flex w-full items-start gap-3.5 rounded-2xl border p-4 text-left transition-colors sm:p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] ${
+              className={`flex w-full items-start gap-3.5 rounded-2xl border p-4 text-left transition-colors sm:p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
                 notification.isRead
                   ? 'border-[#E8E5DF] bg-white hover:border-[#D8D3CB]'
                   : 'border-[#D8C7A6] bg-[#FFFDF8] hover:border-[#C7BDAB]'
               }`}
             >
               <span className="mt-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
-                <Bell className={`h-3 w-3 ${notification.isRead ? 'text-[#A29E96]' : 'text-[#8A745C]'}`} aria-hidden="true" />
+                <Bell className={`h-3 w-3 ${notification.isRead ? 'text-[#A29E96]' : 'text-[#A2574F]'}`} aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-3">
@@ -151,7 +151,7 @@ export const AccountNotificationsPage: React.FC = () => {
                     <p className="mt-0.5 font-medium text-[#181716]">{notification.title}</p>
                   </div>
                   {!notification.isRead && (
-                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#8A745C]" aria-hidden="true" />
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#A2574F]" aria-hidden="true" />
                   )}
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed text-[#63605A]">{notification.message}</p>

@@ -17,12 +17,12 @@ export const Badge: React.FC<BadgeProps> = ({
 }) => {
   const variantStyles = {
     default: 'bg-[#181716] text-[#FAF9F6]',
-    sale: 'bg-[#9E332B] text-[#FAF9F6]',
-    new: 'bg-gradient-to-r from-[#8A745C] to-[#A6937D] text-[#FAF9F6] shadow-[0_2px_8px_-2px_rgba(138,116,92,0.4)]',
+    sale: 'bg-[#E68057] text-[#181716] shadow-[0_2px_8px_-2px_rgba(230,128,87,0.4)]',
+    new: 'bg-[#993A8B] text-[#FAF9F6] shadow-[0_2px_8px_-2px_rgba(153,58,139,0.4)]',
     lowStock: 'bg-[#FFF8F0] text-[#8A6024] border border-[#ECD9BD]',
-    neutral: 'bg-[#EFECE6] text-[#63605A]',
+    neutral: 'bg-[#F4ECE9] text-[#63605A]',
     success: 'bg-[#E8EFEA] text-[#2E5A44] border border-[#C8D8CA]',
-    warning: 'bg-[#FFF8F0] text-[#8A745C] border border-[#E7D8B3]',
+    warning: 'bg-[#FFF8F0] text-[#9A6A2B] border border-[#E7D8B3]',
     info: 'bg-[#EFF2FA] text-[#3A5BA0] border border-[#C8D4F0]',
     outline: 'bg-transparent text-[#181716] border border-[#E8E5DF] hover:bg-[#F3F1ED]',
   };
@@ -35,12 +35,12 @@ export const Badge: React.FC<BadgeProps> = ({
 
   const dotColors = {
     default: 'bg-[#181716]',
-    sale: 'bg-[#9E332B]',
-    new: 'bg-[#8A745C]',
-    lowStock: 'bg-[#8A745C]',
+    sale: 'bg-[#E68057]',
+    new: 'bg-[#993A8B]',
+    lowStock: 'bg-[#8A6024]',
     neutral: 'bg-[#827E77]',
     success: 'bg-[#2E5A44]',
-    warning: 'bg-[#8A745C]',
+    warning: 'bg-[#9A6A2B]',
     info: 'bg-[#3A5BA0]',
     outline: 'bg-[#181716]',
   };

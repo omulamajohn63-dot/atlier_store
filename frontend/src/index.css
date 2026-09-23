@@ -4,29 +4,79 @@
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
-  /* Color Palette */
-  --color-canvas: #FAF9F6;
+  /* ============================================================
+     MODEZA BRAND PALETTE
+     Official storefront colors (visual identity only)
+     ============================================================ */
+  --color-cognac: #A2574F;          /* Primary brand color */
+  --color-cognac-dark: #83443D;     /* Primary hover / darker cognac */
+  --color-cognac-light: #C0857B;    /* Lighter cognac */
+  --color-warm-orange: #E68057;     /* Warm accent / CTA */
+  --color-warm-orange-dark: #C9603F;
+  --color-rose: #BF7587;            /* Soft secondary / rose */
+  --color-rose-dark: #A45E72;
+  --color-rose-soft: #F4E3E6;       /* Subtle rose tint */
+  --color-purple: #993A8B;          /* Luxury / secondary accent */
+  --color-purple-dark: #7A2D6F;
+
+  /* ============================================================
+     MODEZA SEMANTIC COLOR TOKENS
+     Use these instead of raw hex values in the storefront.
+     ============================================================ */
+  --color-primary: #A2574F;
+  --color-primary-hover: #83443D;
+  --color-primary-light: #C0857B;
+  --color-primary-soft: #F7ECEA;    /* soft cognac tint background */
+  --color-accent: #E68057;
+  --color-accent-hover: #C9603F;
+  --color-accent-soft: #FBEAE2;     /* soft warm-orange tint background */
+  --color-secondary: #BF7587;
+  --color-secondary-hover: #A45E72;
+  --color-secondary-soft: #F6EBEF;  /* soft rose background */
+  --color-luxury: #993A8B;
+  --color-luxury-hover: #7A2D6F;
+  --color-luxury-soft: #F3EAF2;     /* soft purple background */
+
+  --color-background: #FAF9F6;
   --color-surface: #FFFFFF;
   --color-surface-elevated: #FFFFFF;
+  --color-text: #181716;
+  --color-muted: #63605A;
+  --color-muted-light: #827E77;
+  --color-faint: #A29E96;
+  --color-border: #E8E5DF;
+  --color-border-strong: #D8D3CB;
+
+  /* ============================================================
+     LEGACY NEUTRAL TOKENS (kept for existing utility classes)
+     ============================================================ */
+  --color-canvas: #FAF9F6;
   --color-onyx: #181716;
   --color-onyx-soft: #2A2826;
-  --color-sandstone: #8A745C;
-  --color-sandstone-light: #A6937D;
-  --color-sandstone-dark: #6B5642;
+  --color-onyx-deep: #0F0E0E;
+  --color-sandstone: #A2574F;         /* remapped legacy brand -> MODEZA primary */
+  --color-sandstone-light: #C0857B;
+  --color-sandstone-dark: #83443D;
   --color-stone-border: #E8E5DF;
   --color-stone-border-strong: #D8D3CB;
   --color-stone-subtle: #F3F1ED;
-  --color-stone-muted: #66635D;
+  --color-stone-chips: #F4ECE9;
+  --color-stone-muted: #63605A;
   --color-stone-muted-light: #827E77;
+  --color-stone-faint: #A29E96;
   --color-warm-white: #FDFDFB;
   --color-cream: #FFFDF8;
   --color-cream-border: #F5F0E8;
 
-  /* Semantic Colors */
+  /* ============================================================
+     SEMANTIC STATUS COLORS
+     Error / success / warning stay semantically distinct from the
+     MODEZA brand palette so feedback is never ambiguous.
+     ============================================================ */
   --color-success: #2E5A44;
   --color-success-bg: #E8EFEA;
   --color-success-border: #C8D8CA;
-  --color-warning: #8A745C;
+  --color-warning: #9A6A2B;
   --color-warning-bg: #FFF8F0;
   --color-warning-border: #E7D8B3;
   --color-error: #9E332B;
@@ -43,8 +93,8 @@
   --shadow-lg: 0 10px 15px -3px rgb(24 23 22 / 0.08), 0 4px 6px -4px rgb(24 23 22 / 0.08);
   --shadow-xl: 0 20px 25px -5px rgb(24 23 22 / 0.09), 0 8px 10px -6px rgb(24 23 22 / 0.09);
   --shadow-2xl: 0 25px 50px -12px rgb(24 23 22 / 0.12);
-  --shadow-glow: 0 0 30px -5px rgb(138 116 92 / 0.25);
-  --shadow-glow-sm: 0 0 15px -3px rgb(138 116 92 / 0.15);
+  --shadow-glow: 0 0 30px -5px rgb(162 87 79 / 0.25);
+  --shadow-glow-sm: 0 0 15px -3px rgb(162 87 79 / 0.15);
   --shadow-inner: inset 0 2px 4px 0 rgb(24 23 22 / 0.04);
 
   /* Radius */
@@ -141,14 +191,14 @@ label {
 :focus-visible {
   outline: none;
   ring: 2px;
-  ring-color: #8A745C;
+  ring-color: #A2574F;
   ring-offset: 2px;
   ring-offset-color: #FFFFFF;
 }
 
 /* Selection */
 ::selection {
-  background-color: #EFECE6;
+  background-color: #F4E3E6;
   color: #181716;
 }
 
@@ -259,7 +309,7 @@ label {
 
 /* Gradient utilities */
 .gradient-sandstone {
-  background: linear-gradient(135deg, #8A745C 0%, #A6937D 100%);
+  background: linear-gradient(135deg, #A2574F 0%, #C0857B 100%);
 }
 
 .gradient-onyx {
@@ -270,12 +320,27 @@ label {
   background: linear-gradient(135deg, #FFFDF8 0%, #F5F0E8 100%);
 }
 
+.gradient-modeza {
+  background: linear-gradient(135deg, #A2574F 0%, #993A8B 100%);
+}
+
+.gradient-modeza-warm {
+  background: linear-gradient(135deg, #A2574F 0%, #E68057 100%);
+}
+
 .gradient-radial-sandstone {
-  background: radial-gradient(ellipse at center, #8A745C 0%, #6B5642 70%);
+  background: radial-gradient(ellipse at center, #A2574F 0%, #83443D 70%);
 }
 
 .text-gradient-sandstone {
-  background: linear-gradient(135deg, #8A745C 0%, #A6937D 100%);
+  background: linear-gradient(135deg, #A2574F 0%, #C0857B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-modeza {
+  background: linear-gradient(135deg, #A2574F 0%, #993A8B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

@@ -97,7 +97,7 @@ export const CartDrawer: React.FC = () => {
                 )}
                 <div className="w-full bg-[#E8E5DF] h-1.5 rounded-full overflow-hidden">
                   <div
-                    className="bg-[#181716] h-full transition-all duration-300 rounded-full"
+                    className={`${amountRemaining > 0 ? 'bg-gradient-to-r from-[#E68057] to-[#A2574F]' : 'bg-[#2E5A44]'} h-full transition-all duration-300 rounded-full`}
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -107,7 +107,7 @@ export const CartDrawer: React.FC = () => {
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#8A745C]">
+                    <div className="w-16 h-16 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#A2574F]">
                       <ShoppingBag className="w-7 h-7 stroke-[1.5]" />
                     </div>
                     <div>
@@ -134,7 +134,7 @@ export const CartDrawer: React.FC = () => {
                       className="flex gap-4 p-3 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl"
                     >
                       {/* Image */}
-                      <div className="w-20 h-24 bg-[#EFECE6] rounded-lg overflow-hidden shrink-0">
+                      <div className="w-20 h-24 bg-[#F4ECE9] rounded-lg overflow-hidden shrink-0">
                         <img
                           src={item.image}
                           alt={item.name}

@@ -22,7 +22,7 @@ const SectionHeader: React.FC<{
   <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 pb-4 border-b border-[#E8E5DF] gap-4">
     <div>
       <span className="text-xs uppercase tracking-widest text-[#827E77] font-semibold block mb-1.5 flex items-center gap-2">
-        <span className="w-8 h-px bg-[#8A745C]" />
+        <span className="w-8 h-px bg-[#A2574F]" />
         {eyebrow}
       </span>
       <h2 className="font-serif text-2xl sm:text-3xl text-[#181716] font-normal text-balance">
@@ -33,7 +33,7 @@ const SectionHeader: React.FC<{
       <button
         type="button"
         onClick={onAction}
-        className="group text-xs uppercase tracking-widest font-semibold text-[#181716] hover:text-[#8A745C] transition-all flex items-center gap-2 self-start sm:self-auto text-balance"
+        className="group text-xs uppercase tracking-widest font-semibold text-[#181716] hover:text-[#A2574F] transition-all flex items-center gap-2 self-start sm:self-auto text-balance"
       >
         <span>{actionLabel}</span>
         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -58,8 +58,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
       {/* 1. HERO SECTION */}
       <section className="relative bg-[#FAF9F6] overflow-hidden">
         {/* Decorative gradient blobs */}
-        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-gradient-to-br from-[#8A745C]/10 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-to-tl from-[#8A745C]/5 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-gradient-to-br from-[#A2574F]/10 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-to-tl from-[#A2574F]/5 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 lg:py-28">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
@@ -71,7 +71,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                 transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] text-xs font-medium uppercase tracking-widest text-[#63605A] shadow-sm"
               >
-                <Sparkles className="w-3.5 h-3.5 text-[#8A745C]" />
+                <Sparkles className="w-3.5 h-3.5 text-[#A2574F]" />
                 <span>Autumn/Winter 2026 Collection</span>
               </motion.div>
 
@@ -155,7 +155,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
             >
               <div className="relative mx-auto max-w-md lg:max-w-none">
                 {/* Main Large Visual Frame */}
-                <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl bg-[#EFECE6] border border-[#E8E5DF] relative group image-zoom">
+                <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl bg-[#F4ECE9] border border-[#E8E5DF] relative group image-zoom">
                   <img
                     src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=1000&auto=format&fit=crop"
                     alt="Boutique Silk Editorial Look"
@@ -170,7 +170,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
 
                 {/* Floating Inset Badge */}
                 <div className="absolute -bottom-6 -left-6 bg-[#FFFFFF] p-5 rounded-2xl border border-[#E8E5DF] shadow-xl max-w-xs hidden sm:block animate-slide-up stagger-1">
-                  <span className="text-[10px] uppercase tracking-widest font-semibold text-[#8A745C] block mb-1">
+                  <span className="text-[10px] uppercase tracking-widest font-semibold text-[#A2574F] block mb-1">
                     Featured Silhouette
                   </span>
                   <p className="font-serif text-sm text-[#181716]">The Drape Silk Midi Dress</p>
@@ -184,7 +184,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
 
       {/* 2. EDITORIAL BRAND STORY / CRAFTSMANSHIP */}
       <section className="bg-[#FFFFFF] border-y border-[#E8E5DF] py-16 sm:py-24 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-b from-[#8A745C]/5 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-b from-[#A2574F]/5 via-transparent to-transparent rounded-full blur-3xl pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-6 space-y-6">
@@ -194,8 +194,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                 viewport={{ once: true, margin: '-50px' }}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               >
-                <span className="text-xs uppercase tracking-widest text-[#8A745C] font-semibold block mb-2 flex items-center gap-2">
-                  <span className="w-8 h-px bg-[#8A745C]" />
+                <span className="text-xs uppercase tracking-widest text-[#A2574F] font-semibold block mb-2 flex items-center gap-2">
+                  <span className="w-8 h-px bg-[#A2574F]" />
                   Conscious Craft & Tailoring
                 </span>
                 <h2 className="font-serif text-3xl sm:text-4xl text-[#181716] font-normal leading-tight text-balance">
@@ -236,7 +236,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                     transition={{ duration: 0.4, delay: 0.1 + index * 0.05, ease: [0.16, 1, 0.3, 1] }}
                     className="p-4 bg-[#FAF9F6] rounded-2xl border border-[#E8E5DF] hover:shadow-md hover:border-[#D8D3CB] transition-all hover-lift-sm"
                   >
-                    <div className="w-9 h-9 rounded-full bg-white border border-[#E8E5DF] flex items-center justify-center mx-auto mb-2 text-[#8A745C]">
+                    <div className="w-9 h-9 rounded-full bg-white border border-[#E8E5DF] flex items-center justify-center mx-auto mb-2 text-[#A2574F]">
                       <item.icon className="w-4.5 h-4.5" />
                     </div>
                     <span className="text-[11px] font-semibold text-[#181716] block">{item.label}</span>
@@ -253,7 +253,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className="lg:col-span-6"
             >
-              <div className="aspect-[4/5] max-w-[540px] mx-auto rounded-[2rem] overflow-hidden shadow-2xl bg-[#EFECE6] border border-[#E8E5DF] relative group image-zoom">
+              <div className="aspect-[4/5] max-w-[540px] mx-auto rounded-[2rem] overflow-hidden shadow-2xl bg-[#F4ECE9] border border-[#E8E5DF] relative group image-zoom">
                 <img
                   src="https://images.unsplash.com/photo-1544441893-675973e31985?q=80&w=1000&auto=format&fit=crop"
                   alt="Craftsmanship MODEZA Tailoring"
@@ -263,7 +263,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                 {/* Floating caption badge */}
                 <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-[#FFFFFF]/95 backdrop-blur-sm p-3 rounded-2xl border border-[#E8E5DF] shadow-lg">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center text-[#8A745C]">
+                    <div className="w-8 h-8 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center text-[#A2574F]">
                       <Palette className="w-4 h-4" />
                     </div>
                     <div>
@@ -300,11 +300,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               transition={{ duration: 0.4, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
               className="group relative overflow-hidden rounded-[2rem] border border-[#E8E5DF] bg-[#FFFFFF] p-6 text-left shadow-xs transition-all hover:shadow-xl hover:border-[#D8D3CB] hover-lift"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#EFECE6] to-transparent opacity-70" />
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-b from-[#8A745C]/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-br from-[#F4ECE9] to-transparent opacity-70" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-b from-[#A2574F]/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
               <div className="relative flex items-center justify-between gap-4">
                 <div>
-                  <span className="text-[10px] uppercase tracking-[0.24em] text-[#8A745C] font-semibold">
+                  <span className="text-[10px] uppercase tracking-[0.24em] text-[#A2574F] font-semibold">
                     Collection
                   </span>
                   <h3 className="font-serif text-2xl text-[#181716] mt-3 text-balance">
@@ -314,7 +314,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                     {category.description}
                   </p>
                 </div>
-                <span className="rounded-full border border-[#E8E5DF] p-3.5 text-[#181716] group-hover:bg-[#181716] group-hover:text-[#FAF9F6] group-hover:border-[#181716] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-md">
+                <span className="rounded-full border border-[#E8E5DF] p-3.5 text-[#181716] group-hover:bg-[#A2574F] group-hover:text-[#FAF9F6] group-hover:border-[#A2574F] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-md">
                   <ArrowRight className="w-4 h-4" />
                 </span>
               </div>
@@ -361,6 +361,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#181716]/95 via-[#181716]/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#993A8B]/25 via-transparent to-[#A2574F]/20 pointer-events-none" />
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-32">
           <motion.div

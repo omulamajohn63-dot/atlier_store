@@ -24,7 +24,7 @@ export const RecentlyViewedPage: React.FC = () => {
     <div className="mx-auto max-w-7xl space-y-10 px-4 py-10 sm:px-6 sm:py-14 lg:px-8 2xl:max-w-[88rem]">
       <header className="flex flex-col gap-5 border-b border-[#E8E5DF] pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8A745C]">Browsing history</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">Browsing history</p>
           <h1 className="mt-2 font-serif text-4xl font-normal text-[#181716]">Recently Viewed</h1>
           <p className="mt-2 text-sm text-[#63605A]">
             Pieces you've browsed, kept on this device so you can return to them in a tap.
@@ -44,7 +44,7 @@ export const RecentlyViewedPage: React.FC = () => {
 
       {recentlyViewedProducts.length === 0 ? (
         <div className="mx-auto max-w-xl border border-[#E8E5DF] bg-white px-6 py-20 text-center shadow-xs">
-          <History className="mx-auto h-8 w-8 stroke-[1.3] text-[#8A745C]" />
+          <History className="mx-auto h-8 w-8 stroke-[1.3] text-[#A2574F]" />
           <h2 className="mt-5 font-serif text-2xl text-[#181716]">Nothing viewed yet</h2>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#63605A]">
             Visit a piece from the collection and it will appear here for easy return visits.

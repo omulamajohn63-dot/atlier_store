@@ -54,7 +54,7 @@ const SectionCard: React.FC<SectionCardProps> = ({ step, title, icon, badge, chi
   >
     <div className="flex items-center justify-between border-b border-[#F3F1ED] pb-4">
       <div className="flex items-center gap-3">
-        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#181716] text-[#FAF9F6] text-xs font-bold">
+        <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#A2574F] text-[#FAF9F6] text-xs font-bold">
           {step}
         </span>
         <h3 className="font-serif text-lg text-[#181716] font-medium">{title}</h3>
@@ -100,7 +100,7 @@ const LabeledInput: React.FC<{
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className={`w-full py-2.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all ${
+        className={`w-full py-2.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all ${
           icon ? 'pl-10' : 'px-3.5'
         } ${readOnly ? 'bg-[#FAF9F6] text-[#827E77]' : ''} ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
       />
@@ -130,7 +130,7 @@ const LabeledSelect: React.FC<{
         disabled={disabled}
         value={value}
         onChange={onChange}
-        className={`w-full px-3.5 py-2.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all appearance-none pr-10 cursor-pointer ${
+        className={`w-full px-3.5 py-2.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all appearance-none pr-10 cursor-pointer ${
           disabled ? 'opacity-60 cursor-not-allowed' : ''
         }`}
       >
@@ -380,7 +380,7 @@ export const CheckoutPage: React.FC = () => {
   if (cart.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-4">
-        <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#8A745C] mb-3">
+        <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#A2574F] mb-3">
           <ShoppingBagEmpty />
         </div>
         <h2 className="font-serif text-2xl text-[#181716]">No items in checkout</h2>
@@ -402,7 +402,7 @@ export const CheckoutPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate('/cart')}
-          className="text-xs font-semibold text-[#181716] hover:text-[#8A745C] flex items-center gap-1.5 transition-colors"
+          className="text-xs font-semibold text-[#181716] hover:text-[#A2574F] flex items-center gap-1.5 transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Return to Cart</span>
@@ -426,8 +426,8 @@ export const CheckoutPage: React.FC = () => {
                     step.done
                       ? 'bg-[#2E5A44] text-white'
                       : step.active
-                      ? 'bg-[#181716] text-white'
-                      : 'bg-[#EFECE6]'
+                      ? 'bg-[#A2574F] text-white'
+                      : 'bg-[#F4ECE9]'
                   }`}
                 >
                   {index + 1}
@@ -448,7 +448,7 @@ export const CheckoutPage: React.FC = () => {
       {!user && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#E8E5DF] bg-[#FFFFFF] p-5 shadow-sm">
           <div className="flex items-start sm:items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center text-[#8A745C] shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center text-[#A2574F] shrink-0">
               <User className="w-4.5 h-4.5" strokeWidth={1.5} />
             </div>
             <div>
@@ -479,7 +479,7 @@ export const CheckoutPage: React.FC = () => {
           {/* Main Form Fields (Col 7) */}
           <div className="lg:col-span-7 space-y-6">
             {/* 1. Contact Info */}
-            <SectionCard step={1} title="Contact Information" badge="Step 1 of 3" icon={<User className="w-4 h-4 text-[#8A745C]" />}>
+            <SectionCard step={1} title="Contact Information" badge="Step 1 of 3" icon={<User className="w-4 h-4 text-[#A2574F]" />}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledInput
                   label="Email Address"
@@ -505,7 +505,7 @@ export const CheckoutPage: React.FC = () => {
             </SectionCard>
 
             {/* 2. Shipping Address */}
-            <SectionCard step={2} title="Shipping Destination" icon={<MapPin className="w-4 h-4 text-[#8A745C]" />}>
+            <SectionCard step={2} title="Shipping Destination" icon={<MapPin className="w-4 h-4 text-[#A2574F]" />}>
               {savedAddresses.length > 0 && (
                 <div className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
@@ -515,7 +515,7 @@ export const CheckoutPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => navigate('/account/addresses')}
-                      className="text-xs font-semibold text-[#8A745C] hover:text-[#6B5642] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] rounded-full px-2 py-1"
+                      className="text-xs font-semibold text-[#A2574F] hover:text-[#83443D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] rounded-full px-2 py-1"
                     >
                       Manage
                     </button>
@@ -525,7 +525,7 @@ export const CheckoutPage: React.FC = () => {
                       value={selectedAddressId}
                       onChange={(e) => setSelectedAddressId(e.target.value)}
                       aria-label="Choose a saved address"
-                      className="w-full sm:flex-1 px-3.5 py-2.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-sm text-[#181716] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all appearance-none pr-10 cursor-pointer"
+                      className="w-full sm:flex-1 px-3.5 py-2.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-sm text-[#181716] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all appearance-none pr-10 cursor-pointer"
                     >
                       <option value="" disabled>
                         Choose a saved address
@@ -606,7 +606,7 @@ export const CheckoutPage: React.FC = () => {
             </SectionCard>
 
             {/* 3. Delivery Method */}
-            <SectionCard step={3} title="MODEZA Delivery Speed" icon={<Truck className="w-4 h-4 text-[#8A745C]" />}>
+            <SectionCard step={3} title="MODEZA Delivery Speed" icon={<Truck className="w-4 h-4 text-[#A2574F]" />}>
               <div className="space-y-3">
                 {[
                   {
@@ -629,8 +629,8 @@ export const CheckoutPage: React.FC = () => {
                     onClick={() => setDeliveryMethod(opt.id)}
                     className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                       deliveryMethod === opt.id
-                        ? 'border-[#181716] bg-[#FAF9F6] shadow-sm'
-                        : 'border-[#E8E5DF] hover:border-[#181716] hover:bg-[#FAF9F6]'
+                        ? 'border-[#A2574F] bg-[#F7ECEA] shadow-sm'
+                        : 'border-[#E8E5DF] hover:border-[#A2574F] hover:bg-[#FAF9F6]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -639,7 +639,7 @@ export const CheckoutPage: React.FC = () => {
                         name="delivery"
                         checked={deliveryMethod === opt.id}
                         onChange={() => setDeliveryMethod(opt.id)}
-                        className="text-[#181716] focus:ring-[#8A745C]"
+                        className="text-[#A2574F] focus:ring-[#A2574F]"
                       />
                       <div>
                         <span className="font-serif text-sm text-[#181716] font-medium block">
@@ -657,7 +657,7 @@ export const CheckoutPage: React.FC = () => {
             </SectionCard>
 
             {/* 4. Payment Section */}
-            <SectionCard step={4} title="Payment Protocol" icon={<CreditCard className="w-4 h-4 text-[#8A745C]" />} badge={
+            <SectionCard step={4} title="Payment Protocol" icon={<CreditCard className="w-4 h-4 text-[#A2574F]" />} badge={
               <span className="text-[11px] text-[#2E5A44] font-medium flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Stripe Prototype Sandbox</span>
@@ -679,8 +679,8 @@ export const CheckoutPage: React.FC = () => {
                       onClick={() => setPaymentMethod(method.id)}
                       className={`rounded-xl border px-4 py-3 text-xs font-semibold transition-all ${
                         paymentMethod === method.id
-                          ? 'border-[#181716] bg-[#181716] text-white shadow-md'
-                          : 'border-[#E8E5DF] bg-[#FAF9F6] text-[#181716] hover:border-[#181716] hover:bg-[#FFFFFF]'
+                          ? 'border-[#A2574F] bg-[#A2574F] text-white shadow-md'
+                          : 'border-[#E8E5DF] bg-[#FAF9F6] text-[#181716] hover:border-[#A2574F] hover:bg-[#FFFFFF]'
                       }`}
                     >
                       {method.label}
@@ -696,7 +696,7 @@ export const CheckoutPage: React.FC = () => {
                   >
                     <p className="text-[11px] leading-relaxed text-[#63605A]">
                       Card payments run in{' '}
-                      <span className="font-semibold text-[#8A745C]">sandbox preview</span>:
+                      <span className="font-semibold text-[#A2574F]">sandbox preview</span>:
                       this storefront does not yet connect a live card gateway, so no card details
                       are collected. Confirming the order completes it and marks it paid{' '}
                       <span className="font-semibold text-[#63605A]">without charging a real card</span>.
@@ -725,7 +725,7 @@ export const CheckoutPage: React.FC = () => {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, sameBilling: e.target.checked }))
                     }
-                    className="rounded text-[#181716] focus:ring-[#8A745C] cursor-pointer"
+                    className="rounded text-[#181716] focus:ring-[#A2574F] cursor-pointer"
                   />
                   <span>Billing address matches shipping destination</span>
                 </label>
@@ -736,9 +736,9 @@ export const CheckoutPage: React.FC = () => {
           {/* Sticky Order Summary Sidebar (Col 5) */}
           <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
             <div className="bg-[#FFFFFF] border border-[#E8E5DF] rounded-3xl p-6 sm:p-7 space-y-6 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#8A745C]/20 to-transparent" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/20 to-transparent" />
               <h3 className="font-serif text-lg text-[#181716] font-medium border-b border-[#F3F1ED] pb-4 flex items-center gap-2">
-                <Package className="w-4 h-4 text-[#8A745C]" />
+                <Package className="w-4 h-4 text-[#A2574F]" />
                 Order Review ({cart.length} items)
               </h3>
 
@@ -746,7 +746,7 @@ export const CheckoutPage: React.FC = () => {
               <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                 {cart.map((item) => (
                   <div key={item.id} className="flex items-center gap-3.5 hover:bg-[#FAF9F6] p-1.5 rounded-lg -m-1.5 transition-colors">
-                    <div className="w-14 h-16 rounded-lg bg-[#EFECE6] overflow-hidden shrink-0 border border-[#E8E5DF]">
+                    <div className="w-14 h-16 rounded-lg bg-[#F4ECE9] overflow-hidden shrink-0 border border-[#E8E5DF]">
                       <img
                         src={item.image}
                         alt={item.name}
@@ -859,7 +859,7 @@ export const CheckoutPage: React.FC = () => {
                 </p>
 
                 <div className="flex items-center justify-center gap-2 text-[11px] text-[#827E77] pt-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#8A745C]" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#A2574F]" />
                   <span>256-Bit SSL Encrypted Transaction</span>
                 </div>
               </div>

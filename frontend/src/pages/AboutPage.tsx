@@ -21,7 +21,7 @@ export const AboutPage: React.FC = () => {
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-24">
-        <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-[#EFECE6]">
+        <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-[#F4ECE9]">
           <img
             src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1200&auto=format&fit=crop"
             alt="Natural textile arranged in an modeza"
@@ -30,7 +30,7 @@ export const AboutPage: React.FC = () => {
           />
         </div>
         <div className="max-w-xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8A745C]">Our point of view</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#A2574F]">Our point of view</p>
           <h2 className="mt-4 font-serif text-3xl font-normal text-[#181716] sm:text-4xl">Quiet design, deliberate detail.</h2>
           <p className="mt-6 text-sm leading-7 text-[#63605A]">
             Every MODEZA piece begins with the material. We choose traceable silk, responsible wool, and fine cashmere for their handfeel, longevity, and ability to move with the wearer.
@@ -58,7 +58,7 @@ export const AboutPage: React.FC = () => {
 
 const Value: React.FC<{ icon: React.ReactNode; title: string; text: string }> = ({ icon, title, text }) => (
   <div className="border-l border-[#E8E5DF] pl-5">
-    <div className="text-[#8A745C]">{icon}</div>
+    <div className="text-[#A2574F]">{icon}</div>
     <h3 className="mt-4 font-serif text-xl text-[#181716]">{title}</h3>
     <p className="mt-2 text-xs leading-6 text-[#63605A]">{text}</p>
   </div>

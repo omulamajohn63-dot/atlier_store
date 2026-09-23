@@ -43,7 +43,7 @@ export const Input: React.FC<InputProps> = ({
           className={`w-full bg-[#FFFFFF] border rounded-xl px-3.5 py-2.5 text-sm text-[#181716] placeholder-[#A29E96] transition-all duration-200 focus:outline-none focus:ring-1 ${
             error
               ? 'border-[#9E332B] focus:border-[#9E332B] focus:ring-[#9E332B] bg-[#FDF2F2]'
-              : 'border-[#E8E5DF] focus:border-[#181716] focus:ring-[#181716] hover:border-[#D8D3CB]'
+              : 'border-[#E8E5DF] focus:border-[#A2574F] focus:ring-[#A2574F] hover:border-[#D8D3CB]'
           } ${icon ? 'pl-10' : ''} ${className}`}
           {...props}
         />
@@ -97,7 +97,7 @@ export const Textarea: React.FC<TextareaProps> = ({
         className={`w-full bg-[#FFFFFF] border rounded-xl px-3.5 py-2.5 text-sm text-[#181716] placeholder-[#A29E96] transition-all duration-200 focus:outline-none focus:ring-1 resize-y min-h-[100px] ${
           error
             ? 'border-[#9E332B] focus:border-[#9E332B] focus:ring-[#9E332B] bg-[#FDF2F2]'
-            : 'border-[#E8E5DF] focus:border-[#181716] focus:ring-[#181716] hover:border-[#D8D3CB]'
+            : 'border-[#E8E5DF] focus:border-[#A2574F] focus:ring-[#A2574F] hover:border-[#D8D3CB]'
         } ${className}`}
         {...props}
       />
@@ -155,7 +155,7 @@ export const Select: React.FC<SelectProps> = ({
           className={`w-full bg-[#FFFFFF] border rounded-xl px-3.5 py-2.5 pr-10 text-sm text-[#181716] transition-all duration-200 focus:outline-none focus:ring-1 appearance-none cursor-pointer ${
             error
               ? 'border-[#9E332B] focus:border-[#9E332B] focus:ring-[#9E332B] bg-[#FDF2F2]'
-              : 'border-[#E8E5DF] focus:border-[#181716] focus:ring-[#181716] hover:border-[#D8D3CB]'
+              : 'border-[#E8E5DF] focus:border-[#A2574F] focus:ring-[#A2574F] hover:border-[#D8D3CB]'
           } ${className}`}
           {...props}
         >

@@ -62,8 +62,8 @@ export const Footer: React.FC = () => {
   return (
     <footer className="bg-[#FFFFFF] border-t border-[#E8E5DF] relative overflow-hidden">
       {/* Decorative gradient backdrop */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#8A745C]/20 to-transparent" />
-      <div className="absolute top-0 left-1/4 w-1/2 h-px bg-gradient-to-r from-transparent via-[#8A745C]/30 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/20 to-transparent" />
+      <div className="absolute top-0 left-1/4 w-1/2 h-px bg-gradient-to-r from-transparent via-[#A2574F]/30 to-transparent" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12">
@@ -73,7 +73,7 @@ export const Footer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="text-left font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] block hover:text-[#8A745C] transition-colors"
+                className="text-left font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] block hover:text-[#A2574F] transition-colors"
               >
                 MODEZA
               </button>
@@ -87,15 +87,15 @@ export const Footer: React.FC = () => {
             {/* Value Props */}
             <div className="grid grid-cols-3 gap-4 pt-2 border-t border-[#E8E5DF]">
               <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[#8A745C] flex-shrink-0" />
+                <Truck className="w-4 h-4 text-[#A2574F] flex-shrink-0" />
                 <span className="text-xs text-[#63605A]">Express Courier</span>
               </div>
               <div className="flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-[#8A745C] flex-shrink-0" />
+                <RotateCcw className="w-4 h-4 text-[#A2574F] flex-shrink-0" />
                 <span className="text-xs text-[#63605A]">30-Day Returns</span>
               </div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#8A745C] flex-shrink-0" />
+                <ShieldCheck className="w-4 h-4 text-[#A2574F] flex-shrink-0" />
                 <span className="text-xs text-[#63605A]">Secure Checkout</span>
               </div>
             </div>
@@ -152,11 +152,11 @@ export const Footer: React.FC = () => {
                       className="w-full text-left text-sm text-[#63605A] hover:text-[#181716] transition-colors flex items-center justify-between group"
                     >
                       <span>{link.label}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-[#A29E96] group-hover:text-[#8A745C] group-hover:translate-x-1 transition-all opacity-0 group-hover:opacity-100" />
+                      <ArrowRight className="w-3.5 h-3.5 text-[#A29E96] group-hover:text-[#A2574F] group-hover:translate-x-1 transition-all opacity-0 group-hover:opacity-100" />
                     </button>
                   ) : (
                     <span className="text-sm text-[#827E77] cursor-default flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-[#A6937D]" />
+                      <Sparkles className="w-3.5 h-3.5 text-[#C0857B]" />
                       {link.label}
                     </span>
                   )}
@@ -176,14 +176,14 @@ export const Footer: React.FC = () => {
                   {link.path ? (
                     <button
                       onClick={() => navigate(link.path)}
-                      className={`w-full text-left text-sm transition-colors flex items-center justify-between group ${link.highlight ? 'font-medium text-[#181716] hover:text-[#8A745C]' : 'text-[#63605A] hover:text-[#181716]'}`}
+                      className={`w-full text-left text-sm transition-colors flex items-center justify-between group ${link.highlight ? 'font-medium text-[#181716] hover:text-[#A2574F]' : 'text-[#63605A] hover:text-[#181716]'}`}
                     >
                       <span>{link.label}</span>
-                      <ArrowRight className={`w-3.5 h-3.5 transition-all ${link.highlight ? 'text-[#A29E96]' : 'text-[#A29E96] group-hover:text-[#8A745C] group-hover:translate-x-1 opacity-0 group-hover:opacity-100'}`} />
+                      <ArrowRight className={`w-3.5 h-3.5 transition-all ${link.highlight ? 'text-[#A29E96]' : 'text-[#A29E96] group-hover:text-[#A2574F] group-hover:translate-x-1 opacity-0 group-hover:opacity-100'}`} />
                     </button>
                   ) : (
                     <span className="text-sm text-[#827E77] cursor-default flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#A6937D]" />
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#C0857B]" />
                       {link.label}
                     </span>
                   )}
@@ -205,7 +205,7 @@ export const Footer: React.FC = () => {
                     className="w-full text-left text-sm text-[#63605A] hover:text-[#181716] transition-colors flex items-center justify-between group"
                   >
                     <span>{link.label}</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-[#A29E96] group-hover:text-[#8A745C] group-hover:translate-x-1 transition-all opacity-0 group-hover:opacity-100" />
+                    <ArrowRight className="w-3.5 h-3.5 text-[#A29E96] group-hover:text-[#A2574F] group-hover:translate-x-1 transition-all opacity-0 group-hover:opacity-100" />
                   </button>
                 </li>
               ))}
@@ -215,10 +215,10 @@ export const Footer: React.FC = () => {
 
         {/* Newsletter Section */}
         <div className="mt-12 lg:mt-16 p-6 lg:p-8 rounded-3xl bg-gradient-to-br from-[#FAF9F6] to-[#F3F1ED] border border-[#E8E5DF] relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#8A745C]/5 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#A2574F]/5 via-transparent to-transparent" />
           <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
             <div className="lg:col-span-2 space-y-3">
-              <span className="text-xs uppercase tracking-widest font-semibold text-[#8A745C] flex items-center gap-2">
+              <span className="text-xs uppercase tracking-widest font-semibold text-[#A2574F] flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5" />
                 Private Salon & Capsule Drops
               </span>
@@ -247,7 +247,7 @@ export const Footer: React.FC = () => {
                     }}
                     placeholder="Enter your email address"
                     aria-label="Email address for The MODEZA Gazette"
-                    className="w-full pl-11 pr-4 py-3.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-sm text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"
+                    className="w-full pl-11 pr-4 py-3.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-sm text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
                   />
                 </div>
                 <Button variant="primary" size="md" type="submit" className="w-full sm:w-auto gap-2">
@@ -271,7 +271,7 @@ export const Footer: React.FC = () => {
               )}
               {newsletterStatus === 'duplicate' && (
                 <p className="text-[11px] text-[#63605A] pt-2 text-center sm:text-left flex items-start justify-center sm:justify-start gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-px text-[#8A745C]" aria-hidden="true" />
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-px text-[#A2574F]" aria-hidden="true" />
                   <span>This email is already on the Gazette list.</span>
                 </p>
               )}
@@ -286,7 +286,7 @@ export const Footer: React.FC = () => {
               <button
                 key={link.path}
                 onClick={() => navigate(link.path)}
-                className="text-xs text-[#827E77] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] rounded-sm"
+                className="text-xs text-[#827E77] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] rounded-sm"
               >
                 {link.label}
               </button>

@@ -89,7 +89,7 @@ export const CartPage: React.FC = () => {
             Your Cart
           </h1>
           <span className="flex items-center gap-2 text-xs text-[#827E77] uppercase tracking-wider font-semibold bg-[#FAF9F6] border border-[#E8E5DF] px-3 py-1.5 rounded-full">
-            <ShoppingBag className="w-3.5 h-3.5 text-[#8A745C]" />
+            <ShoppingBag className="w-3.5 h-3.5 text-[#A2574F]" />
             {cartCount} {cartCount === 1 ? 'Piece' : 'Pieces'}
           </span>
         </div>
@@ -103,7 +103,7 @@ export const CartPage: React.FC = () => {
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           className="py-20 text-center bg-[#FFFFFF] border border-[#E8E5DF] rounded-3xl p-10 max-w-2xl mx-auto shadow-sm"
         >
-          <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#8A745C] mb-5">
+          <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#A2574F] mb-5">
             <ShoppingBag className="w-7 h-7 stroke-[1.5]" />
           </div>
           <h2 className="font-serif text-2xl text-[#181716] mb-2">Your cart is empty</h2>
@@ -126,7 +126,7 @@ export const CartPage: React.FC = () => {
             <div className="p-5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-2xl text-xs shadow-sm">
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2.5 text-[#63605A]">
-                  <div className="w-9 h-9 rounded-xl bg-white border border-[#E8E5DF] flex items-center justify-center text-[#8A745C] flex-shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-white border border-[#E8E5DF] flex items-center justify-center text-[#A2574F] flex-shrink-0">
                     <Truck className="w-4.5 h-4.5" strokeWidth={1.5} />
                   </div>
                   {isFreeShipping ? (
@@ -157,7 +157,7 @@ export const CartPage: React.FC = () => {
                   className={`h-full rounded-full ${
                     isFreeShipping
                       ? 'bg-gradient-to-r from-[#2E5A44] to-[#2E5A44]/60'
-                      : 'bg-gradient-to-r from-[#8A745C] to-[#A6937D]'
+                      : 'bg-gradient-to-r from-[#E68057] to-[#A2574F]'
                   }`}
                 />
               </div>
@@ -182,7 +182,7 @@ export const CartPage: React.FC = () => {
                   {/* Item Image + Details */}
                   <div className="flex gap-4 items-start sm:items-center flex-1 min-w-0">
                     <div
-                      className="w-20 h-26 rounded-xl overflow-hidden bg-[#EFECE6] shrink-0 cursor-pointer shadow-sm group-hover:shadow-md transition-shadow"
+                      className="w-20 h-26 rounded-xl overflow-hidden bg-[#F4ECE9] shrink-0 cursor-pointer shadow-sm group-hover:shadow-md transition-shadow"
                       onClick={() => goToProduct(item.productId)}
                     >
                       <img
@@ -194,7 +194,7 @@ export const CartPage: React.FC = () => {
                     </div>
                     <div className="space-y-1.5 min-w-0">
                       <h3
-                        className="font-serif text-base text-[#181716] font-medium cursor-pointer hover:text-[#8A745C] transition-colors truncate"
+                        className="font-serif text-base text-[#181716] font-medium cursor-pointer hover:text-[#A2574F] transition-colors truncate"
                         onClick={() => goToProduct(item.productId)}
                       >
                         {item.name}
@@ -245,7 +245,7 @@ export const CartPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/shop')}
-                className="text-xs font-semibold text-[#181716] hover:text-[#8A745C] flex items-center gap-2 transition-colors"
+                className="text-xs font-semibold text-[#181716] hover:text-[#A2574F] flex items-center gap-2 transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Continue Shopping</span>
@@ -259,7 +259,7 @@ export const CartPage: React.FC = () => {
                   placeholder="MODEZA packaging / gift note instructions..."
                   value={orderNote}
                   onChange={(e) => setOrderNote(e.target.value)}
-                  className="w-full text-xs px-4 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"
+                  className="w-full text-xs px-4 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
                 />
               </div>
             </div>
@@ -268,9 +268,9 @@ export const CartPage: React.FC = () => {
           {/* Order Summary Box (Col 4) */}
           <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
             <div className="bg-[#FFFFFF] border border-[#E8E5DF] rounded-3xl p-6 sm:p-7 space-y-6 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#8A745C]/20 to-transparent" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/20 to-transparent" />
               <h3 className="font-serif text-lg text-[#181716] font-medium border-b border-[#F3F1ED] pb-4 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#8A745C]" />
+                <Lock className="w-4 h-4 text-[#A2574F]" />
                 Order Summary
               </h3>
 
@@ -288,7 +288,7 @@ export const CartPage: React.FC = () => {
                       placeholder="e.g. MODEZA10, KARIBU500"
                       value={promoCodeInput}
                       onChange={(e) => setPromoCodeInput(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs uppercase text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"
+                      className="w-full pl-9 pr-3 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs uppercase text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
                     />
                   </div>
                   <Button variant="secondary" size="sm" type="submit">
@@ -366,7 +366,7 @@ export const CartPage: React.FC = () => {
                 </Button>
 
                 <div className="flex items-center justify-center gap-2 text-[11px] text-[#827E77] pt-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#8A745C]" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#A2574F]" />
                   <span>256-Bit SSL Encrypted Transaction</span>
                 </div>
               </div>

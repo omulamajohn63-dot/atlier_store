@@ -140,7 +140,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
       </div>
 
       <div className="space-y-3">
-        <span className="text-xs uppercase tracking-widest text-[#8A745C] font-semibold">
+        <span className="text-xs uppercase tracking-widest text-[#A2574F] font-semibold">
           Order Confirmation &bull; {refCode}
         </span>
         <h1 className="font-serif text-3xl sm:text-4xl text-[#181716] font-normal tracking-tight">
@@ -185,7 +185,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       src={item.image}
                       alt={item.productName}
                       referrerPolicy="no-referrer"
-                      className="w-10 h-12 object-cover rounded-lg bg-[#EFECE6]"
+                      className="w-10 h-12 object-cover rounded-lg bg-[#F4ECE9]"
                     />
                     <div>
                       <p className="font-medium text-[#181716]">{item.productName}</p>
@@ -214,7 +214,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
           <div>
             <span className="font-medium text-[#181716] block mb-0.5">Destination</span>
             <span className="flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-[#8A745C] shrink-0" />
+              <MapPin className="w-3 h-3 text-[#A2574F] shrink-0" />
               <span className="truncate">
                 {resolvedOrder ? `${resolvedOrder.customer.city}, ${resolvedOrder.customer.country}` : 'Nairobi, Kenya'}
               </span>
@@ -223,7 +223,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
         </div>
 
         <div className="p-4 bg-[#FAF9F6] rounded-2xl border border-[#E8E5DF] flex items-center gap-3 text-xs text-[#63605A]">
-          <Mail className="w-4 h-4 text-[#8A745C] shrink-0" />
+          <Mail className="w-4 h-4 text-[#A2574F] shrink-0" />
           <span>
             You will receive SMS and email notifications when courier collection is confirmed.
           </span>

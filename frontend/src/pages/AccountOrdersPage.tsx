@@ -80,7 +80,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
                 event.preventDefault();
                 openDetails();
               }}
-              className="rounded-sm font-mono text-sm font-semibold tracking-tight text-[#181716] transition-colors hover:text-[#8A745C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] sm:text-base"
+              className="rounded-sm font-mono text-sm font-semibold tracking-tight text-[#181716] transition-colors hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] sm:text-base"
             >
               {order.orderNumber}
             </a>
@@ -107,7 +107,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
             onClick={() => openProduct(item)}
             aria-label={`View ${item.productName}`}
             title={item.productName}
-            className="h-16 w-14 overflow-hidden rounded-lg border border-[#E8E5DF] shadow-xs transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] sm:h-20 sm:w-[4.5rem] image-zoom"
+            className="h-16 w-14 overflow-hidden rounded-lg border border-[#E8E5DF] shadow-xs transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] sm:h-20 sm:w-[4.5rem] image-zoom"
           >
             <OrderItemThumb item={item} className="h-full w-full" />
           </button>
@@ -117,7 +117,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
             type="button"
             onClick={openDetails}
             aria-label={`${hiddenCount} more ${hiddenCount === 1 ? 'item' : 'items'}`}
-            className="flex h-16 w-14 flex-col items-center justify-center rounded-lg border border-[#E8E5DF] bg-[#EFECE6] text-[#181716] transition-colors hover:bg-[#E5E1D8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] sm:h-20 sm:w-[4.5rem]"
+            className="flex h-16 w-14 flex-col items-center justify-center rounded-lg border border-[#E8E5DF] bg-[#F4ECE9] text-[#181716] transition-colors hover:bg-[#E5E1D8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] sm:h-20 sm:w-[4.5rem]"
           >
             <span className="font-serif text-lg leading-none">+{hiddenCount}</span>
             <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">
@@ -279,9 +279,9 @@ export const AccountOrdersPage: React.FC = () => {
                 role="tab"
                 aria-selected={selected}
                 onClick={() => setFilterKey(tab.key)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] ${
+                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
                   selected
-                    ? 'border-[#181716] bg-[#181716] text-[#FAF9F6] shadow-xs'
+                    ? 'border-[#A2574F] bg-[#A2574F] text-[#FAF9F6] shadow-xs'
                     : 'border-[#E8E5DF] bg-white text-[#63605A] hover:border-[#D8D3CB] hover:text-[#181716]'
                 }`}
               >
@@ -303,14 +303,14 @@ export const AccountOrdersPage: React.FC = () => {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search orders..."
             aria-label="Search orders by order number or product name"
-            className="w-full rounded-full border border-[#E8E5DF] bg-white py-3 pl-11 pr-11 text-sm text-[#181716] shadow-xs outline-none transition-colors placeholder:text-[#A29E96] focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20"
+            className="w-full rounded-full border border-[#E8E5DF] bg-white py-3 pl-11 pr-11 text-sm text-[#181716] shadow-xs outline-none transition-colors placeholder:text-[#A29E96] focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
               aria-label="Clear search"
-              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[#827E77] transition-colors hover:bg-[#F3F1ED] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[#827E77] transition-colors hover:bg-[#F3F1ED] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>

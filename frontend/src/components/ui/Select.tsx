@@ -39,7 +39,7 @@ export const Select: React.FC<SelectProps> = ({
           className={`w-full appearance-none bg-[#FFFFFF] border rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-[#181716] transition-colors focus:outline-none focus:ring-1 ${
             error
               ? 'border-[#9E332B] focus:border-[#9E332B] focus:ring-[#9E332B]'
-              : 'border-[#E8E5DF] focus:border-[#181716] focus:ring-[#181716]'
+              : 'border-[#E8E5DF] focus:border-[#A2574F] focus:ring-[#A2574F]'
           } ${className}`}
           {...props}
         >

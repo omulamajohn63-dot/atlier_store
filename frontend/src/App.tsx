@@ -39,7 +39,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#181716] font-sans antialiased selection:bg-[#EFECE6] selection:text-[#181716]">
+    <div className="min-h-screen flex flex-col bg-[#FAF9F6] text-[#181716] font-sans antialiased selection:bg-[#F4ECE9] selection:text-[#181716]">
       {/* Main Navbar */}
       <Navbar onOpenSearch={() => setIsSearchOpen(true)} />
 

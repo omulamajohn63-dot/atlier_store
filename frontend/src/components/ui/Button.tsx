@@ -18,7 +18,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseStyles =
-    'inline-flex items-center justify-center font-semibold tracking-wide transition-all duration-200 select-none whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]';
+    'inline-flex items-center justify-center font-semibold tracking-wide transition-all duration-200 select-none whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]';
 
   const sizeStyles = {
     sm: 'text-xs px-4 py-2 rounded-full gap-1.5',
@@ -29,15 +29,15 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variantStyles = {
     primary:
-      'bg-[#181716] text-[#FAF9F6] hover:bg-[#2A2826] active:bg-[#0F0E0E] shadow-sm hover:shadow-md',
+      'bg-[#A2574F] text-[#FAF9F6] hover:bg-[#83443D] active:bg-[#6E3832] shadow-sm hover:shadow-[0_4px_14px_-2px_rgba(162,87,79,0.4)]',
     secondary:
-      'bg-[#EFECE6] text-[#181716] hover:bg-[#E5E1D8] active:bg-[#D8D3CB] shadow-sm hover:shadow-md',
+      'bg-[#F4ECE9] text-[#181716] hover:bg-[#E5E1D8] active:bg-[#D8D3CB] shadow-sm hover:shadow-md',
     outline:
       'border border-[#181716] text-[#181716] bg-transparent hover:bg-[#181716] hover:text-[#FAF9F6] active:bg-[#0F0E0E]',
     ghost:
-      'text-[#181716] bg-transparent hover:bg-[#F3F1ED] active:bg-[#EFECE6] rounded-full',
+      'text-[#181716] bg-transparent hover:bg-[#F3F1ED] active:bg-[#F4ECE9] rounded-full',
     sandstone:
-      'bg-gradient-to-r from-[#8A745C] to-[#A6937D] text-[#FAF9F6] hover:from-[#6B5642] hover:to-[#8A745C] shadow-[0_4px_14px_-2px_rgba(138,116,92,0.35)] hover:shadow-[0_6px_20px_-3px_rgba(138,116,92,0.45)]',
+      'bg-[#E68057] text-[#181716] hover:bg-[#C9603F] shadow-[0_4px_14px_-2px_rgba(230,128,87,0.4)] hover:shadow-[0_6px_20px_-3px_rgba(230,128,87,0.5)]',
   };
 
   const widthStyles = fullWidth ? 'w-full' : '';

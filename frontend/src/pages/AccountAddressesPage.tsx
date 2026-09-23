@@ -114,7 +114,7 @@ export const AccountAddressesPage: React.FC = () => {
       <div className="space-y-4">
         {addresses.length === 0 ? (
           <div className="rounded-2xl border border-[#E8E5DF] bg-white p-8 text-center">
-            <MapPin className="mx-auto h-6 w-6 text-[#8A745C]" aria-hidden="true" />
+            <MapPin className="mx-auto h-6 w-6 text-[#A2574F]" aria-hidden="true" />
             <p className="mt-3 font-serif text-xl text-[#181716]">No saved addresses yet</p>
             <p className="mt-1 text-sm text-[#63605A]">
               Add a delivery address so future checkout is a single tap.
@@ -133,7 +133,7 @@ export const AccountAddressesPage: React.FC = () => {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
-                    <MapPin className="h-5 w-5 text-[#8A745C]" />
+                    <MapPin className="h-5 w-5 text-[#A2574F]" />
                   </span>
                   <div>
                     <div className="flex flex-wrap items-center gap-2.5">
@@ -141,14 +141,14 @@ export const AccountAddressesPage: React.FC = () => {
                         {address.label || 'Saved Address'}
                       </h3>
                       {address.isDefault ? (
-                        <span className="rounded-full bg-[#181716] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#FAF9F6]">
+                        <span className="rounded-full bg-[#A2574F] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#FAF9F6]">
                           Default
                         </span>
                       ) : (
                         <button
                           type="button"
                           onClick={() => handleSetDefault(address.id)}
-                          className="flex items-center gap-1 rounded-full border border-[#E8E5DF] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A745C] hover:bg-[#FAF9F6] transition-colors"
+                          className="flex items-center gap-1 rounded-full border border-[#E8E5DF] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] hover:bg-[#FAF9F6] transition-colors"
                         >
                           <Star className="h-3 w-3" aria-hidden="true" />
                           Set Default
@@ -271,7 +271,7 @@ export const AccountAddressesPage: React.FC = () => {
                 required
                 value={draft.county}
                 onChange={(e) => handleDraftChange('county', e.target.value)}
-                className="w-full appearance-none bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#181716] focus:outline-none focus:ring-1 focus:border-[#181716] focus:ring-[#181716]"
+                className="w-full appearance-none bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#181716] focus:outline-none focus:ring-1 focus:border-[#A2574F] focus:ring-[#A2574F]"
                 aria-label="County"
               >
                 <option value="" disabled>
@@ -293,7 +293,7 @@ export const AccountAddressesPage: React.FC = () => {
                 value={draft.subcounty}
                 onChange={(e) => handleDraftChange('subcounty', e.target.value)}
                 disabled={!draft.county || subcountiesForCounty.length === 0}
-                className="w-full appearance-none bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#181716] focus:outline-none focus:ring-1 focus:border-[#181716] focus:ring-[#181716] disabled:bg-[#FAF9F6] disabled:text-[#A29E96]"
+                className="w-full appearance-none bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#181716] focus:outline-none focus:ring-1 focus:border-[#A2574F] focus:ring-[#A2574F] disabled:bg-[#FAF9F6] disabled:text-[#A29E96]"
                 aria-label="Subcounty"
               >
                 <option value="" disabled>
@@ -318,7 +318,7 @@ export const AccountAddressesPage: React.FC = () => {
                 value={draft.city}
                 onChange={(e) => handleDraftChange('city', e.target.value)}
                 disabled={!draft.subcounty || citiesForSubcounty.length === 0}
-                className="w-full appearance-none bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#181716] focus:outline-none focus:ring-1 focus:border-[#181716] focus:ring-[#181716] disabled:bg-[#FAF9F6] disabled:text-[#A29E96]"
+                className="w-full appearance-none bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#181716] focus:outline-none focus:ring-1 focus:border-[#A2574F] focus:ring-[#A2574F] disabled:bg-[#FAF9F6] disabled:text-[#A29E96]"
                 aria-label="City"
               >
                 <option value="" disabled>
@@ -354,7 +354,7 @@ export const AccountAddressesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsFormOpen(false)}
-              className="text-sm px-4 py-2 rounded-full border border-[#E8E5DF] text-[#181716] bg-transparent hover:bg-[#F3F1ED] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+              className="text-sm px-4 py-2 rounded-full border border-[#E8E5DF] text-[#181716] bg-transparent hover:bg-[#F3F1ED] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
             >
               Cancel
             </button>

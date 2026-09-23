@@ -161,14 +161,14 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
       <button
         type="button"
         onClick={() => navigate('/')}
-        className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#63605A] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] rounded-sm"
+        className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#63605A] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] rounded-sm"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Back to Storefront
       </button>
 
       <header className="mt-10 border-b border-[#E8E5DF] pb-8">
-        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8A745C]">
+        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
           <ShieldCheck className="h-4 w-4" aria-hidden="true" />
           {document.eyebrow}
         </p>
@@ -188,7 +188,7 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
               <ul className="mt-4 space-y-2.5">
                 {section.bullets.map((bullet) => (
                   <li key={bullet} className="flex items-start gap-2.5 text-sm leading-relaxed text-[#63605A]">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#8A745C]" aria-hidden="true" />
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A2574F]" aria-hidden="true" />
                     {bullet}
                   </li>
                 ))}
@@ -201,7 +201,7 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
       <div className="mt-12 rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-6 text-center">
         <p className="text-sm text-[#63605A]">
           Questions? Contact{' '}
-          <a href="mailto:concierge@modeza-boutique.com" className="font-medium text-[#8A745C] hover:text-[#6B5642] transition-colors">
+          <a href="mailto:concierge@modeza-boutique.com" className="font-medium text-[#A2574F] hover:text-[#83443D] transition-colors">
             concierge@modeza-boutique.com
           </a>
         </p>

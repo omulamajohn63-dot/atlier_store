@@ -97,7 +97,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
             <button
               type="button"
               onClick={onClose}
-              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-[#FFFFFF]/90 backdrop-blur-sm hover:bg-[#FFFFFF] text-[#63605A] hover:text-[#181716] transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-[#FFFFFF]/90 backdrop-blur-sm hover:bg-[#FFFFFF] text-[#63605A] hover:text-[#181716] transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
               aria-label="Close quick view"
             >
               <X className="w-5 h-5" />
@@ -106,7 +106,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
             <div className="grid grid-cols-1 md:grid-cols-2">
               {/* Image Preview Column */}
               <div className="p-6 bg-[#FFFFFF] border-b md:border-b-0 md:border-r border-[#E8E5DF] flex flex-col justify-between">
-                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[#EFECE6] border border-[#E8E5DF] group">
+                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[#F4ECE9] border border-[#E8E5DF] group">
                   <img
                     src={product.images[activeImageIndex] || product.images[0]}
                     alt={`${product.name} view ${activeImageIndex + 1}`}
@@ -114,7 +114,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                     referrerPolicy="no-referrer"
                   />
                   {product.compareAtPrice && product.compareAtPrice > product.price && (
-                    <span className="absolute top-4 left-4 px-3 py-1 bg-[#181716] text-[#FAF9F6] text-[10px] uppercase font-semibold tracking-widest rounded-full">
+                    <span className="absolute top-4 left-4 px-3 py-1 bg-[#E68057] text-[#181716] text-[10px] uppercase font-semibold tracking-widest rounded-full">
                       Archive Sale
                     </span>
                   )}
@@ -131,7 +131,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                         onClick={() => setActiveImageIndex(idx)}
                         className={`w-14 h-18 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
                           activeImageIndex === idx
-                            ? 'border-[#181716] shadow-sm scale-105'
+                            ? 'border-[#A2574F] shadow-sm scale-105'
                             : 'border-transparent opacity-60 hover:opacity-100'
                         }`}
                         aria-label={`View image ${idx + 1}`}
@@ -154,7 +154,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                 <div className="space-y-5">
                   <div>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] uppercase tracking-widest text-[#8A745C] font-semibold">
+                      <span className="text-[10px] uppercase tracking-widest text-[#A2574F] font-semibold">
                         {product.categorySlug}
                       </span>
                       {product.isNewArrival && <Badge variant="new" size="sm">New</Badge>}
@@ -188,7 +188,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                           </>
                         ) : isLowStock ? (
                           <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#8A745C]" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#A2574F]" />
                             {selectedVariant?.stockQuantity} left
                           </>
                         ) : (
@@ -214,12 +214,12 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                               setSelectedVariant(v);
                               setQuantity(1);
                             }}
-                            className={`py-2.5 rounded-xl text-xs font-medium border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] ${
+                            className={`py-2.5 rounded-xl text-xs font-medium border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
                               isSelected
-                                ? 'bg-[#181716] text-[#FAF9F6] border-[#181716] shadow-sm'
+                                ? 'bg-[#A2574F] text-[#FAF9F6] border-[#A2574F] shadow-sm'
                                 : outOfStock
                                 ? 'bg-[#F3F1ED] text-[#A29E96] border-[#E8E5DF] line-through cursor-not-allowed'
-                                : 'bg-[#FFFFFF] text-[#181716] border-[#E8E5DF] hover:border-[#181716] hover:shadow-sm'
+                                : 'bg-[#FFFFFF] text-[#181716] border-[#E8E5DF] hover:border-[#A2574F] hover:shadow-sm'
                             }`}
                           >
                             {v.size}
@@ -245,15 +245,15 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                 {/* Value Props */}
                 <div className="grid grid-cols-3 gap-3 py-4 border-y border-[#E8E5DF] text-[10px] text-[#63605A]">
                   <div className="flex flex-col items-center text-center gap-1">
-                    <Truck className="w-4 h-4 text-[#8A745C]" />
+                    <Truck className="w-4 h-4 text-[#A2574F]" />
                     <span className="text-center">Complimentary over KSh 15k</span>
                   </div>
                   <div className="flex flex-col items-center text-center gap-1">
-                    <RotateCcw className="w-4 h-4 text-[#8A745C]" />
+                    <RotateCcw className="w-4 h-4 text-[#A2574F]" />
                     <span className="text-center">30-Day Returns</span>
                   </div>
                   <div className="flex flex-col items-center text-center gap-1">
-                    <ShieldCheck className="w-4 h-4 text-[#8A745C]" />
+                    <ShieldCheck className="w-4 h-4 text-[#A2574F]" />
                     <span className="text-center">Secure Checkout</span>
                   </div>
                 </div>

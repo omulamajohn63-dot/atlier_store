@@ -33,18 +33,18 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, href, hint }) =
     <button
       type="button"
       onClick={() => navigate(href)}
-      className="group rounded-2xl border border-[#E8E5DF] bg-white p-5 text-left shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-[#D8D3CB] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+      className="group rounded-2xl border border-[#E8E5DF] bg-white p-5 text-left shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-[#D8D3CB] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
     >
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">{label}</span>
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
-          <span className="text-[#8A745C]">{icon}</span>
+          <span className="text-[#A2574F]">{icon}</span>
         </span>
       </div>
       <div className="mt-3 font-serif text-3xl leading-none text-[#181716]">
         {String(value).padStart(2, '0')}
       </div>
-      <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8A745C] transition-colors group-hover:text-[#181716]">
+      <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] transition-colors group-hover:text-[#181716]">
         {hint ?? 'View'}
         <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
       </div>
@@ -123,7 +123,7 @@ export const AccountOverviewPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/account/orders')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8A745C] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
           >
             View all <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -138,7 +138,7 @@ export const AccountOverviewPage: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/shop')}
-              className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-[#181716] px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#FAF9F6] transition-colors hover:bg-[#8A745C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+              className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-[#A2574F] px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#FAF9F6] transition-colors hover:bg-[#83443D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
             >
               Start Shopping
             </button>
@@ -152,7 +152,7 @@ export const AccountOverviewPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate(`/account/orders/${encodeURIComponent(order.orderNumber)}`)}
-                    className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8A745C] sm:gap-5 sm:px-6"
+                    className="group flex w-full items-center gap-4 px-4 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A2574F] sm:gap-5 sm:px-6"
                   >
                     {thumb && (
                       <OrderItemThumb item={thumb} className="h-14 w-12 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-20 sm:w-[4.5rem]" />
@@ -187,7 +187,7 @@ export const AccountOverviewPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/account/notifications')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8A745C] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-sm text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
           >
             View all <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
@@ -211,13 +211,13 @@ export const AccountOverviewPage: React.FC = () => {
                     if (!notification.isRead) void markAsRead(notification.id);
                     if (notification.link) navigate(notification.link);
                   }}
-                  className={`flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8A745C] sm:px-6 ${
+                  className={`flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A2574F] sm:px-6 ${
                     notification.isRead ? 'bg-white' : 'bg-[#FFFDF8]'
                   }`}
                 >
                   <span
                     className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                      notification.isRead ? 'bg-[#E8E5DF]' : 'bg-[#8A745C]'
+                      notification.isRead ? 'bg-[#E8E5DF]' : 'bg-[#A2574F]'
                     }`}
                     aria-hidden="true"
                   />

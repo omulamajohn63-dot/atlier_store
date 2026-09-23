@@ -144,11 +144,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
 
 const AnnouncementBar: React.FC = () => (
   <div className="bg-[#181716] px-4 py-2 relative overflow-hidden">
-    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#8A745C]/10 to-transparent" />
+    <div className="absolute inset-0 bg-gradient-to-r from-[#181716] via-[#A2574F]/25 to-[#181716]" />
     <p className="relative text-[10px] uppercase tracking-[0.2em] text-[#FAF9F6] text-center font-medium">
-      <Sparkles className="w-3 h-3 inline-block mr-1.5 text-[#A6937D]" />
+      <Sparkles className="w-3 h-3 inline-block mr-1.5 text-[#E6C8CD]" />
       Free shipping on orders over KES 5,000
-      <Sparkles className="w-3 h-3 inline-block ml-1.5 text-[#A6937D]" />
+      <Sparkles className="w-3 h-3 inline-block ml-1.5 text-[#E6C8CD]" />
     </p>
   </div>
 );
@@ -181,7 +181,7 @@ const LeftNavigation: React.FC<LeftNavigationProps> = ({
     <button
       type="button"
       onClick={onToggleMobileMenu}
-      className="lg:hidden flex items-center gap-2 text-[#181716] hover:text-[#8A745C] transition-colors p-2 rounded-full hover:bg-[#F3F1ED]"
+      className="lg:hidden flex items-center gap-2 text-[#181716] hover:text-[#A2574F] transition-colors p-2 rounded-full hover:bg-[#F3F1ED]"
       aria-label="Toggle menu"
       aria-expanded={isMobileMenuOpen}
     >
@@ -202,7 +202,7 @@ const LeftNavigation: React.FC<LeftNavigationProps> = ({
           onClick={onToggleCategories}
           className={`flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold transition-colors px-2 py-1.5 rounded-full ${
             currentCategory
-              ? 'text-[#181716] bg-[#EFECE6]'
+              ? 'text-[#A2574F] bg-[#F4ECE9]'
               : 'text-[#63605A] hover:text-[#181716] hover:bg-[#F3F1ED]'
           }`}
           aria-haspopup="menu"
@@ -245,7 +245,7 @@ const NavButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
   <button
     type="button"
     onClick={onClick}
-    className="relative text-[10px] uppercase tracking-[0.18em] font-semibold text-[#63605A] hover:text-[#181716] transition-colors py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] focus-visible:ring-offset-4 after:absolute after:bottom-0 after:left-1/2 after:w-0 after:h-[2px] after:bg-[#8A745C] after:transition-all after:duration-200 hover:after:w-full hover:after:left-0"
+    className="relative text-[10px] uppercase tracking-[0.18em] font-semibold text-[#63605A] hover:text-[#181716] transition-colors py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-4 after:absolute after:bottom-0 after:left-1/2 after:w-0 after:h-[2px] after:bg-[#A2574F] after:transition-all after:duration-200 hover:after:w-full hover:after:left-0"
   >
     {label}
   </button>
@@ -295,10 +295,10 @@ const ShopDropdown: React.FC<{
     <button
       type="button"
       onClick={() => onNavigate('/shop?collection=new-arrivals')}
-      className="group flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-[#FAF9F6] hover:bg-[#EFECE6] transition-colors border border-[#E8E5DF]"
+      className="group flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-[#FAF9F6] hover:bg-[#F4ECE9] transition-colors border border-[#E8E5DF]"
     >
       <span className="text-xs font-medium text-[#181716]">Explore New Collection</span>
-      <ArrowRight className="w-4 h-4 text-[#8A745C] group-hover:translate-x-1 transition-transform" />
+      <ArrowRight className="w-4 h-4 text-[#A2574F] group-hover:translate-x-1 transition-transform" />
     </button>
   </div>
   </>
@@ -324,7 +324,7 @@ const DropdownLink: React.FC<DropdownLinkProps> = ({ label, onClick, icon }) => 
     type="button"
     role="menuitem"
     onClick={onClick}
-    className="w-full rounded-xl px-3 py-2.5 text-left text-xs text-[#63605A] hover:bg-[#FAF9F6] hover:text-[#181716] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] flex items-center gap-2"
+    className="w-full rounded-xl px-3 py-2.5 text-left text-xs text-[#63605A] hover:bg-[#FAF9F6] hover:text-[#181716] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] flex items-center gap-2"
   >
     {icon}
     {label}
@@ -380,13 +380,13 @@ const RightActions: React.FC<{
         <button
           type="button"
           onClick={() => setIsNotificationsOpen((current) => !current)}
-          className="relative p-2.5 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED]"
+          className="relative p-2.5 text-[#181716] hover:text-[#A2574F] transition-colors rounded-full hover:bg-[#F3F1ED]"
           aria-label={`Notifications, ${unreadCount} unread`}
           title="Notifications"
         >
           <Bell className="w-5 h-5 stroke-[1.5]" />
           {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#8A745C] px-1 text-[9px] text-[#FAF9F6] font-semibold">
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#A2574F] px-1 text-[9px] text-[#FAF9F6] font-semibold">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
@@ -409,7 +409,7 @@ const RightActions: React.FC<{
                   <button
                     type="button"
                     onClick={() => void markAllAsRead()}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8A745C] hover:text-[#181716] transition-colors"
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#A2574F] hover:text-[#181716] transition-colors"
                   >
                     <CheckCheck className="h-3 w-3" />
                     Mark all read
@@ -443,7 +443,7 @@ const RightActions: React.FC<{
                           <div className="text-[10px] uppercase tracking-[0.14em] text-[#827E77]">{notification.category}</div>
                           <div className="mt-1 text-sm font-medium text-[#181716]">{notification.title}</div>
                         </div>
-                        {!notification.isRead && <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#8A745C]" />}
+                        {!notification.isRead && <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#A2574F]" />}
                       </div>
                       <p className="mt-2 text-xs leading-5 text-[#63605A]">{notification.message}</p>
                     </button>
@@ -458,7 +458,7 @@ const RightActions: React.FC<{
                     onNavigate('/account/notifications');
                     setIsNotificationsOpen(false);
                   }}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#E8E5DF] py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8A745C] hover:bg-[#FAF9F6] transition-colors"
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#E8E5DF] py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] hover:bg-[#FAF9F6] transition-colors"
                 >
                   <Bell className="h-3.5 w-3.5" />
                   View all notifications
@@ -487,7 +487,7 @@ const RightActions: React.FC<{
         <span className="relative block">
           <Heart className="w-5 h-5 stroke-[1.5]" />
           {wishlistCount > 0 && (
-            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#8A745C] px-1 text-[9px] text-[#FAF9F6] font-semibold">
+            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#A2574F] px-1 text-[9px] text-[#FAF9F6] font-semibold">
               {wishlistCount}
             </span>
           )}
@@ -497,7 +497,7 @@ const RightActions: React.FC<{
       <button
         type="button"
         onClick={onOpenCart}
-        className="relative flex items-center gap-2 p-2.5 text-[#181716] hover:text-[#8A745C] transition-colors rounded-full hover:bg-[#F3F1ED]"
+        className="relative flex items-center gap-2 p-2.5 text-[#181716] hover:text-[#A2574F] transition-colors rounded-full hover:bg-[#F3F1ED]"
         aria-label={`View shopping cart with ${cartCount} items`}
         title="Open Cart"
       >
@@ -506,7 +506,7 @@ const RightActions: React.FC<{
           Cart ({cartCount})
         </span>
         {cartCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#8A745C] text-[#FAF9F6] text-[9px] rounded-full flex items-center justify-center font-semibold">
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#A2574F] text-[#FAF9F6] text-[9px] rounded-full flex items-center justify-center font-semibold">
             {cartCount}
           </span>
         )}
@@ -525,7 +525,7 @@ const IconButton: React.FC<{
   <button
     type="button"
     onClick={onClick}
-    className={`p-2.5 text-[#181716] transition-colors rounded-full hover:bg-[#F3F1ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] focus-visible:ring-offset-2 hover:text-[#8A745C] ${className}`}
+    className={`p-2.5 text-[#181716] transition-colors rounded-full hover:bg-[#F3F1ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 hover:text-[#A2574F] ${className}`}
     aria-label={ariaLabel}
     title={title}
   >
@@ -579,7 +579,7 @@ const MobileMenu: React.FC<{
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-[#63605A] hover:bg-[#EFECE6] hover:text-[#181716] transition-colors"
+            className="rounded-full p-2 text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716] transition-colors"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -655,10 +655,10 @@ const MobileLink: React.FC<{
   <button
     type="button"
     onClick={onClick}
-    className={`w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] ${
+    className={`w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
       isActive
-        ? 'bg-[#181716] text-[#FAF9F6] font-medium shadow-sm'
-        : 'text-[#63605A] hover:bg-[#EFECE6] hover:text-[#181716]'
+        ? 'bg-[#A2574F] text-[#FAF9F6] font-medium shadow-sm'
+        : 'text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716]'
     }`}
   >
     {label}

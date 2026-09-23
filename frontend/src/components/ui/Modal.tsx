@@ -85,7 +85,7 @@ export const Modal: React.FC<ModalProps> = ({
                     type="button"
                     onClick={onClose}
                     aria-label="Close dialog"
-                    className="p-1.5 rounded-full text-[#63605A] hover:text-[#181716] hover:bg-[#F3F1ED] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+                    className="p-1.5 rounded-full text-[#63605A] hover:text-[#181716] hover:bg-[#F3F1ED] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -132,7 +132,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             onClick={onClose}
             disabled={isLoading}
-            className="text-sm px-4 py-2 rounded-full border border-[#E8E5DF] text-[#181716] bg-transparent hover:bg-[#F3F1ED] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] disabled:opacity-50"
+            className="text-sm px-4 py-2 rounded-full border border-[#E8E5DF] text-[#181716] bg-transparent hover:bg-[#F3F1ED] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:opacity-50"
           >
             {cancelText}
           </button>
@@ -140,10 +140,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             onClick={onConfirm}
             disabled={isLoading}
-            className={`text-sm px-4 py-2 rounded-full font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] disabled:opacity-50 ${
+            className={`text-sm px-4 py-2 rounded-full font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:opacity-50 ${
               variant === 'danger'
                 ? 'bg-[#9E332B] text-[#FAF9F6] hover:bg-[#8A2B25]'
-                : 'bg-[#181716] text-[#FAF9F6] hover:bg-[#2A2826]'
+                : 'bg-[#A2574F] text-[#FAF9F6] hover:bg-[#83443D]'
             }`}
           >
             {isLoading ? (

@@ -33,7 +33,7 @@ export const OrderProgress: React.FC<OrderProgressProps> = ({ order, className =
               <span
                 className={
                   reached && isCurrent
-                    ? 'flex h-[15px] w-[15px] items-center justify-center rounded-full bg-white ring-2 ring-[#8A745C]/40'
+                    ? 'flex h-[15px] w-[15px] items-center justify-center rounded-full bg-white ring-2 ring-[#A2574F]/40'
                     : reached
                     ? `flex h-[15px] w-[15px] items-center justify-center rounded-full ${ORDER_STATUS_META[step.status].dotClass} text-white`
                     : 'flex h-[15px] w-[15px] items-center justify-center rounded-full border border-[#D8D3CB] bg-white'
@@ -44,7 +44,7 @@ export const OrderProgress: React.FC<OrderProgressProps> = ({ order, className =
                   <Check className="h-2.5 w-2.5" strokeWidth={3} stroke="currentColor" />
                 )}
                 {reached && isCurrent && (
-                  <span className="h-2 w-2 rounded-full bg-[#8A745C]" />
+                  <span className="h-2 w-2 rounded-full bg-[#A2574F]" />
                 )}
               </span>
 

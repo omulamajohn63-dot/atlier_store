@@ -145,7 +145,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       {/* 1. SHOP HEADER & BREADCRUMB */}
       <div className="border-b border-[#E8E5DF] pb-8 relative">
         {/* Decorative gradient */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#8A745C]/10 to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#A2574F]/10 to-transparent pointer-events-none" />
 
         <nav className="text-xs text-[#827E77] flex items-center gap-2 mb-4" aria-label="Breadcrumb">
           <button onClick={() => navigate('/')} className="hover:text-[#181716] transition-colors">
@@ -171,7 +171,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedCategory('all')}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#EFECE6] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#181716] hover:text-[#FAF9F6] transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F4ECE9] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#A2574F] hover:text-[#FAF9F6] transition-all"
                 >
                   <X className="w-3 h-3" />
                   Clear Category
@@ -181,7 +181,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedOccasion(undefined)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#EFECE6] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#181716] hover:text-[#FAF9F6] transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F4ECE9] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#A2574F] hover:text-[#FAF9F6] transition-all"
                 >
                   <X className="w-3 h-3" />
                   Clear Occasion
@@ -191,7 +191,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedSale(false)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#EFECE6] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#181716] hover:text-[#FAF9F6] transition-all"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F4ECE9] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#A2574F] hover:text-[#FAF9F6] transition-all"
                 >
                   <X className="w-3 h-3" />
                   Clear Sale
@@ -221,7 +221,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             placeholder="Search catalog (/api/products)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-8 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#181716] focus:ring-2 focus:ring-[#8A745C]/20 transition-all"
+            className="w-full pl-10 pr-8 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
           />
           {searchQuery && (
             <button
@@ -243,7 +243,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           >
             <Filter className="w-3.5 h-3.5" />
             Filters
-            {(onlyInStock || searchQuery || selectedOccasion || selectedSale) && <span className="w-1.5 h-1.5 rounded-full bg-[#8A745C]" />}
+            {(onlyInStock || searchQuery || selectedOccasion || selectedSale) && <span className="w-1.5 h-1.5 rounded-full bg-[#A2574F]" />}
           </button>
 
           <div className="hidden lg:flex items-center gap-3">
@@ -253,7 +253,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 type="checkbox"
                 checked={onlyInStock}
                 onChange={(e) => setOnlyInStock(e.target.checked)}
-                className="rounded text-[#181716] focus:ring-[#8A745C] selection:bg-transparent cursor-pointer"
+                className="rounded text-[#181716] focus:ring-[#A2574F] selection:bg-transparent cursor-pointer"
               />
               <span>In Stock Only</span>
             </label>
@@ -334,7 +334,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 type="checkbox"
                 checked={onlyInStock}
                 onChange={(e) => setOnlyInStock(e.target.checked)}
-                className="rounded text-[#181716] focus:ring-[#8A745C] cursor-pointer"
+                className="rounded text-[#181716] focus:ring-[#A2574F] cursor-pointer"
               />
               <span>In Stock Only</span>
             </label>
@@ -374,7 +374,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           animate={{ opacity: 1, y: 0 }}
           className="py-20 text-center bg-[#FFFFFF] border border-[#E8E5DF] rounded-2xl p-10 space-y-4 shadow-sm"
         >
-          <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#8A745C]">
+          <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#A2574F]">
             <Package className="w-7 h-7 stroke-[1.5]" />
           </div>
           <h3 className="font-serif text-xl text-[#181716]">No pieces match your criteria</h3>

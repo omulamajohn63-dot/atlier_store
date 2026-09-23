@@ -60,7 +60,7 @@ export const AccountSecurityPage: React.FC = () => {
       <form onSubmit={handleSubmit} className="rounded-2xl border border-[#E8E5DF] bg-white p-6 shadow-xs sm:p-8">
         <div className="flex items-start gap-4">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
-            <Lock className="h-5 w-5 text-[#8A745C]" />
+            <Lock className="h-5 w-5 text-[#A2574F]" />
           </span>
           <div>
             <h3 className="font-serif text-xl tracking-tight text-[#181716]">Change password</h3>
@@ -140,7 +140,7 @@ export const AccountSecurityPage: React.FC = () => {
       <article className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#E8E5DF] bg-white p-6 shadow-xs sm:p-7">
         <div className="flex items-start gap-4">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
-            <ShieldCheck className="h-5 w-5 text-[#8A745C]" />
+            <ShieldCheck className="h-5 w-5 text-[#A2574F]" />
           </span>
           <div>
             <h3 className="font-serif text-xl tracking-tight text-[#181716]">Two-step verification</h3>

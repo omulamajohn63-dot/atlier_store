@@ -164,7 +164,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
         );
       case 'processing':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#F5EFEB] text-[#8A745C]">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#F5EFEB] text-[#A2574F]">
             <PackageCheck className="w-3.5 h-3.5" />
             <span>MODEZA Preparation</span>
           </span>
@@ -211,7 +211,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-10">
       {/* Editorial Header */}
       <div className="text-center space-y-3 max-w-xl mx-auto">
-        <span className="text-[11px] uppercase tracking-widest text-[#8A745C] font-semibold">
+        <span className="text-[11px] uppercase tracking-widest text-[#A2574F] font-semibold">
           Client Services &bull; Order Tracking
         </span>
         <h1 className="font-serif text-3xl sm:text-4xl text-[#181716] font-normal tracking-tight">
@@ -232,7 +232,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Enter reference code (e.g. ATL-KES-849201)"
-              className="w-full bg-[#FAF9F6] border border-[#E8E5DF] rounded-2xl pl-11 pr-4 py-3 text-xs tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal focus:outline-none focus:ring-1 focus:ring-[#8A745C]"
+              className="w-full bg-[#FAF9F6] border border-[#E8E5DF] rounded-2xl pl-11 pr-4 py-3 text-xs tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal focus:outline-none focus:ring-1 focus:ring-[#A2574F]"
             />
           </div>
           <Button type="submit" variant="primary" size="md" className="uppercase tracking-wider text-xs px-6">
@@ -249,7 +249,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
               const found = getOrder('ATL-KES-849201');
               if (found) setActiveOrder(found);
             }}
-            className="text-[#8A745C] hover:underline"
+            className="text-[#A2574F] hover:underline"
           >
             Load Sample
           </button>
@@ -324,13 +324,13 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
                   key={idx}
                   className={`p-4 rounded-2xl border transition-all ${
                     step.completed
-                      ? 'bg-[#FAF9F6] border-[#8A745C]/40 text-[#181716]'
+                      ? 'bg-[#FAF9F6] border-[#A2574F]/40 text-[#181716]'
                       : 'bg-[#FFFFFF] border-[#E8E5DF] text-[#A29E96]'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
                     {step.completed ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#8A745C]" />
+                      <CheckCircle2 className="w-4 h-4 text-[#A2574F]" />
                     ) : (
                       <Clock className="w-4 h-4 text-[#A29E96]" />
                     )}
@@ -362,7 +362,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
                       src={item.image}
                       alt={item.productName}
                       referrerPolicy="no-referrer"
-                      className="w-16 h-20 object-cover rounded-xl bg-[#EFECE6] shrink-0"
+                      className="w-16 h-20 object-cover rounded-xl bg-[#F4ECE9] shrink-0"
                     />
                     <div>
                       <h4 className="font-serif text-sm text-[#181716]">{item.productName}</h4>
@@ -385,7 +385,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 border-t border-[#F3F1ED] pt-6 text-xs">
             <div className="space-y-2 bg-[#FAF9F6] p-5 rounded-2xl border border-[#E8E5DF]">
               <div className="flex items-center gap-1.5 font-semibold text-[#181716] mb-1">
-                <MapPin className="w-3.5 h-3.5 text-[#8A745C]" />
+                <MapPin className="w-3.5 h-3.5 text-[#A2574F]" />
                 <span>Destination Coordinates</span>
               </div>
               <p className="text-[#181716] font-medium">
@@ -406,7 +406,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
 
             <div className="space-y-2 bg-[#FAF9F6] p-5 rounded-2xl border border-[#E8E5DF]">
               <div className="flex items-center gap-1.5 font-semibold text-[#181716] mb-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-[#8A745C]" />
+                <ShieldCheck className="w-3.5 h-3.5 text-[#A2574F]" />
                 <span>Financial Ledger (KES)</span>
               </div>
               <div className="flex justify-between text-[#63605A]">

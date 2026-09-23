@@ -59,7 +59,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         onMouseLeave={() => setIsHovered(false)}
         onClick={() => onClick?.(product)}
       >
-        <div className="relative w-full overflow-hidden rounded-xl bg-[#EFECE6] mb-2.5">
+        <div className="relative w-full overflow-hidden rounded-xl bg-[#F4ECE9] mb-2.5">
           <img
             src={isHovered && hasMultipleImages ? product.images[1] : product.images[0]}
             alt={product.name}
@@ -72,7 +72,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               event.stopPropagation();
               toggleWishlist(product.id);
             }}
-            className="absolute right-2 top-2 z-20 rounded-full bg-white/95 p-1.5 text-[#181716] shadow-sm transition-colors hover:bg-[#181716] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+            className="absolute right-2 top-2 z-20 rounded-full bg-white/95 p-1.5 text-[#181716] shadow-sm transition-colors hover:bg-[#181716] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
             aria-label={`${saved ? 'Remove' : 'Add'} ${product.name} ${saved ? 'from' : 'to'} wishlist`}
           >
             <Heart className={`h-3.5 w-3.5 ${saved ? 'fill-current text-[#9E332B]' : ''}`} />
@@ -82,7 +82,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <span className="text-[10px] font-medium tracking-widest uppercase text-[#827E77]">
             {product.categorySlug}
           </span>
-          <h4 className="font-serif text-sm text-[#181716] group-hover:text-[#8A745C] transition-colors line-clamp-1">
+          <h4 className="font-serif text-sm text-[#181716] group-hover:text-[#A2574F] transition-colors line-clamp-1">
             {product.name}
           </h4>
           <Price amount={product.price} compareAtAmount={product.compareAtPrice} size="sm" />
@@ -99,7 +99,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       onClick={() => onClick?.(product)}
     >
       {/* Visual Image Frame (Portrait 3:4) */}
-      <div className="relative overflow-hidden rounded-xl bg-[#EFECE6] mb-3.5 image-zoom">
+      <div className="relative overflow-hidden rounded-xl bg-[#F4ECE9] mb-3.5 image-zoom">
         <div className={`${imageAspectRatio} w-full`}>
           <img
             src={isHovered && hasMultipleImages ? product.images[1] : product.images[0]}
@@ -130,7 +130,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             event.stopPropagation();
             toggleWishlist(product.id);
           }}
-          className="absolute right-3 top-3 z-20 rounded-full bg-white/95 p-2 text-[#181716] shadow-sm transition-all duration-200 hover:bg-[#181716] hover:text-white hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C]"
+          className="absolute right-3 top-3 z-20 rounded-full bg-white/95 p-2 text-[#181716] shadow-sm transition-all duration-200 hover:bg-[#A2574F] hover:text-white hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
           aria-label={`${saved ? 'Remove' : 'Add'} ${product.name} ${saved ? 'from' : 'to'} wishlist`}
           title={saved ? 'Remove from wishlist' : 'Add to wishlist'}
         >
@@ -161,7 +161,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               type="button"
               onClick={handleAddToCart}
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-[#181716] text-[#FAF9F6] text-xs font-semibold uppercase tracking-wider rounded-lg shadow-sm hover:bg-[#2A2826] hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="w-full py-2.5 px-4 bg-[#A2574F] text-[#FAF9F6] text-xs font-semibold uppercase tracking-wider rounded-lg shadow-sm hover:bg-[#83443D] hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               <ShoppingBag className="w-3.5 h-3.5" />
               <span>{isLoading ? 'Adding...' : 'Add to Cart'}</span>
@@ -176,7 +176,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.categorySlug}
         </span>
 
-        <h4 className="font-serif text-base text-[#181716] group-hover:text-[#8A745C] transition-colors line-clamp-1">
+        <h4 className="font-serif text-base text-[#181716] group-hover:text-[#A2574F] transition-colors line-clamp-1">
           {product.name}
         </h4>
 
@@ -198,7 +198,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           type="button"
           onClick={handleAddToCart}
           disabled={isSoldOut || isLoading}
-          className="mt-2 w-full rounded-lg border border-[#181716] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#181716] transition-all duration-200 hover:bg-[#181716] hover:text-[#FAF9F6] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8A745C] disabled:cursor-not-allowed disabled:border-[#D8D3CB] disabled:text-[#A29E96] disabled:hover:bg-transparent disabled:hover:shadow-none active:scale-[0.98]"
+          className="mt-2 w-full rounded-lg border border-[#181716] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#181716] transition-all duration-200 hover:bg-[#A2574F] hover:border-[#A2574F] hover:text-[#FAF9F6] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:cursor-not-allowed disabled:border-[#D8D3CB] disabled:text-[#A29E96] disabled:hover:bg-transparent disabled:hover:shadow-none active:scale-[0.98]"
           aria-label={isSoldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
         >
           {isSoldOut ? 'Sold Out' : isAdded ? 'Added to Cart' : 'Add to Cart'}

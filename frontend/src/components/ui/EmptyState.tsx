@@ -28,9 +28,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   };
 
   const iconContainerStyles = {
-    default: 'w-14 h-14 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#8A745C] mb-4',
-    page: 'w-20 h-20 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#8A745C] mb-5',
-    card: 'w-12 h-12 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#8A745C] mb-3',
+    default: 'w-14 h-14 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#A2574F] mb-4',
+    page: 'w-20 h-20 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#A2574F] mb-5',
+    card: 'w-12 h-12 rounded-full bg-[#F3F1ED] flex items-center justify-center text-[#A2574F] mb-3',
   };
 
   const titleStyles = {
