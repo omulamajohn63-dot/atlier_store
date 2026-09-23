@@ -5,6 +5,7 @@ from .views import (
     CustomerNotificationsView,
     CurrentUserView,
     MarkAllCustomerNotificationsReadView,
+    MarkCustomerNotificationsPresentedView,
     MarkCustomerNotificationReadView,
     OwnerAccessView,
 )
@@ -16,6 +17,9 @@ urlpatterns = [
     path('admin/owner-access', OwnerAccessView.as_view(), name='owner-access'),
     path('notifications', CustomerNotificationsView.as_view(),
          name='customer-notifications'),
+    path('notifications/presented/',
+         MarkCustomerNotificationsPresentedView.as_view(),
+         name='customer-notifications-presented'),
     path('notifications/read-all/',
          MarkAllCustomerNotificationsReadView.as_view(),
          name='customer-notifications-read-all'),

@@ -354,6 +354,7 @@ class UnreadNotificationsView(View):
                 'link': item.link,
                 'category': item.category,
                 'severity': item.severity,
+                'presented': item.presented_at is not None,
                 'created_at': item.created_at.isoformat(),
             }
             for item in notifications
@@ -363,6 +364,53 @@ class UnreadNotificationsView(View):
             'count': total_unread,
             'unread_count': total_unread,
             'results': results,
+        })
+
+
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class MarkNotificationsPresentedView(View):
+    """Atomically claim popup presentation for a set of notification IDs.
+
+    Only the caller that wins the compare-and-set learns that the IDs were
+    actually marked ``presented_at``; concurrent pollers/tabs that arrive too
+    late get an empty ``presented`` list, so a single unread notification can
+    never be re-surfaced after refresh, remount or a later poll.
+    """
+
+    def post(self, request):
+        try:
+            payload = json.loads(request.body or b'{}')
+        except json.JSONDecodeError:
+            payload = {}
+        ids = payload.get('ids') or []
+        if not isinstance(ids, list):
+            return JsonResponse({'ok': False, 'error': 'ids must be a list'},
+                                status=400)
+        cleaned = [str(raw) for raw in ids[:100] if isinstance(raw, str)]
+        if not cleaned:
+            return JsonResponse({'ok': True, 'presented': []})
+
+        try:
+            with transaction.atomic():
+                rows = AdminNotification.objects.select_for_update().filter(
+                    recipient=request.user,
+                    pk__in=cleaned,
+                )
+                won = []
+                for notification in rows:
+                    if notification.presented_at is None and not notification.is_read:
+                        notification.presented_at = timezone.now()
+                        notification.save(update_fields=['presented_at'])
+                        won.append(notification.pk)
+        except Exception:
+            logging.getLogger('admin_ui.notify').warning(
+                'admin_notification_present_failed recipient=%s ids=%d',
+                request.user.pk, len(cleaned), exc_info=True)
+            return JsonResponse({'ok': False, 'presented': []}, status=500)
+
+        return JsonResponse({
+            'ok': True,
+            'presented': [str(nid) for nid in won],
         })
 
 
@@ -423,9 +471,10 @@ class MarkNotificationReadView(View):
         if not notification:
             return JsonResponse({'ok': False}, status=404)
 
-        notification.is_read = True
-        notification.read_at = timezone.now()
-        notification.save(update_fields=['is_read', 'read_at'])
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save(update_fields=['is_read', 'read_at'])
         unread_count = AdminNotification.objects.filter(
             recipient=request.user,
             is_read=False,

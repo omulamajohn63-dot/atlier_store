@@ -17,7 +17,7 @@ from .services import create_product, update_product
 
 def _notification_data(notification):
     return {
-        'id': notification.pk,
+        'id': str(notification.pk),
         'category': notification.category,
         'severity': notification.severity,
         'title': notification.title,
@@ -29,6 +29,7 @@ def _notification_data(notification):
         'requestId': notification.request_id,
         'createdAt': notification.created_at.isoformat(),
         'read': notification.is_read,
+        'presented': notification.presented_at is not None,
     }
 
 
@@ -185,6 +186,37 @@ class AdminNotificationReadView(AdminAPIView):
             notification.read_at = timezone.now()
             notification.save(update_fields=['is_read', 'read_at'])
         return Response({'ok': True})
+
+
+class AdminNotificationsPresentView(AdminAPIView):
+    """Atomically claim popup presentation for a set of notification IDs."""
+
+    def post(self, request):
+        ids = request.data.get('ids') or []
+        if not isinstance(ids, list):
+            return Response({'ok': False, 'error': 'ids must be a list'},
+                            status=400)
+        cleaned = [str(raw) for raw in ids[:100] if isinstance(raw, str)]
+        if not cleaned:
+            return Response({'ok': True, 'presented': []})
+
+        from django.db import transaction
+
+        with transaction.atomic():
+            rows = AdminNotification.objects.select_for_update().filter(
+                recipient=request.user,
+                pk__in=cleaned,
+            )
+            won = []
+            for notification in rows:
+                if notification.presented_at is None and not notification.is_read:
+                    notification.presented_at = timezone.now()
+                    notification.save(update_fields=['presented_at'])
+                    won.append(notification.pk)
+        return Response({
+            'ok': True,
+            'presented': [str(nid) for nid in won],
+        })
 
 
 class AdminNotificationsReadAllView(AdminAPIView):

@@ -293,6 +293,13 @@ export const api = {
     }, true, true);
   },
 
+  async markNotificationsPresented(notificationIds: string[]): Promise<{ ok: boolean; presented: string[] }> {
+    return request<{ ok: boolean; presented: string[] }>('/api/notifications/presented/', {
+      method: 'POST',
+      body: JSON.stringify({ ids: notificationIds }),
+    }, true, true);
+  },
+
   async markAllNotificationsRead(): Promise<{ ok: boolean; unread_count: number; updated: number }> {
     return request<{ ok: boolean; unread_count: number; updated: number }>('/api/notifications/read-all/', {
       method: 'POST',

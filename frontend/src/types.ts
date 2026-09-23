@@ -176,5 +176,7 @@ export interface CustomerNotification {
   message: string;
   link?: string;
   isRead: boolean;
+  /** True once this notification has been surfaced to the user as a popup/toast */
+  presented?: boolean;
   createdAt: string;
 }

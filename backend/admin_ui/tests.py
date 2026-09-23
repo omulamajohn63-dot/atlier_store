@@ -1,5 +1,7 @@
 from io import BytesIO
 
+import json
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -240,6 +242,153 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(response.json()['count'], 1)
         self.assertEqual(
             response.json()['results'][0]['title'], 'Payment received')
+
+    def test_unread_admin_notifications_report_presented_flag(self):
+        notification = AdminNotification.objects.create(
+            recipient=self.staff,
+            category='order',
+            title='Order placed',
+            message='Order AT-PRESENTED-FLAG-001 was placed.',
+            link='/admin/dashboard/orders/',
+            is_read=False,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/notifications/unread/')
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()['results'][0]
+        self.assertEqual(result['id'], str(notification.pk))
+        self.assertIs(result['presented'], False)
+
+    def test_admin_presented_is_idempotent_and_keeps_unread(self):
+        notification = AdminNotification.objects.create(
+            recipient=self.staff,
+            category='order',
+            title='Order placed',
+            message='Order AT-PRESENT-001 was placed.',
+            link='/admin/dashboard/orders/',
+            is_read=False,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            '/admin/dashboard/notifications/presented/',
+            data=json.dumps({'ids': [str(notification.pk)]}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['presented'], [str(notification.pk)])
+
+        notification.refresh_from_db()
+        self.assertIsNotNone(notification.presented_at)
+        self.assertFalse(notification.is_read)
+
+        # A second claim (another tab, refresh, or later poll) is a no-op.
+        response = self.client.post(
+            '/admin/dashboard/notifications/presented/',
+            data=json.dumps({'ids': [str(notification.pk)]}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['presented'], [])
+
+    def test_admin_presented_is_recipient_isolated(self):
+        other_staff = get_user_model().objects.create_superuser(
+            username='other-presented-staff', password='test-password',
+            email='other-presented@example.com',
+        )
+        notification = AdminNotification.objects.create(
+            recipient=other_staff,
+            category='order',
+            title='Order placed for other admin',
+            message='Other admin only.',
+            is_read=False,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            '/admin/dashboard/notifications/presented/',
+            data=json.dumps({'ids': [str(notification.pk)]}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['presented'], [])
+        notification.refresh_from_db()
+        self.assertIsNone(notification.presented_at)
+
+    def test_admin_unread_remains_visible_and_unread_after_presented(self):
+        notification = AdminNotification.objects.create(
+            recipient=self.staff,
+            category='payment',
+            title='Payment received',
+            message='Payment received for order AT-PRESENT-UNREAD-001.',
+            is_read=False,
+        )
+        self.client.force_login(self.staff)
+        self.client.post(
+            '/admin/dashboard/notifications/presented/',
+            data=json.dumps({'ids': [str(notification.pk)]}),
+            content_type='application/json',
+        )
+
+        response = self.client.get('/admin/dashboard/notifications/unread/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['unread_count'], 1)
+        self.assertTrue(payload['results'][0]['presented'])
+        self.assertEqual(payload['results'][0]['id'], str(notification.pk))
+
+    def test_admin_mark_read_is_idempotent(self):
+        notification = AdminNotification.objects.create(
+            recipient=self.staff,
+            category='order',
+            title='Order placed',
+            message='Order AT-READ-IDEMPOTENT-001 was placed.',
+            is_read=False,
+        )
+        self.client.force_login(self.staff)
+
+        first = self.client.post(
+            f'/admin/dashboard/notifications/{notification.pk}/read/')
+        notification.refresh_from_db()
+        read_at_first = notification.read_at
+        self.assertIsNotNone(read_at_first)
+
+        second = self.client.post(
+            f'/admin/dashboard/notifications/{notification.pk}/read/')
+        notification.refresh_from_db()
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(notification.is_read)
+        self.assertEqual(notification.read_at, read_at_first)
+
+    def test_admin_mark_all_read_clears_unread_even_when_presented(self):
+        from django.utils import timezone
+
+        already_presented = AdminNotification.objects.create(
+            recipient=self.staff, category='order', title='A',
+            message='A message', is_read=False, presented_at=timezone.now())
+        AdminNotification.objects.create(
+            recipient=self.staff, category='payment', title='B',
+            message='B message', is_read=False)
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            '/admin/dashboard/notifications/read-all/',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['unread_count'], 0)
+        self.assertEqual(
+            AdminNotification.objects.filter(
+                recipient=self.staff, is_read=False).count(), 0)
+        already_presented.refresh_from_db()
+        self.assertIsNotNone(already_presented.presented_at)
 
     def test_admin_order_notification_route_does_not_crash(self):
         from cart.models import Cart

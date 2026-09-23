@@ -20,7 +20,6 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const previousIdsRef = useRef<string[]>([]);
   const pollingDisabledRef = useRef(false);
   const refreshInFlightRef = useRef(false);
 
@@ -58,7 +57,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!user) {
       setNotifications([]);
       setUnreadCount(0);
-      previousIdsRef.current = [];
+      setToasts([]);
       pollingDisabledRef.current = false;
       return;
     }
@@ -71,27 +70,50 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => window.clearInterval(timer);
   }, [refreshNotifications, user]);
 
-  useEffect(() => {
-    if (!user || notifications.length === 0) {
-      previousIdsRef.current = notifications.map((item) => item.id);
+  // Unread status is independent from popup presentation. Only a notification
+  // that is (a) unread AND (b) not yet presented server-side is surfaced once.
+  // The server atomically claims `presented_at` via a compare-and-set, so a
+  // refresh, page remount or a later poll can never replay the same ID and
+  // unread counts remain accurate until the user actually reads.
+  const surfaceNewNotifications = useCallback(async () => {
+    if (!user) return;
+    const candidates = notifications.filter((item) => !item.isRead && !item.presented);
+    if (candidates.length === 0) return;
+
+    let presentedIds: string[] = [];
+    try {
+      const result = await api.markNotificationsPresented(candidates.map((item) => item.id));
+      presentedIds = result?.presented ?? [];
+    } catch {
+      // Claim failed (network). Nothing was surfaced and no state changed, so
+      // the next poll simply re-attempts the claim.
       return;
     }
+    if (presentedIds.length === 0) return;
 
-    const newUnread = notifications.filter((item) => !item.isRead && !previousIdsRef.current.includes(item.id));
-    if (newUnread.length > 0) {
-      setToasts((current) => {
-        const nextToasts: ToastMessage[] = newUnread.slice(0, 3).map((item) => ({
-          id: item.id,
-          type: item.category === 'payment' ? 'success' : 'info',
-          title: item.title,
-          description: item.message,
-        }));
-        return [...nextToasts, ...current].slice(0, 4);
-      });
-    }
+    setNotifications((current) => current.map((item) =>
+      presentedIds.includes(item.id) ? { ...item, presented: true } : item
+    ));
 
-    previousIdsRef.current = notifications.map((item) => item.id);
+    const newlyPresented = candidates
+      .filter((item) => presentedIds.includes(item.id))
+      .slice(0, 3);
+    if (newlyPresented.length === 0) return;
+
+    setToasts((current) => {
+      const nextToasts: ToastMessage[] = newlyPresented.map((item) => ({
+        id: item.id,
+        type: item.category === 'payment' ? 'success' : 'info',
+        title: item.title,
+        description: item.message,
+      }));
+      return [...nextToasts, ...current].slice(0, 4);
+    });
   }, [notifications, user]);
+
+  useEffect(() => {
+    void surfaceNewNotifications();
+  }, [surfaceNewNotifications]);
 
   const dismissToast = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));

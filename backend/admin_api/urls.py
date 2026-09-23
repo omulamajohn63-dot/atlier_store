@@ -1,10 +1,11 @@
 from django.urls import path
 
 from .views import (AdminCategoryCreateView, AdminNotificationReadView,
-                    AdminNotificationsReadAllView, AdminNotificationsView,
-                    AdminProductArchiveView, AdminProductCreateView,
-                    AdminProductUpdateView, AdminStockAdjustmentView,
-                    AdminUnreadNotificationsView, ExpireReservationsView)
+                    AdminNotificationsPresentView, AdminNotificationsReadAllView,
+                    AdminNotificationsView, AdminProductArchiveView,
+                    AdminProductCreateView, AdminProductUpdateView,
+                    AdminStockAdjustmentView, AdminUnreadNotificationsView,
+                    ExpireReservationsView)
 
 
 urlpatterns = [
@@ -24,7 +25,9 @@ urlpatterns = [
          AdminNotificationsView.as_view(), name='admin-notifications-api'),
     path('admin/notifications/unread',
          AdminUnreadNotificationsView.as_view(), name='admin-notifications-unread-api'),
-    path('admin/notifications/<int:notification_id>/read',
+    path('admin/notifications/presented',
+         AdminNotificationsPresentView.as_view(), name='admin-notifications-presented-api'),
+    path('admin/notifications/<uuid:notification_id>/read',
          AdminNotificationReadView.as_view(), name='admin-notification-read-api'),
     path('admin/notifications/read-all',
          AdminNotificationsReadAllView.as_view(), name='admin-notifications-read-all-api'),

@@ -1491,6 +1491,54 @@
       }, 5000);
     }
 
+    // Notification surfacing state. Popup presentation is persisted server-side
+    // (AdminNotification.presented_at) and is completely independent from the
+    // unread count. lastKnownUnreadCount is only used to keep the bell badge in
+    // sync — never used to decide whether to show a popup.
+    let notificationWrapper = null;
+    let notificationTrigger = null;
+    let notificationPanel = null;
+    let lastKnownUnreadCount = 0;
+
+    function updateNotificationBadge(count) {
+      const badge = document.querySelector('.notification-badge');
+      if (!badge) return;
+      if (count > 0) {
+        badge.textContent = String(count);
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.textContent = '';
+        badge.style.display = 'none';
+      }
+    }
+
+    // Atomically claim popup presentation for a set of notification IDs. Only
+    // the caller that wins the server-side compare-and-set receives the IDs
+    // back, so a single unread notification can never be popped again after a
+    // refresh, page remount, or a later poll.
+    async function presentNotifications(ids) {
+      if (!ids || !ids.length) return [];
+      try {
+        const response = await fetch('/admin/dashboard/notifications/presented/', {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ ids: ids })
+        });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return Array.isArray(data.presented) ? data.presented : [];
+      } catch (error) {
+        // Presentation claim failed (network). No toast is shown and no state
+        // changes, so the next poll simply re-attempts the claim.
+        return [];
+      }
+    }
+
     async function markAllNotificationsRead() {
       try {
         const response = await fetch('/admin/dashboard/notifications/read-all/', {
@@ -1524,22 +1572,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-      const notificationWrapper = document.querySelector('.notification-wrapper');
-      const notificationTrigger = document.querySelector('.notification-trigger');
-      const notificationPanel = document.querySelector('.notification-panel');
-      let lastKnownUnreadCount = Number('{{ admin_notifications_unread_count|default:0 }}') || 0;
-
-      function updateNotificationBadge(count) {
-        const badge = document.querySelector('.notification-badge');
-        if (!badge) return;
-        if (count > 0) {
-          badge.textContent = String(count);
-          badge.style.display = 'inline-flex';
-        } else {
-          badge.textContent = '';
-          badge.style.display = 'none';
-        }
-      }
+      notificationWrapper = document.querySelector('.notification-wrapper');
+      notificationTrigger = document.querySelector('.notification-trigger');
+      notificationPanel = document.querySelector('.notification-panel');
+      lastKnownUnreadCount = Number('{{ admin_notifications_unread_count|default:0 }}') || 0;
 
       const NOTIFICATION_CATEGORY_ICONS = {
         order: 'receipt',
@@ -1623,17 +1659,35 @@
 
           const data = await response.json();
           const unreadCount = Number(data.unread_count || data.count || 0);
-          const newest = Array.isArray(data.results) && data.results.length ? data.results[0] : null;
-
-          if (newest && unreadCount > lastKnownUnreadCount) {
-            showToast(newest.title || 'New alert', newest.message || '', {
-              category: newest.category,
-              link: newest.link,
-            });
-          }
 
           if (Array.isArray(data.results) && data.results.length > 0) {
             renderNotificationList(data.results);
+
+            // Surface ONLY genuinely new notifications: unread AND never
+            // presented server-side. The server atomically claims presentation,
+            // so a refresh/remount/later poll can never replay the same ID and
+            // the unread count stays accurate until the admin actually reads.
+            const candidates = data.results.filter(function (item) {
+              return !item.presented;
+            });
+            if (candidates.length > 0) {
+              const presentedIds = await presentNotifications(candidates.map(function (item) {
+                return item.id;
+              }));
+              if (presentedIds.length > 0) {
+                const presentedSet = {};
+                presentedIds.forEach(function (id) { presentedSet[id] = true; });
+                for (let i = 0; i < candidates.length; i++) {
+                  if (presentedSet[candidates[i].id]) {
+                    showToast(candidates[i].title || 'New alert', candidates[i].message || '', {
+                      category: candidates[i].category,
+                      link: candidates[i].link,
+                    });
+                    break;
+                  }
+                }
+              }
+            }
           }
 
           lastKnownUnreadCount = unreadCount;
@@ -1667,14 +1721,6 @@
           markAllNotificationsRead();
         });
       });
-
-      const firstUnread = document.querySelector('.notification-item.unread');
-      if (firstUnread) {
-        showToast(firstUnread.dataset.notificationTitle || 'New alert', firstUnread.dataset.notificationMessage || '', {
-          category: firstUnread.dataset.category,
-          link: firstUnread.dataset.link,
-        });
-      }
 
       function bindNotificationItem(item) {
         item.addEventListener('click', async function (event) {
