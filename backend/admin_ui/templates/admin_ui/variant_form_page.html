@@ -10,8 +10,190 @@
 <li class="active">{{ page_title }}</li>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+  .variant-form-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  .variant-form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px 20px;
+  }
+  @media (min-width: 560px) {
+    .variant-form-row {
+      grid-template-columns: 1fr 1fr;
+    }
+    .variant-form-field.span-col {
+      grid-column: 1 / -1;
+    }
+  }
+  .variant-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .variant-form-field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .variant-form-field label .req {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .variant-form-field input[type="text"],
+  .variant-form-field input[type="number"],
+  .variant-form-field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: var(--text);
+    transition: all 0.2s ease;
+    box-shadow: var(--shadow-sm);
+  }
+  .variant-form-field input:focus,
+  .variant-form-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .variant-form-field.has-error input {
+    border-color: var(--status-danger);
+  }
+  .variant-form-field .input-with-affix {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .variant-form-field .input-with-affix .affix {
+    position: absolute;
+    left: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    pointer-events: none;
+    letter-spacing: 0.03em;
+  }
+  .variant-form-field .input-with-affix input {
+    padding-left: 46px;
+  }
+  .variant-form-field .form-help {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .variant-form-field .form-error {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--status-danger);
+  }
+
+  .colour-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .colour-row input {
+    flex: 1;
+  }
+  .colour-row .colour-swatch {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(45deg, #eee 25%, transparent 25%),
+      linear-gradient(-45deg, #eee 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #eee 75%),
+      linear-gradient(-45deg, transparent 75%, #eee 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+    background-color: #ffffff;
+    box-shadow: var(--shadow-sm);
+  }
+  .colour-row .colour-swatch.has-value {
+    background: #ffffff;
+  }
+
+  .toggle-field {
+    align-items: flex-start;
+  }
+  .toggle-field .toggle-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .toggle-field .toggle-control input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .toggle-field .toggle-track {
+    flex: none;
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.2s ease;
+  }
+  .toggle-field .toggle-track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease;
+  }
+  .toggle-field .toggle-control input:checked + .toggle-track {
+    background: var(--accent);
+  }
+  .toggle-field .toggle-control input:checked + .toggle-track::after {
+    transform: translateX(18px);
+  }
+  .toggle-field .toggle-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .toggle-field .toggle-label strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .toggle-field .toggle-label span {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .variant-form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div style="max-width: 720px; margin: 0 auto;">
+<div class="variant-form-wrap">
   <div class="page-header">
     <div>
       <h2 class="page-title">{{ page_title }}</h2>
@@ -21,23 +203,119 @@
 
   <div class="card">
     <div class="card-body">
-      <form method="post" class="form-grid">
-        {% csrf_token %}
-        {{ form.non_field_errors }}
-        {% for field in form %}
-        <div class="form-group">
-          {{ field.label_tag }}
-          {{ field }}
-          {% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}
-          {% for error in field.errors %}<div class="form-error">{{ error }}</div>{% endfor %}
+      <div style="display: flex; align-items: center; gap: 14px; padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border);">
+        {% if product.images %}
+          {% with first_image=product.images|first %}
+          <img class="table-img" src="{{ first_image }}" alt="" style="width: 52px; height: 52px;">
+          {% endwith %}
+        {% else %}
+          <div class="table-img" style="width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; background: var(--status-neutral-bg); color: var(--text-secondary);">
+            <i class="ph ph-t-shirt" aria-hidden="true"></i>
+          </div>
+        {% endif %}
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); margin-bottom: 2px;">{{ product.category.name }}</div>
+          <div style="font-size: 15px; font-weight: 600; color: var(--text);">{{ product.name }}</div>
         </div>
-        {% endfor %}
-        <div style="display: flex; gap: 12px; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;">
-          <button class="btn btn-primary" type="submit"><i class="ph ph-check"></i> {{ submit_label }}</button>
+        <div style="text-align: right; flex: none;">
+          <div class="product-price" style="font-size: 14px; font-weight: 600;">KES {{ product.price_display }}</div>
+          <span class="status-badge status-{{ product.status|lower }}">{{ product.get_status_display }}</span>
+        </div>
+      </div>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="variant-form-row">
+          <div class="variant-form-field span-col{% if form.sku.errors %} has-error{% endif %}">
+            <label for="{{ form.sku.id_for_label }}">{{ form.sku.label }} <span class="req">*</span></label>
+            {{ form.sku }}
+            {% if form.sku.help_text %}<small class="form-help">{{ form.sku.help_text }}</small>{% endif %}
+            {% for error in form.sku.errors %}<div class="form-error"><i class="ph ph-warning-circle" aria-hidden="true"></i> {{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="variant-form-field{% if form.size.errors %} has-error{% endif %}">
+            {{ form.size.label_tag }}
+            {{ form.size }}
+            {% for error in form.size.errors %}<div class="form-error"><i class="ph ph-warning-circle" aria-hidden="true"></i> {{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="variant-form-field{% if form.color.errors %} has-error{% endif %}">
+            {{ form.color.label_tag }}
+            {{ form.color }}
+            {% for error in form.color.errors %}<div class="form-error"><i class="ph ph-warning-circle" aria-hidden="true"></i> {{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="variant-form-field{% if form.color_hex.errors %} has-error{% endif %}">
+            {{ form.color_hex.label_tag }}
+            <div class="colour-row">
+              {{ form.color_hex }}
+              <span class="colour-swatch" id="colour-swatch-preview" title="Colour preview"></span>
+            </div>
+            {% if form.color_hex.help_text %}<small class="form-help">{{ form.color_hex.help_text }}</small>{% endif %}
+            {% for error in form.color_hex.errors %}<div class="form-error"><i class="ph ph-warning-circle" aria-hidden="true"></i> {{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="variant-form-field{% if form.stock_quantity.errors %} has-error{% endif %}">
+            <label for="{{ form.stock_quantity.id_for_label }}">{{ form.stock_quantity.label }} <span class="req">*</span></label>
+            {{ form.stock_quantity }}
+            {% for error in form.stock_quantity.errors %}<div class="form-error"><i class="ph ph-warning-circle" aria-hidden="true"></i> {{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="variant-form-field{% if form.price.errors %} has-error{% endif %}">
+            {{ form.price.label_tag }}
+            <div class="input-with-affix">
+              <span class="affix">KES</span>
+              {{ form.price }}
+            </div>
+            {% if form.price.help_text %}<small class="form-help">{{ form.price.help_text }}</small>{% endif %}
+            {% for error in form.price.errors %}<div class="form-error"><i class="ph ph-warning-circle" aria-hidden="true"></i> {{ error }}</div>{% endfor %}
+          </div>
+
+          <div class="variant-form-field toggle-field">
+            <label class="toggle-control" for="{{ form.is_active.id_for_label }}">
+              {{ form.is_active }}
+              <span class="toggle-track"></span>
+              <span class="toggle-label">
+                <strong>{{ form.is_active.label }}</strong>
+                <span>Shown on the storefront with this option set.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="variant-form-actions">
           <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/">Cancel</a>
+          <button class="btn btn-primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i> {{ submit_label }}</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    var hexInput = document.getElementById('id_color_hex');
+    var swatch = document.getElementById('colour-swatch-preview');
+    if (!hexInput || !swatch) return;
+
+    function updateSwatch() {
+      var value = (hexInput.value || '').trim();
+      if (/^#?[0-9a-fA-F]{3}$|^#?[0-9a-fA-F]{6}$/.test(value)) {
+        var hex = value.charAt(0) === '#' ? value : '#' + value;
+        swatch.style.backgroundColor = hex;
+        swatch.classList.add('has-value');
+      } else {
+        swatch.style.removeProperty('background-color');
+        swatch.classList.remove('has-value');
+      }
+    }
+
+    hexInput.addEventListener('input', updateSwatch);
+    updateSwatch();
+  })();
+</script>
 {% endblock %}
