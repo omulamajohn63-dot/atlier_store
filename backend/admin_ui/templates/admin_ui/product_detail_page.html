@@ -98,7 +98,7 @@
   .detail-label { color: var(--text-secondary); }
   .detail-value { font-weight: 500; }
   .variant-table {
-    min-width: 680px;
+    min-width: 620px;
     table-layout: fixed;
   }
   .variant-table th,
@@ -106,27 +106,67 @@
     white-space: nowrap;
   }
   .variant-table th:nth-child(1),
-  .variant-table td:nth-child(1) { width: 24%; }
+  .variant-table td:nth-child(1) { width: 23%; }
   .variant-table th:nth-child(2),
-  .variant-table td:nth-child(2) { width: 20%; white-space: normal; }
+  .variant-table td:nth-child(2) { width: 22%; white-space: normal; }
   .variant-table th:nth-child(3),
-  .variant-table td:nth-child(3) { width: 14%; }
+  .variant-table td:nth-child(3) { width: 15%; }
   .variant-table th:nth-child(4),
-  .variant-table td:nth-child(4) { width: 10%; }
+  .variant-table td:nth-child(4) { width: 9%; }
   .variant-table th:nth-child(5),
-  .variant-table td:nth-child(5) { width: 12%; }
+  .variant-table td:nth-child(5) { width: 13%; }
   .variant-table th:nth-child(6),
-  .variant-table td:nth-child(6) { width: 20%; }
-  .variant-actions {
-    display: flex;
-    justify-content: flex-end;
+  .variant-table td:nth-child(6) { width: 18%; }
+  .variant-actions-menu { position: relative; display: inline-block; }
+  .variant-actions-menu summary {
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text-secondary);
+    cursor: pointer;
+    list-style: none;
   }
-  .variant-actions .btn {
-    padding: 5px 7px;
+  .variant-actions-menu summary::-webkit-details-marker { display: none; }
+  .variant-actions-menu summary:hover,
+  .variant-actions-menu[open] summary { color: var(--text); background: var(--bg); }
+  .variant-actions-panel {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 5px);
+    right: 0;
+    min-width: 112px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--panel);
+    box-shadow: 0 10px 24px rgba(24, 23, 22, .12);
+  }
+  .variant-actions-panel a,
+  .variant-actions-panel button {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 7px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
     font-size: 11px;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
   }
+  .variant-actions-panel a:hover,
+  .variant-actions-panel button:hover { background: var(--bg); }
+  .variant-actions-panel .danger { color: var(--status-danger); }
   .activity-card { margin-top: 24px; }
   .activity-card .card-header { padding: 16px 20px; }
   @media (max-width: 768px) {
@@ -204,15 +244,18 @@
                 <td>{{ row.price }}</td>
                 <td>{{ row.variant.stock_quantity }}</td>
                 <td><span class="status-badge {% if row.variant.is_active %}status-active{% else %}status-inactive{% endif %}">{% if row.variant.is_active %}Active{% else %}Inactive{% endif %}</span></td>
-                <td>
-                  <div class="variant-actions">
-                  <a class="btn btn-secondary" href="/admin/dashboard/inventory/adjust/?variant={{ row.variant.id }}">Restock</a>
-                  <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/edit/">Edit</a>
-                  <form method="post" action="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this variant?');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                  </form>
-                  </div>
+                <td style="text-align: right;">
+                  <details class="variant-actions-menu">
+                    <summary aria-label="Variant actions" title="Variant actions"><i class="ph ph-dots-three-outline-vertical"></i></summary>
+                    <div class="variant-actions-panel">
+                      <a href="/admin/dashboard/inventory/adjust/?variant={{ row.variant.id }}"><i class="ph ph-arrows-clockwise"></i> Restock</a>
+                      <a href="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit</a>
+                      <form method="post" action="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/delete/" onsubmit="return confirm('Delete this variant?');">
+                        {% csrf_token %}
+                        <button type="submit" class="danger"><i class="ph ph-trash"></i> Delete</button>
+                      </form>
+                    </div>
+                  </details>
                 </td>
               </tr>
               {% endfor %}
