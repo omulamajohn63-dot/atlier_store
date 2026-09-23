@@ -35,6 +35,26 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+/**
+ * The backend wraps validation failures in {"error": {"code", "message", "details"}}
+ * where `details` carries field-level reasons (e.g. {'quantity': 'Only N items are
+ * available.'}, {'variantId': 'Variant is not available.'}) while the top-level
+ * message stays generic ("Request validation failed."). Surface the field-level
+ * reason to the customer instead of the generic envelope message.
+ */
+function friendlyCartError(error: Error & { code?: string; details?: Record<string, string> }): string {
+  const details = error?.details;
+  if (details && typeof details === 'object') {
+    const values = Object.values(details).filter((v): v is string => typeof v === 'string');
+    const first = values[0];
+    if (first) return first;
+  }
+  if (error?.code === 'CART_ITEM_UNAVAILABLE' || error?.code === 'VARIANT_NOT_AVAILABLE') {
+    return 'This piece is no longer available on the modeza boutique.';
+  }
+  return error?.message || 'Unable to add item to bag.';
+}
+
 function mapCartDtoToItems(dto: CartDTO): CartItem[] {
   return dto.items.map((item) => ({
     id: item.id,
@@ -92,9 +112,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsCartDrawerOpen(true);
       return { success: true };
     } catch (err: unknown) {
-      const errorObj = err as Error & { code?: string };
-      const message = errorObj.message || 'Unable to add item to bag.';
-      return { success: false, message };
+      const errorObj = err as Error & { code?: string; details?: Record<string, string> };
+      return { success: false, message: friendlyCartError(errorObj) };
     } finally {
       setIsLoading(false);
     }

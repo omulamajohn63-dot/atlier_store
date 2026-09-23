@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Product, ProductVariant } from '../types';
+import { Product } from '../types';
 import { useRouter } from '../router/RouterContext';
 import { useCart } from '../context/CartContext';
 import { Price } from '../components/ui/Price';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { QuantitySelector } from '../components/ui/QuantitySelector';
 import { ProductCard } from '../components/ProductCard';
+import { VariantSelector } from '../components/variant/VariantSelector';
 import { formatPrice } from '../utils/currency';
 import { addRecentlyViewedProduct } from '../utils/recentlyViewed';
 import {
@@ -21,65 +22,85 @@ import {
   Share2,
   Heart,
   Package,
-  Info,
   Star,
 } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
 import { motion } from 'motion/react';
 import { audit } from '../lib/logger';
+import {
+  getAllOptionGroups,
+  getPriceSummary,
+  getVariantFlow,
+  getVisibleOptionGroups,
+  isVariantPurchasable,
+  optionValueEquals,
+  parseVariantSelections,
+  selectionsToQuery,
+  LOW_STOCK_THRESHOLD,
+  VariantSelections,
+} from '../utils/variants';
 
 export interface ProductDetailPageProps {
   slug: string;
   onQuickView: (product: Product) => void;
 }
 
+/**
+ * Reconcile a previously-selected set of options against fresh product data.
+ * Options that no longer exist structurally are dropped so the page never
+ * holds an invalid selection; stock-based changes simply re-disable options.
+ */
+function reconcileSelections(product: Product, prev: VariantSelections): VariantSelections {
+  const groups = getAllOptionGroups(product);
+  const next: VariantSelections = {};
+  for (const group of groups) {
+    const selection = prev[group.key];
+    if (selection && group.options.some((option) => optionValueEquals(option.value, selection))) {
+      next[group.key] = selection;
+    }
+  }
+  return next;
+}
+
 export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQuickView }) => {
   const { navigate } = useRouter();
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
-  const { getProductBySlug, products } = useStore();
+  const { getProductBySlug, products, refreshCatalog } = useStore();
 
   const product = getProductBySlug(slug);
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(
-    product?.variants[0] || {
-      id: 'v-default',
-      productId: product?.id || 'prod-1',
-      size: 'S',
-      color: 'Standard',
-      sku: 'SKU-DEF',
-      price: product?.price || 24500,
-      stockQuantity: 5,
-      isActive: true,
-      isAvailable: true,
-    }
-  );
+  const [selections, setSelections] = useState<VariantSelections>({});
   const [quantity, setQuantity] = useState(1);
   const [addedToast, setAddedToast] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [openAccordion, setOpenAccordion] = useState<string | null>('composition');
 
-  const isVariantPurchasable = (variant: ProductVariant) =>
-    (variant.isActive ?? true) && (variant.isAvailable ?? true) && variant.stockQuantity > 0;
+  const hasAnyVariants = (product?.variants?.length ?? 0) > 0;
+  const priceSummary = product ? getPriceSummary(product) : null;
+  const visibleGroups = product ? getVisibleOptionGroups(product) : [];
+  const flow = product ? getVariantFlow(product, selections) : { requiresSelection: false, variant: undefined };
+  const resolvedVariant = flow.variant;
+  const stillSelecting = flow.requiresSelection;
+  const resolvedVariantPurchasable = isVariantPurchasable(resolvedVariant);
 
-  // Reset variant and gallery when slug changes or product updates
+  // Restore deep-linked selections from the URL once, when the slug loads.
   useEffect(() => {
-    setActiveImageIndex(0);
-    setStockError(null);
-    if (product?.variants && product.variants.length > 0) {
-      // Retain current size selection if available, else pick first in stock
-      const match = product.variants.find((v) => v.id === selectedVariant?.id);
-      if (match) {
-        setSelectedVariant(match);
-      } else {
-        const firstAvailable =
-          product.variants.find((v) => isVariantPurchasable(v)) || product.variants[0];
-        setSelectedVariant(firstAvailable);
-      }
+    if (product) {
+      setSelections(parseVariantSelections(product, window.location.search));
     }
     setQuantity(1);
-  }, [slug, product]);
+    setStockError(null);
+  }, [slug, product?.id]);
+
+  // Reconcile selections whenever refreshed product data arrives so the page
+  // never holds options that no longer exist (e.g. variant removed by admin).
+  useEffect(() => {
+    if (product) {
+      setSelections((prev) => reconcileSelections(product, prev));
+    }
+  }, [product]);
 
   // Record this piece in the visitor's recently-viewed trail and audit the view.
   useEffect(() => {
@@ -88,6 +109,28 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
       void audit('product_viewed', 'Viewed product detail.', {}, { slug, productId: product.id });
     }
   }, [product?.id]);
+
+  const handleVariantChange = (next: VariantSelections) => {
+    setSelections(next);
+    setQuantity(1);
+    setStockError(null);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `${window.location.pathname}${selectionsToQuery(next)}`);
+    }
+  };
+
+  const handleAddToCart = async () => {
+    if (!product || !resolvedVariant || !resolvedVariantPurchasable) return;
+    setStockError(null);
+    const result = await addToCart(product, resolvedVariant, quantity);
+    if (result.success) {
+      setAddedToast(true);
+      window.setTimeout(() => setAddedToast(false), 2500);
+    } else {
+      setStockError(result.message || 'Unable to add piece to bag.');
+      void refreshCatalog();
+    }
+  };
 
   if (!product) {
     return (
@@ -107,34 +150,78 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     );
   }
 
-  const handleAddToCart = async () => {
-    if (!selectedVariant || !isVariantPurchasable(selectedVariant)) return;
-    setStockError(null);
-    const result = await addToCart(product, selectedVariant, quantity);
-    if (result.success) {
-      setAddedToast(true);
-      setTimeout(() => setAddedToast(false), 2500);
-    } else {
-      setStockError(result.message || 'Unable to add piece to bag.');
+  const saved = isWishlisted(product.id);
+
+  const renderAvailability = () => {
+    if (!hasAnyVariants) {
+      return { tone: 'error', icon: AlertCircle, text: 'Currently unavailable online' };
     }
+    if (stillSelecting) {
+      return {
+        tone: 'idle',
+        icon: null,
+        text:
+          visibleGroups.length === 1
+            ? `Choose ${visibleGroups[0].label.toLowerCase()} to check availability`
+            : 'Choose your options to check availability',
+      };
+    }
+    if (!resolvedVariantPurchasable) {
+      return { tone: 'error', icon: AlertCircle, text: 'Out of stock' };
+    }
+    if (resolvedVariant && resolvedVariant.stockQuantity <= LOW_STOCK_THRESHOLD) {
+      return {
+        tone: 'low',
+        icon: Sparkles,
+        text: `Small-batch rarity: Only ${resolvedVariant.stockQuantity} pieces remaining`,
+      };
+    }
+    return { tone: 'success', icon: Check, text: 'In Stock • Ready for MODEZA Dispatch' };
   };
 
-  const isSoldOut = !isVariantPurchasable(selectedVariant);
-  const isLowStock =
-    isVariantPurchasable(selectedVariant) && selectedVariant.stockQuantity <= 3;
-  const saved = isWishlisted(product.id);
+  const availability = renderAvailability();
+
+  const renderPrice = () => {
+    if (resolvedVariant) {
+      return (
+        <Price
+          amount={resolvedVariant.price}
+          compareAtAmount={product.compareAtPrice}
+          size="xl"
+        />
+      );
+    }
+    const from = priceSummary && !priceSummary.same;
+    return (
+      <div className="inline-flex items-baseline gap-1.5">
+        {from && <span className="text-sm text-[#827E77] font-normal">From</span>}
+        <Price amount={priceSummary ? priceSummary.min : product.price} size="xl" />
+      </div>
+    );
+  };
+
+  const cta = (() => {
+    if (!hasAnyVariants || (!stillSelecting && !resolvedVariant) || !resolvedVariantPurchasable) {
+      return { label: 'Sold Out', disabled: true };
+    }
+    if (stillSelecting) {
+      return {
+        label: visibleGroups.length === 1 ? `Select ${visibleGroups[0].label}` : 'Select Options',
+        disabled: true,
+      };
+    }
+    return {
+      label: `Add to Cart • ${formatPrice((resolvedVariant?.price || 0) * quantity)}`,
+      disabled: false,
+    };
+  })();
+
+  const isLowStockForBadge = !!resolvedVariantPurchasable && !!resolvedVariant && resolvedVariant.stockQuantity <= LOW_STOCK_THRESHOLD;
 
   // Related products from same category or featured
   const relatedProducts = products.filter(
     (p) => p.id !== product.id && (p.categorySlug === product.categorySlug || p.isFeatured)
   ).slice(0, 3);
-
-  const uniqueColors = Array.from(
-    new Set(product.variants.filter(isVariantPurchasable).map((v) => v.color))
-  );
-  const sizesForColor = product.variants.filter(
-    (v) => v.color === selectedVariant.color
-  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16 pb-28 lg:pb-0 2xl:max-w-[88rem]">
@@ -247,8 +334,6 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                 <span className="text-xs uppercase tracking-widest font-semibold text-[#A2574F]">
                   {product.categorySlug}
                 </span>
-                <span className="w-1 h-1 rounded-full bg-[#A29E96]" />
-                <span className="text-xs text-[#827E77]">Ref. {selectedVariant.sku}</span>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -268,7 +353,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
             <div className="flex items-center gap-2 flex-wrap">
               {product.isNewArrival && <Badge variant="new" size="sm">New Arrival</Badge>}
               {product.isBestSeller && <Badge variant="outline" size="sm"><Star className="w-2.5 h-2.5 fill-current" /> Best Seller</Badge>}
-              {isLowStock && <Badge variant="lowStock" size="sm">Low Stock</Badge>}
+              {isLowStockForBadge && <Badge variant="lowStock" size="sm">Low Stock</Badge>}
             </div>
 
             <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#181716] font-normal leading-snug text-balance">
@@ -278,136 +363,69 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
             <p className="text-xs text-[#63605A] italic text-pretty">{product.tagline}</p>
 
             <div className="pt-2 flex items-baseline gap-3 flex-wrap">
-              <Price
-                amount={selectedVariant.price}
-                compareAtAmount={product.compareAtPrice}
-                size="xl"
-              />
+              {renderPrice()}
             </div>
+
+            {resolvedVariant && priceSummary && !priceSummary.same && (
+              <p className="text-[11px] text-[#827E77]">
+                Prices vary by selection &mdash; pieces start from {formatPrice(priceSummary.min)}
+              </p>
+            )}
           </div>
 
-          {/* Color Details */}
-          {uniqueColors.length > 1 && (
+          {/* Variant Selection */}
+          <div className="space-y-5">
+            {visibleGroups.length > 0 && (
+              <VariantSelector
+                product={product}
+                selections={selections}
+                onChange={handleVariantChange}
+                size="lg"
+              />
+            )}
+
+            {/* Availability status */}
             <div>
-              <div className="flex items-center justify-between text-xs mb-3">
-                <span className="text-[#63605A]">Colorway</span>
-                <span className="font-medium text-[#181716]">{selectedVariant.color}</span>
-              </div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {uniqueColors.map((c) => {
-                  const sameColor = product.variants.filter((v) => v.color === c);
-                  const match =
-                    sameColor.find((v) => v.size === selectedVariant.size && isVariantPurchasable(v)) ||
-                    sameColor.find(isVariantPurchasable) ||
-                    sameColor[0];
-                  const isSelected = selectedVariant.color === c;
-                  return (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => {
-                        if (match) {
-                          setSelectedVariant(match);
-                          setQuantity(1);
-                        }
-                      }}
-                      className={`px-4 py-2 rounded-full text-xs border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
-                        isSelected
-                          ? 'border-[#A2574F] bg-[#A2574F] text-[#FAF9F6] font-medium shadow-sm'
-                          : 'border-[#E8E5DF] bg-[#FAF9F6] text-[#63605A] hover:border-[#A2574F] hover:bg-[#FFFFFF]'
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Size Selection */}
-          <div>
-            <div className="flex items-center justify-between text-xs mb-3">
-              <span className="text-[#63605A]">Select Size</span>
-              <button
-                type="button"
-                onClick={() => setOpenAccordion('sizing')}
-                className="text-[#A2574F] hover:underline font-medium inline-flex items-center gap-1"
-              >
-                <Info className="w-3.5 h-3.5" />
-                Size & Fit Guide
-              </button>
-            </div>
-
-            <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Available sizes">
-              {sizesForColor.map((variant) => {
-                const isSelected = selectedVariant.id === variant.id;
-                const unavailable = !isVariantPurchasable(variant);
-
-                return (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={isSelected}
-                    disabled={unavailable}
-                    onClick={() => {
-                      setSelectedVariant(variant);
-                      setQuantity(1);
-                    }}
-                    className={`h-12 rounded-xl text-xs font-medium border flex items-center justify-center transition-all relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
-                      isSelected
-                        ? 'bg-[#A2574F] text-[#FAF9F6] border-[#A2574F] shadow-md'
-                        : unavailable
-                        ? 'bg-[#F3F1ED] text-[#A29E96] border-[#E8E5DF] cursor-not-allowed line-through'
-                        : 'bg-[#FAF9F6] text-[#181716] border-[#E8E5DF] hover:border-[#A2574F] hover:bg-[#FFFFFF] hover:shadow-sm'
-                    }`}
-                  >
-                    {variant.size}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Live Inventory Stock Warning */}
-            <div className="mt-3">
-              {isSoldOut ? (
-                <p className="text-xs text-[#9E332B] flex items-center gap-1.5 font-medium bg-[#FDF2F2] border border-[#F8B4B4] rounded-lg px-3 py-2">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span>Currently out of stock in this size</span>
-                </p>
-              ) : isLowStock ? (
-                <p className="text-xs text-[#8A6024] flex items-center gap-1.5 font-medium bg-[#FFF8F0] border border-[#ECD9BD] rounded-lg px-3 py-2">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Small-batch rarity: Only {selectedVariant.stockQuantity} pieces remaining</span>
+              {availability.icon ? (
+                <p
+                  className={`text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 ${
+                    availability.tone === 'success'
+                      ? 'text-[#2E5A44] bg-[#E8EFEA] border border-[#C8D8CA]'
+                      : availability.tone === 'low'
+                        ? 'text-[#8A6024] bg-[#FFF8F0] border border-[#ECD9BD]'
+                        : 'text-[#9E332B] bg-[#FDF2F2] border border-[#F8B4B4]'
+                  }`}
+                >
+                  <availability.icon className="w-3.5 h-3.5" />
+                  <span>{availability.text}</span>
                 </p>
               ) : (
-                <p className="text-xs text-[#2E5A44] flex items-center gap-1.5 font-medium bg-[#E8EFEA] border border-[#C8D8CA] rounded-lg px-3 py-2">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>In Stock &bull; Ready for MODEZA Dispatch</span>
+                <p className="text-xs text-[#827E77] bg-[#FAF9F6] border border-dashed border-[#E8E5DF] rounded-lg px-3 py-2.5">
+                  {availability.text}
                 </p>
               )}
             </div>
           </div>
 
           {/* Quantity & Add to Cart Controls */}
-          <div className="pt-2 space-y-3">
+          <div className="pt-1 space-y-3">
             <div className="flex items-center gap-3">
               <QuantitySelector
                 quantity={quantity}
-                max={selectedVariant.stockQuantity}
+                max={resolvedVariant?.stockQuantity || 1}
                 onChange={setQuantity}
-                disabled={isSoldOut}
+                disabled={cta.disabled}
                 size="md"
               />
               <Button
                 variant="primary"
                 size="lg"
-                disabled={isSoldOut}
+                disabled={cta.disabled}
                 onClick={handleAddToCart}
+                aria-label={cta.label}
                 className="flex-1 text-sm tracking-wider uppercase shadow-md hover:shadow-lg"
               >
-                {isSoldOut ? 'Sold Out' : `Add to Cart • ${formatPrice(selectedVariant.price * quantity)}`}
+                {cta.label}
               </Button>
             </div>
 
@@ -432,7 +450,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
             )}
 
             {stockError && (
-              <div className="p-3.5 bg-[#FDF2F2] border border-[#F8B4B4] rounded-xl text-xs text-[#9B1C1C] flex items-center gap-2">
+              <div className="p-3.5 bg-[#FDF2F2] border border-[#F8B4B4] rounded-xl text-xs text-[#9B1C1C] flex items-center gap-2" role="alert">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{stockError}</span>
               </div>
@@ -582,23 +600,32 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-wider text-[#827E77]">Total</p>
-            <Price amount={selectedVariant.price * quantity} size="md" />
+            {resolvedVariant ? (
+              <Price amount={resolvedVariant.price * quantity} size="md" />
+            ) : (
+              <div className="inline-flex items-baseline gap-1">
+                {priceSummary && !priceSummary.same && (
+                  <span className="text-[10px] text-[#827E77]">From</span>
+                )}
+                <Price amount={priceSummary ? priceSummary.min : product.price} size="md" />
+              </div>
+            )}
           </div>
           <QuantitySelector
             quantity={quantity}
-            max={selectedVariant.stockQuantity}
+            max={resolvedVariant?.stockQuantity || 1}
             onChange={setQuantity}
-            disabled={isSoldOut}
+            disabled={cta.disabled}
             size="sm"
           />
           <Button
             variant="primary"
             size="md"
-            disabled={isSoldOut}
+            disabled={cta.disabled}
             onClick={handleAddToCart}
-            className="shrink-0 text-xs uppercase tracking-wider"
+            className="shrink-0 text-xs uppercase tracking-wider max-w-[9.5rem]"
           >
-            {isSoldOut ? 'Sold Out' : addedToast ? 'Added' : 'Add to Cart'}
+            {cta.label.replace(/ •.*/, '')}
           </Button>
         </div>
       </motion.div>

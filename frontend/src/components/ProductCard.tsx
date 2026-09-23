@@ -2,9 +2,17 @@ import React, { useState } from 'react';
 import { Product } from '../types';
 import { Price } from './ui/Price';
 import { Badge } from './ui/Badge';
-import { Eye, Heart, ShoppingBag } from 'lucide-react';
+import { Eye, Heart, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
+import { ColorSwatches } from './variant/ColorSwatches';
+import {
+  getColorSwatches,
+  getPriceSummary,
+  getVariantSummary,
+  getVisibleOptionGroups,
+  isVariantPurchasable,
+} from '../utils/variants';
 
 export interface ProductCardProps {
   product: Product;
@@ -21,20 +29,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
-  const [showQuickView, setShowQuickView] = useState(false);
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { addToCart, isLoading } = useCart();
   const saved = isWishlisted(product.id);
 
-  const totalStock = product.variants.reduce((acc, v) => acc + v.stockQuantity, 0);
+  const hasVariants = (product.variants?.length ?? 0) > 0;
+  const totalStock = (product.variants ?? []).reduce((acc, v) => acc + v.stockQuantity, 0);
+  const visibleOptionGroups = hasVariants ? getVisibleOptionGroups(product) : [];
+  const hasOptionsToSelect = visibleOptionGroups.length > 0;
   const isSoldOut = totalStock <= 0;
   const isLowStock = !isSoldOut && totalStock <= 4;
   const hasMultipleImages = product.images.length > 1;
-  const selectedVariant = product.variants.find((variant) => variant.stockQuantity > 0) || product.variants[0];
+  const selectedVariant =
+    hasVariants
+      ? product.variants.find((variant) => isVariantPurchasable(variant)) || product.variants[0]
+      : undefined;
+
+  const priceSummary = getPriceSummary(product);
+  const swatches = getColorSwatches(product);
+  const colorCount = swatches.length;
+  const variantSummary = getVariantSummary(product);
 
   const handleAddToCart = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (!selectedVariant || selectedVariant.stockQuantity <= 0) return;
+    if (!selectedVariant || !isVariantPurchasable(selectedVariant)) return;
 
     const result = await addToCart(product, selectedVariant, 1);
     if (result.success) {
@@ -43,6 +61,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
+  const handleViewOptions = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onClick?.(product);
+  };
+
+  const primaryActionDisabled = hasOptionsToSelect ? false : isSoldOut || isLoading;
+  const primaryActionLabel = hasOptionsToSelect
+    ? 'View Options'
+    : isSoldOut
+      ? 'Sold Out'
+      : isAdded
+        ? 'Added to Cart'
+        : 'Add to Cart';
+
   const variantStyles = {
     default: 'group relative flex flex-col cursor-pointer',
     compact: 'group relative flex flex-col cursor-pointer',
@@ -50,6 +82,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   const imageAspectRatio = variant === 'compact' ? 'aspect-[4/5]' : 'aspect-[3/4]';
+
+  const renderPriceLine = () => (
+    <div className="flex items-baseline gap-1.5 flex-wrap">
+      {!priceSummary.same && <span className="text-[11px] text-[#827E77] font-normal">From</span>}
+      <Price
+        amount={priceSummary.min}
+        compareAtAmount={product.compareAtPrice}
+        size="sm"
+      />
+    </div>
+  );
+
+  const renderVariantMeta = () => (
+    <>
+      {variantSummary && (
+        <p className="text-[11px] text-[#827E77] flex items-center gap-1.5">
+          {variantSummary}
+        </p>
+      )}
+      {colorCount >= 2 && (
+        <ColorSwatches options={swatches} size="sm" compact />
+      )}
+    </>
+  );
 
   if (variant === 'compact') {
     return (
@@ -85,7 +141,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <h4 className="font-serif text-sm text-[#181716] group-hover:text-[#A2574F] transition-colors line-clamp-1">
             {product.name}
           </h4>
-          <Price amount={product.price} compareAtAmount={product.compareAtPrice} size="sm" />
+          {renderPriceLine()}
+          {renderVariantMeta()}
         </div>
       </div>
     );
@@ -154,17 +211,31 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
 
-        {/* Add to Cart Overlay on Hover */}
+        {/* Primary CTA Overlay on Hover */}
         {!isSoldOut && (
           <div className="absolute inset-x-3 bottom-3 z-10 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 delay-75">
             <button
               type="button"
-              onClick={handleAddToCart}
-              disabled={isLoading}
+              onClick={hasOptionsToSelect ? handleViewOptions : handleAddToCart}
+              disabled={primaryActionDisabled}
+              aria-label={
+                hasOptionsToSelect
+                  ? `View options for ${product.name}`
+                  : `Add ${product.name} to cart`
+              }
               className="w-full py-2.5 px-4 bg-[#A2574F] text-[#FAF9F6] text-xs font-semibold uppercase tracking-wider rounded-lg shadow-sm hover:bg-[#83443D] hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>{isLoading ? 'Adding...' : 'Add to Cart'}</span>
+              {hasOptionsToSelect ? (
+                <>
+                  <span>View Options</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>{isLoading ? 'Adding...' : 'Add to Cart'}</span>
+                </>
+              )}
             </button>
           </div>
         )}
@@ -187,21 +258,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         <div className="pt-1">
-          <Price
-            amount={product.price}
-            compareAtAmount={product.compareAtPrice}
-            size="sm"
-          />
+          {renderPriceLine()}
         </div>
+
+        {hasVariants && renderVariantMeta()}
 
         <button
           type="button"
-          onClick={handleAddToCart}
-          disabled={isSoldOut || isLoading}
+          onClick={hasOptionsToSelect ? handleViewOptions : handleAddToCart}
+          disabled={primaryActionDisabled}
+          aria-label={
+            hasOptionsToSelect
+              ? `View options for ${product.name}`
+              : isSoldOut
+                ? `${product.name} is sold out`
+                : `Add ${product.name} to cart`
+          }
           className="mt-2 w-full rounded-lg border border-[#181716] px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#181716] transition-all duration-200 hover:bg-[#A2574F] hover:border-[#A2574F] hover:text-[#FAF9F6] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:cursor-not-allowed disabled:border-[#D8D3CB] disabled:text-[#A29E96] disabled:hover:bg-transparent disabled:hover:shadow-none active:scale-[0.98]"
-          aria-label={isSoldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
         >
-          {isSoldOut ? 'Sold Out' : isAdded ? 'Added to Cart' : 'Add to Cart'}
+          {hasOptionsToSelect ? (
+            <span className="inline-flex items-center justify-center gap-1.5">
+              {primaryActionLabel}
+              <ArrowRight className="w-3 h-3" />
+            </span>
+          ) : (
+            primaryActionLabel
+          )}
         </button>
       </div>
     </div>

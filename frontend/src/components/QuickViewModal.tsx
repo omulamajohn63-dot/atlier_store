@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ArrowRight, Check, Truck, RotateCcw, ShieldCheck } from 'lucide-react';
-import { Product, ProductVariant } from '../types';
+import { X, ArrowRight, Check, Truck, RotateCcw, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
+import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { useRouter } from '../router/RouterContext';
@@ -9,6 +9,17 @@ import { Price } from './ui/Price';
 import { Button } from './ui/Button';
 import { QuantitySelector } from './ui/QuantitySelector';
 import { Badge } from './ui/Badge';
+import { VariantSelector } from './variant/VariantSelector';
+import { formatPrice } from '../utils/currency';
+import {
+  getPriceSummary,
+  getVariantFlow,
+  getVisibleOptionGroups,
+  isVariantPurchasable,
+  parseVariantSelections,
+  LOW_STOCK_THRESHOLD,
+  VariantSelections,
+} from '../utils/variants';
 
 export interface QuickViewModalProps {
   product: Product | null;
@@ -18,28 +29,24 @@ export interface QuickViewModalProps {
 
 export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initialProduct, isOpen, onClose }) => {
   const { addToCart } = useCart();
-  const { getProductById } = useStore();
+  const { getProductById, refreshCatalog } = useStore();
   const { navigate } = useRouter();
 
   const product = initialProduct ? (getProductById(initialProduct.id) || initialProduct) : null;
 
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [selections, setSelections] = useState<VariantSelections>({});
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (product && product.variants && product.variants.length > 0) {
-      const match = selectedVariant ? product.variants.find((v) => v.id === selectedVariant.id) : null;
-      if (match) {
-        setSelectedVariant(match);
-      } else {
-        const firstAvailable = product.variants.find((v) => v.stockQuantity > 0) || product.variants[0];
-        setSelectedVariant(firstAvailable);
-      }
+    if (product) {
+      setSelections(parseVariantSelections(product, ''));
       setQuantity(1);
       setActiveImageIndex(0);
       setAddedToCart(false);
+      setErrorMessage(null);
     }
   }, [product?.id]);
 
@@ -56,19 +63,56 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
 
   if (!product) return null;
 
+  const hasAnyVariants = (product.variants?.length ?? 0) > 0;
+  const priceSummary = getPriceSummary(product);
+  const visibleGroups = getVisibleOptionGroups(product);
+  const flow = getVariantFlow(product, selections);
+  const resolvedVariant = flow.variant;
+  const stillSelecting = flow.requiresSelection;
+  const resolvedVariantPurchasable = isVariantPurchasable(resolvedVariant);
+
   const handleAddToCart = async () => {
-    if (!selectedVariant || selectedVariant.stockQuantity <= 0) return;
-    const result = await addToCart(product, selectedVariant, quantity);
+    if (!resolvedVariant || !resolvedVariantPurchasable) return;
+    setErrorMessage(null);
+    const result = await addToCart(product, resolvedVariant, quantity);
     if (result.success) {
       setAddedToCart(true);
       setTimeout(() => {
         onClose();
       }, 1200);
+    } else {
+      setErrorMessage(result.message || 'Unable to add piece to bag.');
+      void refreshCatalog();
     }
   };
 
-  const isSoldOut = !selectedVariant || selectedVariant.stockQuantity <= 0;
-  const isLowStock = selectedVariant && selectedVariant.stockQuantity > 0 && selectedVariant.stockQuantity <= 3;
+  const cta = (() => {
+    if (!hasAnyVariants || (!stillSelecting && !resolvedVariant) || !resolvedVariantPurchasable) {
+      return { label: 'Sold Out', disabled: true };
+    }
+    if (stillSelecting) {
+      return {
+        label: visibleGroups.length === 1 ? `Select ${visibleGroups[0].label}` : 'Select Options',
+        disabled: true,
+      };
+    }
+    return { label: 'Add to Cart', disabled: false };
+  })();
+
+  const renderPrice = () => {
+    if (resolvedVariant) {
+      return (
+        <Price amount={resolvedVariant.price} compareAtAmount={product.compareAtPrice} size="lg" />
+      );
+    }
+    const from = priceSummary && !priceSummary.same;
+    return (
+      <div className="inline-flex items-baseline gap-1.5 mt-2">
+        {from && <span className="text-xs text-[#827E77] font-normal">From</span>}
+        <Price amount={priceSummary ? priceSummary.min : product.price} size="lg" />
+      </div>
+    );
+  };
 
   return (
     <AnimatePresence>
@@ -164,69 +208,56 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                       {product.name}
                     </h3>
                     <p className="text-xs text-[#63605A] italic mt-1 line-clamp-2">{product.tagline}</p>
-                    <Price
-                      amount={selectedVariant?.price || product.price}
-                      compareAtAmount={product.compareAtPrice}
-                      size="lg"
-                      className="mt-2"
-                    />
+                    {renderPrice()}
                   </div>
 
                   <p className="text-xs text-[#63605A] leading-relaxed line-clamp-3">
                     {product.description}
                   </p>
 
-                  {/* Size Selector */}
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-3">
-                      <span className="text-[#63605A]">Select Size</span>
-                      <span className="text-[11px] font-medium flex items-center gap-1">
-                        {isSoldOut ? (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#9E332B]" />
-                            Sold Out
-                          </>
-                        ) : isLowStock ? (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#A2574F]" />
-                            {selectedVariant?.stockQuantity} left
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#2E5A44]" />
-                            In Stock
-                          </>
-                        )}
-                      </span>
-                    </div>
+                  {/* Variant Selection */}
+                  {visibleGroups.length > 0 && (
+                    <VariantSelector
+                      product={product}
+                      selections={selections}
+                      onChange={(next) => {
+                        setSelections(next);
+                        setQuantity(1);
+                        setErrorMessage(null);
+                      }}
+                      size="sm"
+                    />
+                  )}
 
-                    <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Available sizes">
-                      {product.variants.map((v) => {
-                        const isSelected = selectedVariant?.id === v.id;
-                        const outOfStock = v.stockQuantity <= 0;
-                        return (
-                          <button
-                            key={v.id}
-                            role="radio"
-                            aria-checked={isSelected}
-                            disabled={outOfStock}
-                            onClick={() => {
-                              setSelectedVariant(v);
-                              setQuantity(1);
-                            }}
-                            className={`py-2.5 rounded-xl text-xs font-medium border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
-                              isSelected
-                                ? 'bg-[#A2574F] text-[#FAF9F6] border-[#A2574F] shadow-sm'
-                                : outOfStock
-                                ? 'bg-[#F3F1ED] text-[#A29E96] border-[#E8E5DF] line-through cursor-not-allowed'
-                                : 'bg-[#FFFFFF] text-[#181716] border-[#E8E5DF] hover:border-[#A2574F] hover:shadow-sm'
-                            }`}
-                          >
-                            {v.size}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {/* Availability status */}
+                  <div>
+                    {!hasAnyVariants ? (
+                      <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#9E332B] bg-[#FDF2F2] border border-[#F8B4B4]">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Currently unavailable online
+                      </p>
+                    ) : stillSelecting ? (
+                        <p className="text-xs text-[#827E77] bg-[#FAF9F6] border border-dashed border-[#E8E5DF] rounded-lg px-3 py-2.5">
+                          {visibleGroups.length === 1
+                            ? `Choose ${visibleGroups[0].label.toLowerCase()} to check availability`
+                            : 'Choose your options to check availability'}
+                        </p>
+                      ) : !resolvedVariantPurchasable ? (
+                        <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#9E332B] bg-[#FDF2F2] border border-[#F8B4B4]">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Out of stock
+                        </p>
+                      ) : resolvedVariant!.stockQuantity <= LOW_STOCK_THRESHOLD ? (
+                        <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#8A6024] bg-[#FFF8F0] border border-[#ECD9BD]">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Small-batch rarity: Only {resolvedVariant!.stockQuantity} pieces remaining
+                        </p>
+                      ) : (
+                        <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#2E5A44] bg-[#E8EFEA] border border-[#C8D8CA]">
+                          <Check className="w-3.5 h-3.5" />
+                          In Stock &bull; Ready for MODEZA Dispatch
+                        </p>
+                      )}
                   </div>
 
                   {/* Quantity */}
@@ -234,8 +265,8 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                     <span className="text-xs text-[#63605A]">Quantity</span>
                     <QuantitySelector
                       quantity={quantity}
-                      max={selectedVariant?.stockQuantity || 1}
-                      disabled={isSoldOut}
+                      max={resolvedVariant?.stockQuantity || 1}
+                      disabled={cta.disabled}
                       onChange={setQuantity}
                       size="sm"
                     />
@@ -279,15 +310,26 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                       </button>
                     </motion.div>
                   ) : (
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      disabled={isSoldOut}
-                      onClick={handleAddToCart}
-                      className="w-full text-xs uppercase tracking-wider"
-                    >
-                      {isSoldOut ? 'Sold Out' : 'Add to Cart'}
-                    </Button>
+                    <>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        disabled={cta.disabled}
+                        onClick={handleAddToCart}
+                        className="w-full text-xs uppercase tracking-wider"
+                      >
+                        {cta.label}
+                      </Button>
+                      {errorMessage && (
+                        <p
+                          role="alert"
+                          className="w-full text-xs text-[#9B1C1C] bg-[#FDF2F2] border border-[#F8B4B4] rounded-xl px-3 py-2.5 flex items-center gap-2"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {errorMessage}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   <button
