@@ -1,0 +1,105 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}{{ role.name }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'access-roles' %}">Roles</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ role.name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ role.name }}</h2>
+    <p class="page-subtitle">{{ role.description|default:"No description." }}</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    {% if can_edit %}
+      <a class="btn btn-secondary" href="{% url 'access-role-edit' role.id %}"><i class="ph ph-pencil-simple"></i> Edit role</a>
+    {% endif %}
+    {% if can_delete and not role.is_system_role %}
+      <form method="post" action="{% url 'access-role-delete' role.id %}" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete role {{ role.name }}?');" {% if has_staff %}disabled title="Assigned to staff — reassign them first."{% endif %}>
+          <i class="ph ph-trash"></i> Delete
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if role.is_system_role %}
+<div class="card" style="margin-bottom:16px; background: var(--status-neutral-bg);">
+  <div class="card-body" style="padding:14px 20px; display:flex; gap:10px; align-items:center;">
+    <i class="ph ph-shield-check" style="color: var(--text-secondary);"></i>
+    <span style="font-size:13px; color: var(--text-secondary);">This is a system role. System roles cannot be deleted.</span>
+  </div>
+</div>
+{% endif %}
+
+{% if issues %}
+<div class="card" style="margin-bottom:16px; background: var(--status-warning-bg); border-color: var(--status-warning);">
+  <div class="card-body" style="padding:14px 20px;">
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
+      <i class="ph ph-warning" style="color: var(--status-warning);"></i>
+      <span style="font-weight:600; color: var(--status-warning);">Permission dependency review</span>
+    </div>
+    {% for issue in issues %}
+      <div style="font-size:13px; color: var(--status-warning);">{{ issue }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="data-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:20px;">
+  <div class="card">
+    <div class="card-body" style="padding:20px;">
+      <div class="metric-label" style="margin-bottom:12px;">Role summary</div>
+      <div style="display:grid; gap:8px; font-size:13px;">
+        <div><span style="color:var(--text-secondary);">Access level:</span>
+          {% if role.is_superadmin %}<span class="perm-pill sensitive"><i class="ph ph-crown"></i> Super Admin</span>{% else %}<span class="perm-pill normal">Standard</span>{% endif %}
+        </div>
+        <div><span style="color:var(--text-secondary);">Staff assigned:</span> {{ role.staff_profiles.count }}</div>
+        <div><span style="color:var(--text-secondary);">Permissions:</span> {{ role.permissions.count }}</div>
+        <div><span style="color:var(--text-secondary);">Sensitive permissions:</span> {{ sensitive_count }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding:20px;">
+      <div class="metric-label" style="margin-bottom:12px;">Staff with this role</div>
+      {% for profile in role.staff_profiles.all %}
+        <a href="{% url 'access-staff-detail' profile.user.id %}" style="display:inline-flex; align-items:center; gap:6px; margin: 2px 4px 2px 0;">
+          <span class="perm-pill normal">{{ profile.user.get_full_name|default:profile.user.username }}</span>
+        </a>
+      {% empty %}
+        <span style="font-size:13px; color:var(--text-secondary);">No staff currently assigned.</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:20px;">
+    <div class="metric-label" style="margin-bottom:4px;">Permission bundle</div>
+    <p style="font-size:12px; color:var(--text-secondary); margin:0 0 10px;">Exact permissions granted to this role.</p>
+    {% for group in matrix %}
+      <div style="margin-bottom:14px;">
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); margin-bottom:4px;">{{ group.label }}</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          {% for p in group.permissions %}
+            {% if p.selected %}
+              <span class="perm-pill {% if p.sensitive %}sensitive{% else %}normal{% endif %}">
+                {% if p.sensitive %}<i class="ph ph-lock-key"></i>{% endif %} {{ p.code }}
+              </span>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

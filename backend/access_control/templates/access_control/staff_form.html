@@ -1,0 +1,131 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}{% if mode == 'create' %}Add staff member{% else %}Edit {{ edit_user.username }}{% endif %} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'access-staff' %}">Staff</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ page_title }}</h2>
+    <p class="page-subtitle">{{ page_subtitle }}</p>
+  </div>
+</div>
+
+<form method="post" style="display:grid; gap:16px;">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="card" style="background: var(--status-danger-bg); border-color: var(--status-danger);">
+      <div class="card-body" style="padding: 14px 20px; color: var(--status-danger);">
+        {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom: 12px;">Account details</div>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+        {% for field in form.visible_fields %}
+          {% if field.html_name == 'roles' or field.html_name == 'direct_permissions' %}{% else %}
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div style="font-size:12px; color: var(--status-danger); margin-top:4px;">{{ field.errors.0 }}</div>{% endif %}
+              {% if field.help_text %}<div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">{{ field.help_text }}</div>{% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom: 4px;">Roles</div>
+      <p style="font-size:12px; color:var(--text-secondary); margin:0 0 10px;">Roles grant a bundled set of permissions. A role's permission set is expanded automatically with any required permissions.</p>
+      {% for role in roles %}
+        <div style="display:flex; gap:10px; align-items:flex-start; padding:7px 2px; border-bottom: 1px solid var(--border-light);">
+          <input type="checkbox" id="role-{{ role.slug }}" name="roles" value="{{ role.pk }}"
+                 {% if role.pk|stringformat:"s" in selected_role_ids %}checked{% endif %}
+                 {% if role.is_superadmin %}data-superadmin="1"{% endif %}>
+          <label for="role-{{ role.slug }}" style="flex:1;">
+            <span style="font-weight:500; font-size:13px;">
+              {{ role.name }}
+              {% if role.is_superadmin %}<span style="color: var(--status-warning); font-size:11px;"><i class="ph ph-crown"></i> Super Admin</span>{% endif %}
+              {% if role.is_system_role %}<span style="color:var(--text-secondary); font-size:11px;">· system</span>{% endif %}
+            </span>
+            <div style="font-size:12px; color:var(--text-secondary);">{{ role.description }}</div>
+          </label>
+          <div style="font-size:11px; color:var(--text-secondary); text-align:right;">{{ role.permissions.count }} perms</div>
+        </div>
+      {% empty %}
+        <p style="font-size:13px; color:var(--text-secondary);">No roles available yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom: 4px;">Direct permissions</div>
+      <p style="font-size:12px; color:var(--text-secondary); margin:0 0 10px;">
+        Additional granular permissions outside of roles. Selecting a permission automatically selects any permissions it requires.
+        <span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> sensitive</span> permissions can only be granted by a Super Admin.
+      </p>
+
+      {% for group in matrix %}
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); margin-bottom:4px;">{{ group.label }}</div>
+          {% for p in group.permissions %}
+            <div class="perm-matrix-row">
+              <input type="checkbox" id="perm-{{ p.code|slugify }}" name="direct_permissions" value="{{ p.pk }}" data-code="{{ p.code }}"
+                     data-requires="{{ p.requires|join:',' }}"
+                     {% if p.selected %}checked{% endif %}
+                     {% if p.sensitive %}data-sensitive="1"{% endif %}>
+              <label for="perm-{{ p.code|slugify }}" style="flex:1;">
+                <span class="perm-matrix-label">{{ p.label }} <code style="font-size:11px; color:var(--accent);">{{ p.code }}</code></span>
+                {% if p.sensitive %}<span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> sensitive</span>{% endif %}
+                <div class="perm-matrix-hint">{{ p.description }}</div>
+                {% if p.requires %}<div class="perm-matrix-required">Requires: {{ p.requires|join:", " }}</div>{% endif %}
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; justify-content:flex-end;">
+    {% if edit_user %}
+      <a class="btn btn-secondary" href="{% url 'access-staff-detail' edit_user.id %}">Cancel</a>
+    {% else %}
+      <a class="btn btn-secondary" href="{% url 'access-staff' %}">Cancel</a>
+    {% endif %}
+    <button type="submit" class="btn btn-primary"><i class="ph ph-check"></i> {{ submit_label }}</button>
+  </div>
+</form>
+
+<script>
+  function modezaWirePermCheckboxes() {
+    document.querySelectorAll('input[name="direct_permissions"], input[name="permissions"]').forEach(function (box) {
+      box.addEventListener('change', function () {
+        if (!box.checked) return;
+        var requires = (box.getAttribute('data-requires') || '').split(',').filter(function (c) { return c; });
+        if (!requires.length) return;
+        requires.forEach(function (code) {
+          document.querySelectorAll('input[data-code="' + code + '"]').forEach(function (other) {
+            if (other !== box) other.checked = true;
+          });
+        });
+      });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', modezaWirePermCheckboxes);
+</script>
+{% endblock %}

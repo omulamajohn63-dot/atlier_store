@@ -1,0 +1,137 @@
+{% extends "admin_ui/base_admin.html" %}
+{% load permission_tags %}
+{% block title %}{{ staff_member.username }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'access-staff' %}">Staff</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ staff_member.username }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ staff_member.get_full_name|default:staff_member.username }}</h2>
+    <p class="page-subtitle">@{{ staff_member.username }} · {{ staff_member.email|default:'no email' }}</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    {% if not is_self and can_edit %}
+      <a class="btn btn-secondary" href="{% url 'access-staff-edit' staff_member.id %}"><i class="ph ph-pencil-simple"></i> Edit</a>
+    {% endif %}
+    {% if not is_self and can_deactivate %}
+      {% if staff_member.is_active %}
+        <a class="btn btn-danger" href="#deactivate-form"><i class="ph ph-user-x"></i> Deactivate</a>
+      {% else %}
+        <form method="post" action="{% url 'access-staff-reactivate' staff_member.id %}" style="margin:0;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary"><i class="ph ph-user-check"></i> Reactivate</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="data-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 20px;">
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom: 12px;">Access status</div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom: 12px;">
+        {% if staff_member.is_active %}
+          <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; background: var(--status-success-bg); color: var(--status-success);">Active</span>
+        {% else %}
+          <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; background: var(--status-danger-bg); color: var(--status-danger);">Inactive</span>
+        {% endif %}
+        {% if staff_member.is_superuser %}
+          <span class="perm-pill sensitive"><i class="ph ph-crown"></i> Super Admin</span>
+        {% endif %}
+      </div>
+      <div style="display:grid; gap:8px; font-size:13px;">
+        <div><span style="color:var(--text-secondary);">Django admin:</span> {{ staff_member.is_staff|yesno:"Allowed,No" }}</div>
+        <div><span style="color:var(--text-secondary);">Profile status:</span> {{ profile.status|default:"—" }}</div>
+        <div><span style="color:var(--text-secondary);">Last login:</span> {{ staff_member.last_login|default:"Never" }}</div>
+        <div><span style="color:var(--text-secondary);">Date joined:</span> {{ staff_member.date_joined }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom: 12px;">Roles</div>
+      {% for role in profile.roles.all %}
+        <a href="{% url 'access-role-detail' role.id %}" style="display:inline-flex; align-items:center; gap:6px; margin: 2px 4px 2px 0;">
+          <span class="perm-pill {% if role.is_superadmin %}sensitive{% else %}normal{% endif %}">
+            {% if role.is_superadmin %}<i class="ph ph-crown"></i>{% endif %} {{ role.name }}
+          </span>
+        </a>
+      {% empty %}
+        <span style="font-size:13px; color: var(--text-secondary);">No roles assigned.</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body" style="padding: 20px;">
+    <div class="metric-label" style="margin-bottom: 12px;">Direct permissions</div>
+    {% with direct=profile.direct_permissions.all %}
+      {% for p in direct %}
+        <span class="perm-pill {% if p.is_sensitive %}sensitive{% else %}normal{% endif %}">
+          {% if p.is_sensitive %}<i class="ph ph-lock-key"></i>{% endif %} {{ p.code }}
+        </span>
+      {% empty %}
+        <span style="font-size:13px; color: var(--text-secondary);">No direct permissions. Access comes from roles.</span>
+      {% endfor %}
+    {% endwith %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;" id="deactivate-form">
+  <div class="card-body" style="padding: 20px;">
+    <div class="metric-label" style="margin-bottom: 12px;">Deactivate account</div>
+    {% if staff_member.is_active %}
+      {% if is_self %}
+        <p style="font-size:13px; color:var(--text-secondary); margin:0;">You cannot deactivate your own account.</p>
+      {% else %}
+        <form method="post" action="{% url 'access-staff-deactivate' staff_member.id %}" style="max-width: 560px;">
+          {% csrf_token %}
+          <textarea name="reason" rows="2" placeholder="Reason for deactivating (recorded in the audit trail)…"
+                    style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius: var(--radius-sm); margin-bottom:10px;"></textarea>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Deactivating {{ staff_member.username }} revokes admin access immediately, including existing sessions. Continue?');">
+              <i class="ph ph-user-x"></i> Deactivate immediately
+            </button>
+            <span style="font-size:12px; color:var(--text-secondary);">Existing sessions are denied and all permissions are revoked.</span>
+          </div>
+        </form>
+      {% endif %}
+    {% else %}
+      <p style="font-size:13px; color:var(--text-secondary); margin:0;">This account is currently deactivated. Use the Reactivate button to restore access.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding: 20px;">
+    <div class="metric-label" style="margin-bottom: 12px;">Recent staff events</div>
+    <div class="table-container">
+      <table class="table">
+        <thead><tr><th>Time</th><th>Action</th><th>Performed by</th><th>Details</th></tr></thead>
+        <tbody>
+          {% for event in events %}
+          <tr>
+            <td style="white-space:nowrap;">{{ event.created_at|date:"M d, H:i" }}</td>
+            <td><span class="perm-pill normal">{{ event.action }}</span></td>
+            <td>{{ event.actor.get_full_name|default:event.actor.username|default:"System" }}</td>
+            <td style="color:var(--text-secondary); font-size:13px;">{{ event.description }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="padding: 24px; text-align:center; color: var(--text-secondary);">No staff events recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

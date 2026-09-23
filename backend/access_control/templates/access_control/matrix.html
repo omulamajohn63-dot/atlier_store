@@ -1,0 +1,41 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Permission catalog | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'access-roles' %}">Roles</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Permission catalog</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Permission catalog</h2>
+    <p class="page-subtitle">The complete list of granular MODEZA capabilities. Sensitive permissions are highlighted.</p>
+  </div>
+  <a class="btn btn-secondary" href="{% url 'access-roles' %}"><i class="ph ph-arrow-left"></i> Back to roles</a>
+</div>
+
+{% for group in matrix %}
+  <div class="card" style="margin-bottom: 16px;">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom: 8px;">{{ group.label }}</div>
+      <div style="display:grid; gap:0;">
+        {% for p in group.permissions %}
+          <div class="perm-matrix-row" style="grid-template-columns: 1fr auto;">
+            <div>
+              <span class="perm-matrix-label">{{ p.label }}</span>
+              {% if p.sensitive %}<span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> sensitive</span>{% endif %}
+              <div class="perm-matrix-hint">{{ p.description }}</div>
+              <code style="font-size:11px; color:var(--accent);">{{ p.code }}</code>
+              {% if p.requires %}<div class="perm-matrix-required">Requires: {{ p.requires|join:", " }}</div>{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endfor %}
+{% endblock %}

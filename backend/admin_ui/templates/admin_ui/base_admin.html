@@ -1,4 +1,5 @@
 {% load static %}
+{% load permission_tags %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -1102,6 +1103,27 @@
       .page-header { flex-direction: column; gap: 12px; }
       .table th, .table td { padding: 12px 16px; }
     }
+
+    /* Permission pills (access_control) */
+    .perm-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600; padding: 3px 9px;
+      border-radius: 999px; margin: 2px 4px 2px 0;
+    }
+    .perm-pill.sensitive { background: var(--status-danger-bg); color: var(--status-danger); }
+    .perm-pill.normal { background: var(--status-neutral-bg); color: var(--text-secondary); }
+
+    /* Permission matrix rows (access_control) */
+    .perm-matrix-row {
+      display: grid; grid-template-columns: 24px 1fr auto;
+      gap: 10px; align-items: start; padding: 9px 4px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .perm-matrix-row:last-child { border-bottom: none; }
+    .perm-matrix-row input[type="checkbox"] { margin-top: 3px; }
+    .perm-matrix-label { font-weight: 500; font-size: 13px; }
+    .perm-matrix-hint { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .perm-matrix-required { font-size: 11px; color: var(--status-info); }
   </style>
   {% block extra_css %}{% endblock %}
 </head>
@@ -1167,22 +1189,40 @@
         </div>
 
         <div class="sidebar-section">
+          <div class="sidebar-label">Access Control</div>
+          {% if request.user|can:'staff.view' %}
+          <a class="nav-link {% if admin_page == 'staff' %}active{% endif %}" href="/admin/dashboard/staff/">
+            <i class="ph ph-users-three"></i><span>Staff</span>
+          </a>
+          {% endif %}
+          {% if request.user|can:'roles.view' %}
+          <a class="nav-link {% if admin_page == 'roles' %}active{% endif %}" href="/admin/dashboard/roles/">
+            <i class="ph ph-lock-key-open"></i><span>Roles &amp; Permissions</span>
+          </a>
+          {% endif %}
+        </div>
+
+        <div class="sidebar-section">
           <div class="sidebar-label">System</div>
+          {% if request.user|can:'audit_logs.view' %}
           <a class="nav-link {% if admin_page == 'activity' %}active{% endif %}" href="/admin/dashboard/activity/">
             <i class="ph ph-scroll"></i><span>Activity &amp; Logs</span>
           </a>
           <a class="nav-link {% if admin_page == 'errors' %}active{% endif %}" href="/admin/dashboard/activity/errors/">
             <i class="ph ph-warning-octagon"></i><span>Errors</span>
           </a>
+          {% endif %}
           <a class="nav-link {% if admin_page == 'security' %}active{% endif %}" href="/admin/dashboard/security/">
             <i class="ph ph-shield-warning"></i><span>Security</span>
           </a>
           <a class="nav-link {% if admin_page == 'system-health' %}active{% endif %}" href="/admin/dashboard/system-health/">
             <i class="ph ph-pulse"></i><span>System Health</span>
           </a>
+          {% if request.user|can:'staff.view' %}
           <a class="nav-link {% if admin_page == 'admin-users' %}active{% endif %}" href="/admin/dashboard/admin-users/">
             <i class="ph ph-shield-check"></i><span>Admin Users</span>
           </a>
+          {% endif %}
         </div>
       </div>
 
@@ -1627,14 +1667,6 @@
           markAllNotificationsRead();
         });
       });
-
-      const firstUnread = document.querySelector('.notification-item.unread');
-      if (firstUnread) {
-        showToast(firstUnread.dataset.notificationTitle || 'New alert', firstUnread.dataset.notificationMessage || '', {
-          category: firstUnread.dataset.category,
-          link: firstUnread.dataset.link,
-        });
-      }
 
       function bindNotificationItem(item) {
         item.addEventListener('click', async function (event) {

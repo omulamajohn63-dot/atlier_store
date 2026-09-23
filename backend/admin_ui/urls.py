@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from .views import (
     ActivityExportView,
@@ -138,4 +138,5 @@ urlpatterns = [
          {'page': 'reports'}, name='admin-reports'),
     path('performance/', AdminPageView.as_view(),
          {'page': 'performance'}, name='admin-performance'),
+    path('', include('access_control.urls')),
 ]

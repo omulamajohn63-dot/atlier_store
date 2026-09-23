@@ -1,0 +1,73 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Roles &amp; Permissions | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><i class="ph ph-lock-key-open"></i></li>
+<li class="active">Roles &amp; Permissions</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Roles &amp; Permissions</h2>
+    <p class="page-subtitle">Define roles and the exact permissions each role carries.</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a class="btn btn-secondary" href="{% url 'access-matrix' %}"><i class="ph ph-table"></i> Permission catalog</a>
+    {% if can_create %}
+      <a class="btn btn-primary" href="{% url 'access-role-create' %}"><i class="ph ph-plus"></i> Create role</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Staff count</th>
+            <th>Permissions</th>
+            <th>Access level</th>
+            <th style="text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for role in roles %}
+          <tr>
+            <td>
+              <a href="{% url 'access-role-detail' role.id %}" style="font-weight:600;">
+                {{ role.name }}
+              </a>
+              {% if role.is_system_role %}
+                <span class="perm-pill normal">system</span>
+              {% endif %}
+              <div style="font-size:12px; color: var(--text-secondary);">{{ role.description|truncatechars:80 }}</div>
+            </td>
+            <td>{{ role.staff_count }}</td>
+            <td>{{ role.permissions.count }}</td>
+            <td>
+              {% if role.is_superadmin %}
+                <span class="perm-pill sensitive"><i class="ph ph-crown"></i> Super Admin</span>
+              {% elif role.sensitive_count %}
+                <span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> Sensitive</span>
+              {% else %}
+                <span class="perm-pill normal">Standard</span>
+              {% endif %}
+            </td>
+            <td style="text-align:right; white-space:nowrap;">
+              <a class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" href="{% url 'access-role-detail' role.id %}">View</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="padding: 32px; text-align:center; color: var(--text-secondary);">No roles defined.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

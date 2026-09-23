@@ -11,6 +11,22 @@ from audit.models import AuditLog
 from catalog.models import Category, Product, ProductVariant
 from orders.models import Order, OrderItem
 from admin_ui.models import AdminNotification, CustomerNotification
+from access_control.models import Permission, StaffProfile
+
+
+def enroll_staff(user, codes=None):
+    """Give ``user`` explicit in-DB admin privileges under access_control
+    (roles plus direct permissions). Staff that are not enrolled here are
+    denied on every permission-gated admin page by design."""
+    profile, _ = StaffProfile.objects.get_or_create(user=user)
+    profile.status = StaffProfile.Status.ACTIVE
+    if codes is None:
+        profile.direct_permissions.set(Permission.objects.all())
+    else:
+        profile.direct_permissions.set(
+            [Permission.objects.get(code=code) for code in codes])
+    profile.save(update_fields=['status'])
+    return profile
 
 
 class AdminDashboardTests(TestCase):
@@ -1728,6 +1744,7 @@ class AdminAuthTests(TestCase):
             username='plain-staff', password='staff-pass-123', email='staff@example.com')
         staff.is_staff = True
         staff.save()
+        enroll_staff(staff)
         self.staff = staff
         self.customer = User.objects.create_user(
             username='regular-user', password='user-pass-123', email='user@example.com')
@@ -1995,6 +2012,7 @@ class ActivityCenterTests(TestCase):
             username='plain-staff', password='staff-pass-123', email='staff@example.com')
         staff.is_staff = True
         staff.save()
+        enroll_staff(staff)
         self.staff = staff
         self.customer = User.objects.create_user(
             username='regular-user', password='user-pass-123', email='user@example.com')
@@ -2417,6 +2435,7 @@ class ActivityCenterTests(TestCase):
         response = self.client.get(
             f'/admin/dashboard/orders/{order.pk}/receipt/download/')
 
-        self.assertEqual(response.status_code, 302)
-        self.assertIn('/admin/dashboard/login/',
-                      response.get('Location', ''))
+        # Authenticated customers with no staff permissions are denied
+        # fail-closed with 403 (anonymous users still get the login redirect).
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, 'Access Denied', status_code=403)

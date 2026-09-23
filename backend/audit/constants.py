@@ -70,6 +70,17 @@ AUDIT_ACTIONS = (
     "wishlist_cleared",
     "review_submitted",
     "support_message_submitted",
+    # Staff administration (backend-written; access_control).
+    "staff_created",
+    "staff_updated",
+    "staff_deactivated",
+    "staff_reactivated",
+    "staff_role_changed",
+    "role_created",
+    "role_updated",
+    "role_deleted",
+    "permissions_granted",
+    "permissions_revoked",
     # Security / system.
     "security_event",
     "permission_denied",
@@ -121,6 +132,8 @@ AUDIT_CATEGORIES = (
     "security",
     "system",
     "api_client",
+    "staff",
+    "roles",
 )
 
 RESULTS = ("success", "failure")
@@ -182,6 +195,16 @@ CATEGORY_BY_ACTION = {
     "support_message_submitted": "system",
     "file_upload": "file",
     "file_delete": "file",
+    "staff_created": "staff",
+    "staff_updated": "staff",
+    "staff_deactivated": "staff",
+    "staff_reactivated": "staff",
+    "staff_role_changed": "staff",
+    "role_created": "roles",
+    "role_updated": "roles",
+    "role_deleted": "roles",
+    "permissions_granted": "roles",
+    "permissions_revoked": "roles",
     "rate_limit_exceeded": "system",
     "server_error": "system",
     "unexpected_server_error": "system",
@@ -217,6 +240,16 @@ SEVERITY_BY_ACTION = {
     "receipt_generation_failed": "high",
     "receipt_email_failed": "medium",
     "receipt_downloaded": "medium",
+    "staff_deactivated": "high",
+    "staff_created": "medium",
+    "staff_updated": "medium",
+    "staff_reactivated": "medium",
+    "staff_role_changed": "high",
+    "role_created": "medium",
+    "role_updated": "medium",
+    "role_deleted": "high",
+    "permissions_granted": "high",
+    "permissions_revoked": "medium",
 }
 
 

@@ -1,0 +1,102 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'access-roles' %}">Roles</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ page_title }}</h2>
+    <p class="page-subtitle">{{ page_subtitle }}</p>
+  </div>
+</div>
+
+<form method="post" style="display:grid; gap:16px;">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="card" style="background: var(--status-danger-bg); border-color: var(--status-danger);">
+      <div class="card-body" style="padding: 14px 20px; color: var(--status-danger);">
+        {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+        {% for field in form.visible_fields %}
+          {% if field.html_name == 'permissions' %}{% else %}
+            <div>
+              <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div style="font-size:12px; color: var(--status-danger); margin-top:4px;">{{ field.errors.0 }}</div>{% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body" style="padding: 20px;">
+      <div class="metric-label" style="margin-bottom:4px;">Permissions</div>
+      <p style="font-size:12px; color:var(--text-secondary); margin:0 0 10px;">
+        Select the exact permissions this role grants. Selecting a permission automatically selects anything it requires.
+        <span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> sensitive</span> permissions grant elevated capabilities — assigning them to staff later requires a Super Admin.
+      </p>
+
+      {% for group in matrix %}
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); margin-bottom:4px;">{{ group.label }}</div>
+          {% for p in group.permissions %}
+            <div class="perm-matrix-row">
+              <input type="checkbox" id="role-perm-{{ p.code|slugify }}" name="permissions" value="{{ p.pk }}" data-code="{{ p.code }}"
+                     data-requires="{{ p.requires|join:',' }}"
+                     {% if p.selected %}checked{% endif %}
+                     {% if p.sensitive %}data-sensitive="1"{% endif %}>
+              <label for="role-perm-{{ p.code|slugify }}" style="flex:1;">
+                <span class="perm-matrix-label">{{ p.label }} <code style="font-size:11px; color:var(--accent);">{{ p.code }}</code></span>
+                {% if p.sensitive %}<span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> sensitive</span>{% endif %}
+                <div class="perm-matrix-hint">{{ p.description }}</div>
+                {% if p.requires %}<div class="perm-matrix-required">Requires: {{ p.requires|join:", " }}</div>{% endif %}
+              </label>
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; justify-content:flex-end;">
+    {% if edit_role %}
+      <a class="btn btn-secondary" href="{% url 'access-role-detail' edit_role.id %}">Cancel</a>
+    {% else %}
+      <a class="btn btn-secondary" href="{% url 'access-roles' %}">Cancel</a>
+    {% endif %}
+    <button type="submit" class="btn btn-primary"><i class="ph ph-check"></i> {{ submit_label }}</button>
+  </div>
+</form>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('input[name="permissions"]').forEach(function (box) {
+      box.addEventListener('change', function () {
+        if (!box.checked) return;
+        var requires = (box.getAttribute('data-requires') || '').split(',').filter(function (c) { return c; });
+        requires.forEach(function (code) {
+          document.querySelectorAll('input[data-code="' + code + '"]').forEach(function (other) {
+            if (other !== box) other.checked = true;
+          });
+        });
+      });
+    });
+  });
+</script>
+{% endblock %}

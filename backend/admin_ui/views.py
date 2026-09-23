@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 
@@ -30,6 +30,11 @@ from django.views import View
 
 from audit.constants import AUDIT_ACTIONS
 from audit.models import AuditLog
+from access_control.services import (
+    access_denied_response,
+    permission_required,
+    user_has_permission,
+)
 from catalog.models import Category, Product, ProductVariant
 from catalog.services import ProductGenerationService, import_products_from_file
 from audit.services import AuditLogService
@@ -72,11 +77,13 @@ from .models import AdminNotification, notify_staff
 
 
 def is_staff(user):
-    return user.is_authenticated and user.is_staff
+    # ``is_active`` is required so a deactivated staff member is denied
+    # immediately — including on already-open sessions.
+    return user.is_authenticated and user.is_staff and user.is_active
 
 
 def is_superuser(user):
-    return user.is_authenticated and user.is_superuser
+    return user.is_authenticated and user.is_superuser and user.is_active
 
 
 logger = logging.getLogger('admin_ui.views')
@@ -192,8 +199,25 @@ class ConfirmActionView(View):
     def _product_title(self, product):
         return product.name if product else 'this product'
 
+    # Granular permission required to confirm/execute each bulk action.
+    ACTION_PERMISSIONS = {
+        'delete-product': 'products.delete',
+        'delete-selected-products': 'products.delete',
+        'archive-product': 'products.update',
+        'update-product': 'products.update',
+    }
+
+    def _require_action_permission(self, request, action):
+        required = self.ACTION_PERMISSIONS.get(action)
+        if required and not user_has_permission(request.user, required):
+            return access_denied_response(request)
+        return None
+
     def get(self, request):
         action = request.GET.get('action') or 'confirm'
+        denied = self._require_action_permission(request, action)
+        if denied:
+            return denied
         product_id = request.GET.get('product_id')
         product_ids = self._parse_product_ids(request.GET.get('product_ids'))
 
@@ -237,6 +261,9 @@ class ConfirmActionView(View):
 
     def post(self, request):
         action = request.POST.get('action')
+        denied = self._require_action_permission(request, action)
+        if denied:
+            return denied
         product_id = request.POST.get('product_id')
         product_ids_raw = request.POST.getlist('product_ids')
         product_ids = []
@@ -406,6 +433,7 @@ class MarkNotificationReadView(View):
         return JsonResponse({'ok': True, 'unread_count': unread_count})
 
 
+@permission_required('orders.confirm')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ApproveOrderPageView(View):
     def post(self, request, order_id):
@@ -421,6 +449,7 @@ class ApproveOrderPageView(View):
         return redirect('admin-orders')
 
 
+@permission_required('products.import')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductImportPageView(View):
     template_name = 'admin_ui/product_import_page.html'
@@ -466,6 +495,7 @@ class ProductImportPageView(View):
         })
 
 
+@permission_required('products.import')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductImportTemplateDownloadView(View):
     def get(self, request):
@@ -667,8 +697,27 @@ class AdminPageView(View):
         },
     }
 
+    # Which granular permission protects each generic list page.
+    PAGE_REQUIRED_PERMISSION = {
+        'products': 'products.view',
+        'categories': 'categories.view',
+        'inventory': 'inventory.view',
+        'orders': 'orders.view',
+        'customers': 'customers.view',
+        'admin-users': 'staff.view',
+        'analytics': 'reports.view',
+        'reports': 'reports.financial',
+        'performance': 'reports.view',
+        'profile': None,
+    }
+
     @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
     def dispatch(self, request, *args, **kwargs):
+        # Page-level permission check for the generic list pages.
+        page = kwargs.get('page', '')
+        required = AdminPageView.PAGE_REQUIRED_PERMISSION.get(page)
+        if required and not user_has_permission(request.user, required):
+            return access_denied_response(request)
         return super().dispatch(request, *args, **kwargs)
 
     @staticmethod
@@ -1248,11 +1297,17 @@ class DashboardView(View):
         recent_orders = Order.objects.order_by('-created_at')[:5]
 
         sales_overview = []
-        end_day = timezone.now().date()
+        end_day = timezone.localdate()
         max_total = 0
         for offset in range(sales_window_days):
             day = end_day - timedelta(days=sales_window_days - 1 - offset)
-            total_minor = Order.objects.filter(created_at__date=day).aggregate(
+            day_start = timezone.make_aware(
+                datetime.combine(day, datetime.min.time()),
+                timezone.get_current_timezone(),
+            )
+            day_end = day_start + timedelta(days=1)
+            total_minor = Order.objects.filter(
+                created_at__gte=day_start, created_at__lt=day_end).aggregate(
                 total=Sum('total_minor'))['total'] or 0
             daily_total = Decimal(total_minor) / Decimal(100)
             max_total = max(max_total, float(daily_total))
@@ -1457,6 +1512,7 @@ class DashboardView(View):
                 default_storage.delete(storage_path)
 
 
+@permission_required('categories.create')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class CategoryCreatePageView(View):
     template_name = 'admin_ui/category_form_page.html'
@@ -1482,6 +1538,7 @@ class CategoryCreatePageView(View):
         })
 
 
+@permission_required('categories.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class CategoryEditPageView(View):
     template_name = 'admin_ui/category_form_page.html'
@@ -1519,6 +1576,7 @@ class CategoryEditPageView(View):
         })
 
 
+@permission_required('categories.delete')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class CategoryDeletePageView(View):
     def get(self, request, category_id):
@@ -1537,6 +1595,7 @@ class CategoryDeletePageView(View):
         return redirect('admin-dashboard')
 
 
+@permission_required('products.create')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductCreatePageView(View):
     template_name = 'admin_ui/product_form_page.html'
@@ -1564,6 +1623,7 @@ class ProductCreatePageView(View):
         })
 
 
+@permission_required('products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductEditPageView(View):
     template_name = 'admin_ui/product_form_page.html'
@@ -1615,6 +1675,7 @@ class ProductEditPageView(View):
         })
 
 
+@permission_required('products.view')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductDetailPageView(View):
     template_name = 'admin_ui/product_detail_page.html'
@@ -1662,6 +1723,7 @@ class ProductDetailPageView(View):
         })
 
 
+@permission_required('variants.create', 'products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductVariantCreatePageView(View):
     template_name = 'admin_ui/variant_form_page.html'
@@ -1711,6 +1773,7 @@ class ProductVariantCreatePageView(View):
         })
 
 
+@permission_required('variants.create', 'products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductVariantBulkCreatePageView(View):
     template_name = 'admin_ui/variant_bulk_form_page.html'
@@ -1762,6 +1825,7 @@ class ProductVariantBulkCreatePageView(View):
         })
 
 
+@permission_required('variants.update', 'products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductVariantEditPageView(View):
     template_name = 'admin_ui/variant_form_page.html'
@@ -1828,6 +1892,7 @@ class ProductVariantEditPageView(View):
         })
 
 
+@permission_required('variants.delete', 'products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductVariantDeletePageView(View):
     def post(self, request, product_id, variant_id):
@@ -1865,6 +1930,7 @@ class ProductVariantDeletePageView(View):
         return redirect('admin-product-detail', product_id=product_id)
 
 
+@permission_required('orders.view')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class OrderDetailPageView(View):
     template_name = 'admin_ui/order_detail_page.html'
@@ -1954,6 +2020,7 @@ class OrderDetailPageView(View):
         })
 
 
+@permission_required('receipts.view', 'orders.view')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class OrderReceiptDownloadView(View):
     """Stream the receipt PDF to a staff member (admin download)."""
@@ -2003,6 +2070,7 @@ class OrderReceiptDownloadView(View):
         )
 
 
+@permission_required('receipts.generate', 'orders.view')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class OrderReceiptRegenerateView(View):
     """Repair path for a failed/stale receipt, from the admin UI."""
@@ -2028,6 +2096,7 @@ class OrderReceiptRegenerateView(View):
         return redirect('admin-order-detail', order_id=order.pk)
 
 
+@permission_required('products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductDuplicatePageView(View):
     def get(self, request, product_id):
@@ -2077,6 +2146,7 @@ class ProductDuplicatePageView(View):
             return redirect('admin-dashboard')
 
 
+@permission_required('products.update')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductArchivePageView(View):
     def get(self, request, product_id):
@@ -2089,6 +2159,7 @@ class ProductArchivePageView(View):
         return redirect('admin-products')
 
 
+@permission_required('products.delete')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductDeletePageView(View):
     def get(self, request, product_id):
@@ -2106,6 +2177,7 @@ class ProductDeletePageView(View):
         return redirect('admin-products')
 
 
+@permission_required('staff.create')
 @method_decorator(user_passes_test(is_superuser, login_url='admin-login'), name='dispatch')
 class AdminUserInvitePageView(View):
     template_name = 'admin_ui/admin_user_invite_page.html'
@@ -2162,6 +2234,7 @@ class ProfileSettingsPageView(View):
         })
 
 
+@permission_required('inventory.adjust')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class StockAdjustmentPageView(View):
     template_name = 'admin_ui/stock_form_page.html'
@@ -2223,6 +2296,7 @@ class StaffRequiredMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
+@permission_required('audit_logs.view')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class AuditLogsPageView(View):
     """Legacy alias of the Activity & Logs overview.
@@ -2239,6 +2313,7 @@ class AuditLogsPageView(View):
             self, request, template_name=self.template_name)
 
 
+@permission_required('audit_logs.view')
 class ActivityOverviewPageView(StaffRequiredMixin, View):
     """Main logging dashboard: summary cards, timeline/table, filters, export."""
 
@@ -2392,6 +2467,7 @@ class ActivitySelectors:
         return get_user_model().objects.filter(is_staff=True).order_by('username')
 
 
+@permission_required('audit_logs.export')
 class ActivityExportView(StaffRequiredMixin, View):
     """Export the filtered audit trail as CSV or JSON.
 
@@ -2474,6 +2550,7 @@ class ActivityExportView(StaffRequiredMixin, View):
         return response
 
 
+@permission_required('audit_logs.view')
 class RequestTracePageView(StaffRequiredMixin, View):
     """Chronological trace of every audit event for a single request ID."""
 
@@ -2521,6 +2598,7 @@ class RequestTracePageView(StaffRequiredMixin, View):
         })
 
 
+@permission_required('audit_logs.view')
 class SecurityCenterPageView(StaffRequiredMixin, View):
     """Focused view of authentication and security-related audit events."""
 
@@ -2579,6 +2657,7 @@ class SecurityCenterPageView(StaffRequiredMixin, View):
         })
 
 
+@permission_required('audit_logs.view')
 class ErrorCenterPageView(StaffRequiredMixin, View):
     """Focused view of failed/high-severity application events."""
 
@@ -2623,6 +2702,7 @@ class ErrorCenterPageView(StaffRequiredMixin, View):
         })
 
 
+@permission_required('audit_logs.view')
 class SystemHealthPageView(StaffRequiredMixin, View):
     """Honest, read-only system health summary.
 
@@ -2748,6 +2828,7 @@ class SystemHealthPageView(StaffRequiredMixin, View):
         })
 
 
+@permission_required('customers.view')
 class CustomerDetailPageView(StaffRequiredMixin, View):
     """Customer profile with the linked audit activity for that account."""
 

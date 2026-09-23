@@ -38,10 +38,30 @@ from audit.models import AuditLog
 from audit.services import AuditLogService
 from catalog.models import Category, Product, ProductVariant
 
+from access_control.models import Permission, StaffProfile
 from admin_ui.models import AdminNotification
 
 TEST_SECRET = 'test-secret-that-is-at-least-32-bytes'
 INBOUND_REQUEST_ID = 'test-inbound-request-id'
+
+
+def enroll_staff(sub, codes=()):
+    """Create the same user the JWT sync will look up and enroll it in
+    access_control (mirrors backend/admin_api/tests.py)."""
+    user, _ = get_user_model().objects.get_or_create(
+        username=f'supabase_{sub}',
+        defaults={'email': f'{sub}@example.com',
+                  'is_staff': True, 'is_active': True},
+    )
+    user.is_staff = True
+    user.is_active = True
+    user.save(update_fields=['is_staff', 'is_active'])
+    profile, _ = StaffProfile.objects.get_or_create(user=user)
+    profile.status = StaffProfile.Status.ACTIVE
+    profile.save(update_fields=['status'])
+    profile.direct_permissions.set(
+        [Permission.objects.get(code=c) for c in codes])
+    return user
 
 
 def auth_client(client, role):
@@ -383,6 +403,7 @@ class TestInventoryAudit(TestCase):
             product=self.product, sku='INV-ONE', stock_quantity=10)
 
     def test_staff_stock_adjustment_is_audited(self):
+        enroll_staff('staff-user', ['inventory.adjust', 'inventory.view'])
         auth_client(self.client, 'staff')
         with self.captureOnCommitCallbacks(execute=True):
             response = self.client.patch(

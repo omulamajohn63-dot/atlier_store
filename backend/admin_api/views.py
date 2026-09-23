@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsStaffOrAdmin
+from access_control.drf_permissions import AdminPermission
 from admin_ui.models import AdminNotification
 from audit.services import AuditLogService
 from catalog.models import Category, Product, ProductVariant
@@ -32,11 +33,21 @@ def _notification_data(notification):
 
 
 class AdminAPIView(APIView):
-    permission_classes = [IsStaffOrAdmin]
+    """Base view for admin endpoints.
+
+    Uses MODEZA granular permissions (roles/direct permissions) instead of the
+    coarse Supabase role check, and accepts Django-session staff too. Subclasses
+    declare ``required_permissions`` for the exact codes they need.
+    """
+
+    permission_classes = [AdminPermission]
     throttle_scope = 'admin'
+    required_permissions = None
 
 
 class AdminProductCreateView(AdminAPIView):
+    required_permissions = ['products.create']
+
     def post(self, request):
         serializer = ProductWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -54,6 +65,8 @@ class AdminProductCreateView(AdminAPIView):
 
 
 class AdminProductUpdateView(AdminAPIView):
+    required_permissions = ['products.update']
+
     def patch(self, request, product_id):
         product = get_object_or_404(Product, pk=product_id)
         before = product_to_input(product)
@@ -74,6 +87,8 @@ class AdminProductUpdateView(AdminAPIView):
 
 
 class AdminProductArchiveView(AdminAPIView):
+    required_permissions = ['products.update']
+
     def post(self, request, product_id):
         product = get_object_or_404(Product, pk=product_id)
         previous = product.status
@@ -93,6 +108,8 @@ class AdminProductArchiveView(AdminAPIView):
 
 
 class AdminCategoryCreateView(AdminAPIView):
+    required_permissions = ['categories.create']
+
     def post(self, request):
         serializer = CategoryWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -114,6 +131,8 @@ class AdminCategoryCreateView(AdminAPIView):
 
 
 class AdminStockAdjustmentView(AdminAPIView):
+    required_permissions = ['inventory.adjust']
+
     def patch(self, request, variant_id):
         serializer = StockAdjustmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -125,6 +144,8 @@ class AdminStockAdjustmentView(AdminAPIView):
 
 
 class ExpireReservationsView(AdminAPIView):
+    required_permissions = ['inventory.adjust']
+
     def post(self, request):
         return Response({'expired': expire_reservations()})
 
