@@ -121,14 +121,17 @@
   .dashboard-kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
+    gap: 16px;
     margin-bottom: 22px;
   }
   .dashboard-kpi-card {
     position: relative;
-    border-radius: 16px;
-    padding: 18px 18px 16px;
+    min-height: 178px;
+    border-radius: 18px;
+    padding: 20px 20px 17px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
     transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   }
   .dashboard-kpi-card:hover {
@@ -141,27 +144,27 @@
     position: absolute;
     top: 0; left: 0;
     width: 100%;
-    height: 3px;
-    background: linear-gradient(90deg, var(--dash-sage), transparent);
-    opacity: .55;
+    height: 4px;
+    background: var(--dash-sage);
+    opacity: .75;
   }
   .dashboard-kpi-top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
   }
   .dashboard-kpi-label {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--dash-muted);
   }
   .dashboard-kpi-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -173,30 +176,45 @@
   .dashboard-kpi-icon.rose { background: #F8E9E7; color: #B0564C; }
   .dashboard-kpi-icon.blue { background: #E7F1F8; color: #44739C; }
   .metric-value {
-    font-size: 28px;
-    font-weight: 600;
+    font-size: clamp(26px, 2.2vw, 34px);
+    font-weight: 650;
     color: var(--dash-ink);
     letter-spacing: -0.02em;
-    line-height: 1.1;
+    line-height: 1;
+    white-space: nowrap;
   }
-  .dashboard-kpi-chip {
+  .dashboard-kpi-insight {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 42px;
+    margin-top: auto;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-light);
+    color: var(--dash-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .dashboard-kpi-insight > span,
+  .dashboard-kpi-insight > a {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 12px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--dash-muted);
+    min-width: 0;
   }
-  .dashboard-kpi-chip i { font-size: 13px; }
-  .dashboard-kpi-chip .chip-value { color: var(--dash-sage); font-weight: 700; }
-  .dashboard-kpi-chip .chip-value.alert { color: var(--status-danger); }
-  .dashboard-kpi-chip a { color: inherit; text-decoration: none; }
-  .dashboard-kpi-chip a:hover { color: var(--dash-sage); }
+  .dashboard-kpi-insight i { font-size: 14px; color: var(--dash-sage); }
+  .dashboard-kpi-insight .chip-value { color: var(--dash-sage); font-size: 13px; font-weight: 750; }
+  .dashboard-kpi-insight .chip-value.alert { color: var(--status-danger); }
+  .dashboard-kpi-insight a { color: inherit; text-decoration: none; }
+  .dashboard-kpi-insight a:hover { color: var(--dash-sage); }
+  .dashboard-kpi-insight .insight-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dashboard-kpi-card.alert-card::before { background: var(--status-danger); }
+  .dashboard-kpi-card.alert-card .dashboard-kpi-insight { color: var(--status-danger); }
 
   .dashboard-chart-card {
     border-radius: 16px;
@@ -646,24 +664,22 @@
         <span class="dashboard-kpi-icon gold"><i class="ph ph-bag-simple"></i></span>
       </div>
       <div class="metric-value">KES {{ total_revenue_kes|floatformat:0 }}</div>
-      <span class="dashboard-kpi-chip" id="kpi-pending-chip">
-        <i class="ph ph-clock"></i>
+      <div class="dashboard-kpi-insight" id="kpi-pending-chip">
+        <span><i class="ph ph-clock"></i><span class="insight-label">Pending revenue</span></span>
         <span class="chip-value" id="kpi-pending-value">KES {{ pending_revenue_kes|floatformat:0 }}</span>
-        Pending Revenue
-      </span>
+      </div>
     </div>
 
-    <div class="card dashboard-kpi-card" id="kpi-orders">
+    <div class="card dashboard-kpi-card {% if orders_needing_attention %}alert-card{% endif %}" id="kpi-orders">
       <div class="dashboard-kpi-top">
         <div class="dashboard-kpi-label">Orders</div>
         <span class="dashboard-kpi-icon"><i class="ph ph-receipt"></i></span>
       </div>
       <div class="metric-value">{{ total_orders }}</div>
-      <a class="dashboard-kpi-chip" href="/admin/dashboard/orders/">
-        <i class="ph ph-list-checks"></i>
+      <div class="dashboard-kpi-insight">
+        <a href="/admin/dashboard/orders/"><span><i class="ph ph-list-checks"></i><span class="insight-label">Need attention</span></span></a>
         <span class="chip-value {% if orders_needing_attention %}alert{% endif %}" id="kpi-orders-attention">{{ orders_needing_attention }}</span>
-        need attention
-      </a>
+      </div>
     </div>
 
     <div class="card dashboard-kpi-card" id="kpi-customers">
@@ -672,23 +688,22 @@
         <span class="dashboard-kpi-icon blue"><i class="ph ph-users"></i></span>
       </div>
       <div class="metric-value">{{ total_customers }}</div>
-      <span class="dashboard-kpi-chip">
-        <i class="ph ph-user-plus"></i>
-        Shopper accounts
-      </span>
+      <div class="dashboard-kpi-insight">
+        <span><i class="ph ph-user-plus"></i><span class="insight-label">Shopper accounts</span></span>
+        <span style="color: var(--dash-sage);">Active</span>
+      </div>
     </div>
 
-    <div class="card dashboard-kpi-card" id="kpi-products">
+    <div class="card dashboard-kpi-card {% if low_stock_count %}alert-card{% endif %}" id="kpi-products">
       <div class="dashboard-kpi-top">
         <div class="dashboard-kpi-label">Products</div>
         <span class="dashboard-kpi-icon rose"><i class="ph ph-t-shirt"></i></span>
       </div>
       <div class="metric-value">{{ total_products }}</div>
-      <a class="dashboard-kpi-chip" href="/admin/dashboard/inventory/adjust/">
-        <i class="ph ph-warning-circle"></i>
+      <div class="dashboard-kpi-insight">
+        <a href="/admin/dashboard/inventory/adjust/"><span><i class="ph ph-warning-circle"></i><span class="insight-label">Low stock variants</span></span></a>
         <span class="chip-value {% if low_stock_count %}alert{% endif %}" id="kpi-low-stock">{{ low_stock_count }}</span>
-        low stock variants
-      </a>
+      </div>
     </div>
 
   </section>
@@ -1195,6 +1210,8 @@
 
   function apply(data) {
     var k = data.kpis || {};
+    var attentionOrders = Number(k.attention_orders || 0);
+    var lowStock = Number(k.low_stock || 0);
     setText('#kpi-revenue .metric-value', k.revenue);
     setText('#kpi-pending-value', k.pending_revenue);
     setText('#kpi-orders .metric-value', k.orders);
@@ -1206,6 +1223,10 @@
     setText('#attention-orders', k.attention_orders);
     setText('#attention-low-stock', data.low_stock_count);
     setText('#attention-errors', data.error_total);
+    document.getElementById('kpi-orders').classList.toggle('alert-card', attentionOrders > 0);
+    document.getElementById('kpi-products').classList.toggle('alert-card', lowStock > 0);
+    document.getElementById('kpi-orders-attention').classList.toggle('alert', attentionOrders > 0);
+    document.getElementById('kpi-low-stock').classList.toggle('alert', lowStock > 0);
     rebuildBars(data.overview);
     rebuildOrders(data.orders);
     rebuildInventory(data.low_stock);
