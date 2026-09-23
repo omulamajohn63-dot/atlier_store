@@ -12,11 +12,36 @@
 <style>
   .detail-grid {
     display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 24px;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 20px;
+    align-items: start;
+  }
+  .detail-main,
+  .detail-sidebar {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+  }
+  .detail-card {
+    margin: 0;
+  }
+  .detail-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .variant-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
   }
   .product-image {
     width: 100%;
+    aspect-ratio: 1 / 1;
     border-radius: var(--radius-md);
     object-fit: cover;
     border: 1px solid var(--border);
@@ -43,8 +68,41 @@
   .detail-row:last-child { border-bottom: none; }
   .detail-label { color: var(--text-secondary); }
   .detail-value { font-weight: 500; }
+  .variant-table {
+    min-width: 760px;
+    table-layout: fixed;
+  }
+  .variant-table th,
+  .variant-table td {
+    white-space: nowrap;
+  }
+  .variant-table th:nth-child(1),
+  .variant-table td:nth-child(1) { width: 22%; }
+  .variant-table th:nth-child(2),
+  .variant-table td:nth-child(2) { width: 20%; white-space: normal; }
+  .variant-table th:nth-child(3),
+  .variant-table td:nth-child(3) { width: 14%; }
+  .variant-table th:nth-child(4),
+  .variant-table td:nth-child(4) { width: 10%; }
+  .variant-table th:nth-child(5),
+  .variant-table td:nth-child(5) { width: 12%; }
+  .variant-table th:nth-child(6),
+  .variant-table td:nth-child(6) { width: 22%; }
+  .variant-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 5px;
+  }
+  .variant-actions .btn {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
   @media (max-width: 768px) {
     .detail-grid { grid-template-columns: 1fr; }
+    .detail-header-actions { justify-content: flex-start; margin-top: 12px; }
+    .detail-grid .card-header { align-items: flex-start; }
+    .variant-header-actions { justify-content: flex-start; margin-top: 10px; }
   }
 </style>
 {% endblock %}
@@ -55,7 +113,7 @@
     <h2 class="page-title">{{ product.name }}</h2>
     <p class="page-subtitle">{{ product.get_status_display }} &middot; {{ product.category.name }}</p>
   </div>
-  <div style="display: flex; gap: 8px;">
+  <div class="detail-header-actions">
     <a class="btn btn-primary" href="/admin/dashboard/products/{{ product.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit</a>
     <a class="btn btn-secondary" href="/admin/dashboard/products/">Back</a>
     <a class="btn btn-danger" href="/admin/dashboard/products/{{ product.id }}/delete/"><i class="ph ph-trash"></i> Delete</a>
@@ -63,8 +121,8 @@
 </div>
 
 <div class="detail-grid">
-  <div>
-    <div class="card" style="margin-bottom: 24px;">
+  <div class="detail-main">
+    <div class="card detail-card">
       <div class="card-header">
         <h3 class="card-title">Product Details</h3>
       </div>
@@ -89,7 +147,7 @@
     </div>
 
     {% if product.description %}
-    <div class="card" style="margin-bottom: 24px;">
+    <div class="card detail-card">
       <div class="card-header">
         <h3 class="card-title">Description</h3>
       </div>
@@ -99,10 +157,10 @@
     </div>
     {% endif %}
 
-    <div class="card">
+    <div class="card detail-card">
       <div class="card-header">
         <h3 class="card-title">Variants</h3>
-        <div style="display: flex; gap: 8px;">
+        <div class="variant-header-actions">
           <a class="btn btn-primary" href="/admin/dashboard/products/{{ product.id }}/variants/new/"><i class="ph ph-plus"></i> Add variant</a>
           <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/variants/bulk/"><i class="ph ph-rows"></i> Add sizes</a>
         </div>
@@ -110,7 +168,7 @@
       <div class="card-body" style="padding: 0;">
         {% if variant_rows %}
         <div class="table-container">
-          <table class="table">
+          <table class="table variant-table">
             <thead>
               <tr><th>SKU</th><th>Options</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr>
             </thead>
@@ -122,13 +180,15 @@
                 <td>{{ row.price }}</td>
                 <td>{{ row.variant.stock_quantity }}</td>
                 <td><span class="status-badge {% if row.variant.is_active %}status-active{% else %}status-inactive{% endif %}">{% if row.variant.is_active %}Active{% else %}Inactive{% endif %}</span></td>
-                <td style="text-align: right; white-space: nowrap;">
+                <td>
+                  <div class="variant-actions">
                   <a class="btn btn-secondary" href="/admin/dashboard/inventory/adjust/?variant={{ row.variant.id }}">Restock</a>
                   <a class="btn btn-secondary" href="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/edit/">Edit</a>
                   <form method="post" action="/admin/dashboard/products/{{ product.id }}/variants/{{ row.variant.id }}/delete/" style="display: inline;" onsubmit="return confirm('Delete this variant?');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">Delete</button>
                   </form>
+                  </div>
                 </td>
               </tr>
               {% endfor %}
@@ -142,7 +202,7 @@
     </div>
   </div>
 
-  <div>
+  <div class="detail-sidebar">
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Image</h3>
