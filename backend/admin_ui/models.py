@@ -66,6 +66,11 @@ class AdminNotification(models.Model):
     metadata = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False, db_index=True)
     read_at = models.DateTimeField(null=True, blank=True)
+    # Timestamp of the first time the notification was surfaced (popup/toast)
+    # to ``recipient``. Independent from read state: a surfaced notification
+    # stays unread until the admin explicitly reads it, but it is never
+    # re-surfaced once ``presented_at`` is set.
+    presented_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -109,6 +114,9 @@ class CustomerNotification(models.Model):
     )
     metadata = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False)
+    # Timestamp of the first time the notification was surfaced (popup/toast)
+    # to ``user``. Independent from read state; see AdminNotification.
+    presented_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
