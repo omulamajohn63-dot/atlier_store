@@ -5,8 +5,33 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from inventory.services import subscribe_to_stock_alert
+
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
+
+
+class BackInStockView(APIView):
+    def post(self, request):
+        data = request.data if isinstance(request.data, dict) else {}
+        variant_id = data.get('variantId', '')
+        email = data.get('email', '')
+        try:
+            _, created = subscribe_to_stock_alert(variant_id, email)
+        except Exception as exc:  # noqa: BLE001 - normalise to API contract
+            error = getattr(exc, 'detail', None)
+            if isinstance(error, dict):
+                return Response(
+                    {'error': {'code': 'VALIDATION_ERROR',
+                               'message': 'Subscription could not be saved.',
+                               'details': error}},
+                    status=400)
+            raise
+        return Response({
+            'ok': True,
+            'alreadySubscribed': not created,
+            'message': 'We will notify you when this item is back in stock.',
+        }, status=201 if created else 200)
 
 
 class ProductListView(APIView):

@@ -54,11 +54,6 @@ class OrderReceiptView(APIView):
         if not _can_access_order(request, order):
             return _error(
                 'FORBIDDEN', 'You cannot access this order.', 403)
-        if order.status != order.Status.CONFIRMED:
-            return _error(
-                'RECEIPT_NOT_FOUND',
-                'The receipt will be available after the order is confirmed.',
-                404)
         receipt = Receipt.objects.filter(order=order).first()
         if receipt is None:
             return _error(
@@ -77,11 +72,6 @@ class ReceiptDownloadView(APIView):
         if not _can_access_order(request, receipt.order):
             return _error(
                 'FORBIDDEN', 'You cannot access this receipt.', 403)
-        if receipt.order.status != receipt.order.Status.CONFIRMED:
-            return _error(
-                'RECEIPT_NOT_FOUND',
-                'The receipt will be available after the order is confirmed.',
-                404)
         try:
             pdf_bytes = read_pdf_bytes(receipt)
         except Exception:

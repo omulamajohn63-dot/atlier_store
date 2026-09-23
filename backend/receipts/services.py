@@ -108,8 +108,7 @@ def generate_receipt(order, *, intent=None):
     ``receipt_generation_failed`` so the order confirmation itself is never
     affected.
     """
-    if (order.status != order.Status.CONFIRMED or
-            order.payment_status != order.PaymentStatus.PAID):
+    if order.payment_status != order.PaymentStatus.PAID:
         return Receipt.objects.filter(order=order).first()
     try:
         return _generate_impl(order, intent)

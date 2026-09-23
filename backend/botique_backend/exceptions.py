@@ -31,6 +31,23 @@ STATUS_CODES = {
     429: 'RATE_LIMITED',
 }
 
+# DRF built-in default_codes. When a raised exception carries a custom
+# default_code (e.g. QUANTITY_EXCEEDS_STOCK), that code wins so clients can
+# branch on specific failures; generic DRF codes defer to STATUS_CODES.
+DRF_GENERIC_CODES = frozenset({
+    'error', 'invalid', 'not_authenticated', 'pending_authentication',
+    'authentication_failed', 'permission_denied', 'method_not_allowed',
+    'not_found', 'unsupported_media_type', 'throttled', 'not_acceptable',
+    'parse_error', 'client_terminated',
+})
+
+
+def _error_code(exc, status):
+    default_code = getattr(exc, 'default_code', '') or ''
+    if default_code and default_code not in DRF_GENERIC_CODES:
+        return default_code.upper()
+    return STATUS_CODES.get(status, default_code.upper() or 'API_ERROR')
+
 
 def _failure_path(request):
     return getattr(request, 'path', '') if request is not None else ''
@@ -59,16 +76,24 @@ def api_exception_handler(exc, context):
 
     if response is not None:
         status = response.status_code
-        detail = response.data.get('detail') if isinstance(
-            response.data, dict) else response.data
-        if isinstance(detail, dict):
-            details = detail
+        data = response.data
+        if isinstance(data, dict) and 'detail' in data:
+            # Single DRF message error: expose it as the envelope message.
+            details = {}
+            message = str(data.get('detail', ''))
+        elif isinstance(data, dict):
+            # Field-level validation errors: forward the whole dict so the
+            # storefront can surface per-field reasons from `details`. When
+            # the exception carries a typed original (raw_details) prefer it
+            # over DRF's stringified copy so numbers stay numbers in JSON.
+            details = getattr(exc, 'raw_details', None)
+            if not isinstance(details, dict):
+                details = data
             message = 'Request validation failed.'
         else:
             details = {}
-            message = str(detail)
-        code = STATUS_CODES.get(status, getattr(
-            exc, 'default_code', 'api_error').upper())
+            message = str(data) if data is not None else ''
+        code = _error_code(exc, status)
         payload = {
             'error': {'code': code, 'message': message, 'details': details},
         }
@@ -162,7 +187,18 @@ def api_exception_handler(exc, context):
             description='Payment confirmation failed.',
         )
     elif (
-        status in (400, 422)
+        status in (400, 409, 422)
+        and path.startswith('/api/cart/merge')
+    ):
+        _audit_failure(
+            request, status,
+            action='cart_merge_failed',
+            category='orders',
+            severity='medium',
+            description='Cart merge rejected by the backend.',
+        )
+    elif (
+        status in (400, 409, 422)
         and path.startswith('/api/cart/items')
     ):
         action = ('cart_update_failed' if request.method == 'PATCH'

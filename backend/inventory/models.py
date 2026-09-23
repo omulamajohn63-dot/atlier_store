@@ -40,3 +40,29 @@ class InventoryTransaction(models.Model):
     actor = models.ForeignKey(settings.AUTH_USER_MODEL,
                               null=True, blank=True, on_delete=models.SET_NULL)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class BackInStockRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        NOTIFIED = 'notified', 'Notified'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    variant = models.ForeignKey(
+        ProductVariant, on_delete=models.CASCADE, related_name='back_in_stock_requests')
+    email = models.EmailField()
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    notified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        constraints = [
+            models.UniqueConstraint(
+                fields=('variant', 'email'),
+                name='unique_back_in_stock_request'),
+        ]
+
+    def __str__(self):
+        return f"{self.variant.sku} -> {self.email} ({self.status})"

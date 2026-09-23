@@ -25,6 +25,7 @@ import { formatOrderDate, mapServerOrder, totalQuantity } from '../utils/orderMa
 import {
   canCancel,
   canMarkReceived,
+  canRequestRefund,
   isActiveOrder,
   isTrackable,
 } from '../utils/orderStatus';
@@ -56,7 +57,7 @@ function paymentMethodLabel(method?: string): string {
 
 export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = ({ orderNumber: propOrderNumber }) => {
   const { navigate } = useRouter();
-  const { getOrder, receiveOrder, cancelOrder } = useOrders();
+  const { getOrder, receiveOrder, cancelOrder, requestOrderReturn } = useOrders();
   const [order, setOrder] = useState<Order | null>(() => {
     if (!propOrderNumber) return null;
     return getOrder(propOrderNumber) || null;
@@ -107,6 +108,21 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
       setError(result.message);
     }
   }, [order, cancelOrder]);
+
+  const handleRequestRefund = useCallback(async () => {
+    if (!order) return;
+    if (!window.confirm(`Request a refund for order ${order.orderNumber}? A staff member will review your request.`)) {
+      return;
+    }
+
+    const result = await requestOrderReturn(order.orderNumber, '');
+    if (result.success && result.order) {
+      setOrder(result.order);
+      setError('');
+    } else {
+      setError(result.message);
+    }
+  }, [order, requestOrderReturn]);
 
   useEffect(() => {
     const orderNum = propOrderNumber || '';
@@ -518,6 +534,16 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                   <Button type="button" variant="outline" size="md" onClick={handleCancel} className="text-xs uppercase tracking-wider">
                     Cancel Order
                   </Button>
+                )}
+                {canRequestRefund(order.status) && order.paymentStatus === 'paid' && (
+                  <Button type="button" variant="outline" size="md" onClick={() => void handleRequestRefund()} className="text-xs uppercase tracking-wider">
+                    Request Refund
+                  </Button>
+                )}
+                {order.paymentStatus === 'refunded' && (
+                  <div className="flex items-center justify-center rounded-md border border-[#E8E5DF] bg-white px-3 py-2 text-xs uppercase tracking-wider text-[#827E77]">
+                    Refunded
+                  </div>
                 )}
                 {receiptLoading ? (
                   <Button type="button" variant="outline" size="md" disabled className="gap-2 text-xs" aria-busy="true">

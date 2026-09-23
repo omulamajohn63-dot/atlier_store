@@ -265,14 +265,9 @@ const ShopDropdown: React.FC<{
       <DropdownLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
     </DropdownColumn>
 
-    {/* Categories */}
+    {/* Categories - use dynamic categories only to avoid duplicates */}
     <DropdownColumn title="Shop by Category">
       <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} />
-      <DropdownLink label="Women" onClick={() => onNavigate('/shop/women')} />
-      <DropdownLink label="Men" onClick={() => onNavigate('/shop/men')} />
-      <DropdownLink label="Dresses" onClick={() => onNavigate('/shop/dresses')} />
-      <DropdownLink label="Shoes" onClick={() => onNavigate('/shop/shoes')} />
-      <DropdownLink label="Accessories" onClick={() => onNavigate('/shop/accessories')} />
       {categories.map((cat) => (
         <DropdownLink
           key={cat.slug}
@@ -596,11 +591,14 @@ const MobileMenu: React.FC<{
           </MobileSection>
 
           <MobileSection title="Categories">
-            <MobileLink label="Women" onClick={() => onNavigate('/shop/women')} />
-            <MobileLink label="Men" onClick={() => onNavigate('/shop/men')} />
-            <MobileLink label="Dresses" onClick={() => onNavigate('/shop/dresses')} />
-            <MobileLink label="Shoes" onClick={() => onNavigate('/shop/shoes')} />
-            <MobileLink label="Accessories" onClick={() => onNavigate('/shop/accessories')} />
+            {productCategories.map((cat) => (
+              <MobileLink
+                key={cat.slug}
+                label={cat.label}
+                onClick={() => onNavigate(cat.path)}
+                isActive={currentCategory === cat.slug}
+              />
+            ))}
           </MobileSection>
 
           <MobileSection title="Shop">

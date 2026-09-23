@@ -1,3 +1,4 @@
+from django.core.mail import EmailMessage
 from django.db import transaction
 from datetime import timedelta
 from django.utils import timezone
@@ -7,7 +8,7 @@ from admin_ui.models import notify_staff
 from audit.services import AuditLogService
 from catalog.models import ProductVariant
 
-from .models import InventoryTransaction, StockReservation
+from .models import BackInStockRequest, InventoryTransaction, StockReservation
 
 
 def _audit_variant(action, variant, metadata=None, result='success'):
@@ -74,6 +75,8 @@ def release_reservation(reservation):
     previous = variant.stock_quantity
     variant.stock_quantity += reservation.quantity
     variant.save(update_fields=['stock_quantity'])
+    transaction.on_commit(
+        lambda: _maybe_notify_restock(variant, previous, variant.stock_quantity))
     reservation.status = StockReservation.Status.RELEASED
     reservation.released_at = timezone.now()
     reservation.save(update_fields=['status', 'released_at'])
@@ -116,6 +119,8 @@ def adjust_stock(variant_id, delta, reason, actor=None):
             link=f'/admin/dashboard/inventory/adjust/?variant={variant.pk}',
             event_key=f'low-stock:{variant.pk}',
         )
+    transaction.on_commit(
+        lambda: _maybe_notify_restock(variant, previous, new_quantity))
     return InventoryTransaction.objects.create(
         variant=variant,
         quantity_delta=delta,
@@ -124,6 +129,113 @@ def adjust_stock(variant_id, delta, reason, actor=None):
         reason=reason,
         actor=actor,
     )
+
+
+def _maybe_notify_restock(variant, previous, new_quantity):
+    """Notify back-in-stock subscribers when a variant returns to stock."""
+    if previous > 0 or new_quantity <= 0:
+        return
+    try:
+        notify_back_in_stock(variant, new_quantity)
+    except Exception:  # noqa: BLE001 - restock must never break
+        __import__('logging').getLogger('modeza.inventory').exception(
+            'Back-in-stock notification failed for %s', variant.sku)
+
+
+@transaction.atomic
+def subscribe_to_stock_alert(variant_id, email):
+    """Register a customer's back-in-stock request for a variant.
+
+    Records real audit entries (no invented state) and respects a single
+    pending (or already-notified) request per (variant, email).
+    """
+    email = (email or '').strip().lower()
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError as DjangoValidationError
+    try:
+        validate_email(email)
+    except DjangoValidationError:
+        raise ValidationError({'email': 'Enter a valid email address.'})
+
+    variant = ProductVariant.objects.filter(pk=variant_id).first()
+    if variant is None:
+        raise ValidationError({'variant': 'Product variant was not found.'})
+
+    existing, created = BackInStockRequest.objects.get_or_create(
+        variant=variant,
+        email=email,
+        defaults={'status': BackInStockRequest.Status.PENDING},
+    )
+    if created:
+        AuditLogService.log(
+            'back_in_stock_subscribed',
+            object_type='product_variant',
+            object_id=variant.pk,
+            object_repr=variant.sku,
+            category='catalog',
+            metadata={'email': email, 'variant_id': str(variant.id)},
+            description=f'Back-in-stock request for {variant.sku} from {email}.',
+        )
+    return existing, created
+
+
+@transaction.atomic
+def notify_back_in_stock(variant, quantity):
+    """Notify pending back-in-stock requests once a variant is restocked.
+
+    Only fires on a real stock transition into availability and only once per
+    (variant, email). Email delivery must never break the restock.
+    """
+    pending = list(BackInStockRequest.objects.filter(
+        variant=variant,
+        status=BackInStockRequest.Status.PENDING,
+    ))
+    if not pending:
+        return []
+
+    notified = []
+    for request in pending:
+        request.status = BackInStockRequest.Status.NOTIFIED
+        request.notified_at = timezone.now()
+        request.save(update_fields=['status', 'notified_at', ])
+        AuditLogService.log(
+            'back_in_stock_notified',
+            object_type='product_variant',
+            object_id=variant.pk,
+            object_repr=variant.sku,
+            category='catalog',
+            result='success',
+            metadata={'email': request.email,
+                      'variant_id': str(variant.id), 'quantity': quantity},
+            description=f'Back-in-stock email sent to {request.email} for {variant.sku}.',
+        )
+        notified.append(request.email)
+        _send_back_in_stock_email(request, variant)
+
+    return notified
+
+
+def _send_back_in_stock_email(request, variant):
+    """Best-effort email delivery for a back-in-stock notification."""
+    from django.conf import settings
+    subject = f'{getattr(settings, "STORE_NAME", "Modeza Boutique")} — back in stock'
+    body = (
+        f'Hello,\n\n'
+        f'Good news: {variant.product.name}'
+        f'{" (" + variant.size + ")" if variant.size else ""} is back in stock.\n\n'
+        f'Shop it now on '
+        f'{getattr(settings, "FRONTEND_ORIGIN", "http://localhost:3000")}'
+        f'/products/{variant.product.slug}.\n\n'
+        f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}\n'
+        f'{getattr(settings, "STORE_ADDRESS", "")}'
+    )
+    try:
+        EmailMessage(
+            subject, body, settings.DEFAULT_FROM_EMAIL, [request.email]).send(
+            fail_silently=True)
+    except Exception:  # noqa: BLE001 - delivery must never break the restock
+        logger = __import__('logging').getLogger('modeza.inventory')
+        logger.warning('Back-in-stock email failed for %s', request.email)
 
 
 @transaction.atomic

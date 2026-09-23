@@ -11,6 +11,7 @@ interface NotificationsContextValue {
   refreshNotifications: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  notify: (toast: Omit<ToastMessage, 'id'>) => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
@@ -119,6 +120,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
+  const notify = useCallback((toast: Omit<ToastMessage, 'id'>) => {
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `toast_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    setToasts((current) => [{ id, ...toast }, ...current].slice(0, 4));
+  }, []);
+
   useEffect(() => {
     if (toasts.length === 0) return undefined;
 
@@ -160,6 +168,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       refreshNotifications,
       markAsRead,
       markAllAsRead,
+      notify,
     }}>
       {children}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} onMarkAllRead={markAllAsRead} />

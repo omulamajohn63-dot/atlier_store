@@ -9,6 +9,8 @@ from catalog.models import Category, Product, ProductVariant
 from inventory.models import InventoryTransaction, StockReservation
 from orders.models import Order
 from orders.services import shipping_cost_minor, tax_cost_minor
+from audit.models import AuditLog
+from admin_ui.models import AdminNotification
 
 
 class OrderApiTests(TestCase):
@@ -114,6 +116,9 @@ class OrderApiTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         unique = uuid.uuid4().hex[:8]
+        get_user_model().objects.create_user(
+            username=f'staff-{unique}', email=f'staff-{unique}@modeza.com',
+            password='secret-pass-123', is_staff=True)
         category = Category.objects.create(
             name='Shoes', slug=f'shoes-{unique}')
         product = Product.objects.create(
@@ -195,6 +200,58 @@ class OrderApiTests(TestCase):
         self.assertEqual(received.status_code, 200)
         order.refresh_from_db()
         self.assertEqual(order.status, Order.Status.RECEIVED)
+
+    def test_customer_can_request_refund_for_received_order(self):
+        response = self.client.post(
+            '/api/orders',
+            self.order_payload(),
+            format='json',
+            HTTP_X_CART_ID='order-cart',
+        )
+        self.assertEqual(response.status_code, 201)
+        order_number = response.json()['orderNumber']
+
+        order = Order.objects.get(order_number=order_number)
+        order.status = Order.Status.RECEIVED
+        order.payment_status = Order.PaymentStatus.PAID
+        order.save(update_fields=['status', 'payment_status', 'updated_at'])
+
+        with self.captureOnCommitCallbacks(execute=True):
+            returned = self.client.post(
+                f'/api/orders/{order_number}/return',
+                {'reason': 'Wrong size'},
+                format='json',
+                HTTP_X_CART_ID='order-cart',
+            )
+
+        self.assertEqual(returned.status_code, 200)
+        order.refresh_from_db()
+        audit = AuditLog.objects.filter(
+            action='refund_requested',
+            object_type='order',
+            object_id=str(order.pk),
+        )
+        self.assertTrue(audit.exists())
+        admins = AdminNotification.objects.filter(event_type='refund_requested')
+        self.assertTrue(admins.exists())
+
+    def test_refund_request_rejects_non_received_order(self):
+        response = self.client.post(
+            '/api/orders',
+            self.order_payload(),
+            format='json',
+            HTTP_X_CART_ID='order-cart',
+        )
+        order_number = response.json()['orderNumber']
+
+        returned = self.client.post(
+            f'/api/orders/{order_number}/return',
+            {'reason': ''},
+            format='json',
+            HTTP_X_CART_ID='order-cart',
+        )
+
+        self.assertEqual(returned.status_code, 400)
 
     def test_cancel_order_releases_stock_once(self):
         response = self.client.post(

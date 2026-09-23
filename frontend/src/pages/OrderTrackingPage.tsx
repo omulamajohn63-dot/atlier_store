@@ -4,7 +4,9 @@ import { useRouter } from '../router/RouterContext';
 import { Order, OrderStatus } from '../types';
 import { formatPrice } from '../utils/currency';
 import { Button } from '../components/ui/Button';
+import { ProductImage } from '../components/ui/ProductImage';
 import { api } from '../services/apiClient';
+import { mapServerOrder } from '../utils/orderMapper';
 import {
   Search,
   PackageCheck,
@@ -27,11 +29,9 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
   const { getOrder, cancelOrder, receiveOrder } = useOrders();
   const { navigate } = useRouter();
 
-  const initialCode = propOrderNum || 'ATL-KES-849201';
-
-  // Pre-fill with order number from prop or demo
-  const [searchQuery, setSearchQuery] = useState(initialCode);
-  const [activeOrder, setActiveOrder] = useState<Order | null>(() => getOrder(initialCode) || null);
+  // Pre-fill only from a real order reference; no fabricated demo order.
+  const [searchQuery, setSearchQuery] = useState(propOrderNum || '');
+  const [activeOrder, setActiveOrder] = useState<Order | null>(() => (propOrderNum ? getOrder(propOrderNum) || null : null));
   const [errorMsg, setErrorMsg] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
 
@@ -62,61 +62,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
     // Query authoritative backend API
     try {
       const serverOrder = await api.getOrder(cleanQuery);
-      const mapped: Order = {
-        id: serverOrder.id,
-        orderNumber: serverOrder.orderNumber,
-        customer: {
-          firstName: serverOrder.customer.fullName.split(' ')[0] || serverOrder.customer.fullName,
-          lastName: serverOrder.customer.fullName.split(' ').slice(1).join(' ') || '',
-          email: serverOrder.customer.email,
-          phone: serverOrder.customer.phone,
-          addressLine1: serverOrder.customer.addressLine1,
-          addressLine2: serverOrder.customer.addressLine2,
-          city: serverOrder.customer.city,
-          stateOrProvince: serverOrder.customer.county,
-          postalCode: serverOrder.customer.postalCode || '',
-          country: 'Kenya',
-        },
-        items: serverOrder.items.map((i) => ({
-          id: i.id,
-          productId: i.productId,
-          variantId: i.variantId,
-          productName: i.productName,
-          variantDetails: `${i.variantSize || ''} ${i.variantColor || ''}`.trim(),
-          sku: i.variantSku,
-          unitPrice: i.unitPrice,
-          quantity: i.quantity,
-          subtotal: i.lineTotal,
-          image: i.imageUrl || '',
-        })),
-        subtotal: serverOrder.subtotal,
-        shippingMethod: serverOrder.shippingMethod,
-        shippingCost: serverOrder.shippingCost,
-        tax: serverOrder.tax,
-        total: serverOrder.total,
-        status: serverOrder.status,
-        paymentStatus: serverOrder.paymentStatus,
-        notes: serverOrder.customer.deliveryInstructions,
-        timeline: [
-          {
-            status: 'confirmed',
-            title: 'Order Confirmed & Authorized',
-            description: 'Order registered in authoritative modeza database.',
-            timestamp: serverOrder.createdAt,
-            completed: true,
-          },
-          {
-            status: 'processing',
-            title: 'MODEZA Preparation',
-            description: 'Garments passed artisan inspection.',
-            timestamp: serverOrder.updatedAt,
-            completed: serverOrder.status !== 'pending',
-          },
-        ],
-        createdAt: serverOrder.createdAt,
-        updatedAt: serverOrder.updatedAt,
-      };
-      setActiveOrder(mapped);
+      setActiveOrder(mapServerOrder(serverOrder));
     } catch {
       setActiveOrder(null);
       setErrorMsg(`No record found for order "${searchQuery}". Please check reference code or contact concierge.`);
@@ -231,7 +177,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Enter reference code (e.g. ATL-KES-849201)"
+              placeholder="Enter reference code (e.g. AT-KES12AB34CDEF)"
               className="w-full bg-[#FAF9F6] border border-[#E8E5DF] rounded-2xl pl-11 pr-4 py-3 text-xs tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal focus:outline-none focus:ring-1 focus:ring-[#A2574F]"
             />
           </div>
@@ -240,20 +186,9 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
           </Button>
         </form>
 
-        <div className="mt-3 flex items-center justify-between text-[11px] text-[#827E77] px-1">
-          <span>Demo Tracking Reference: <strong className="text-[#181716]">ATL-KES-849201</strong></span>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('ATL-KES-849201');
-              const found = getOrder('ATL-KES-849201');
-              if (found) setActiveOrder(found);
-            }}
-            className="text-[#A2574F] hover:underline"
-          >
-            Load Sample
-          </button>
-        </div>
+        <p className="mt-3 text-[11px] text-[#827E77] px-1">
+          Only real orders placed through the boutique can be tracked.
+        </p>
       </div>
 
       {/* Error / Alert */}
@@ -358,16 +293,14 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
               {activeOrder.items.map((item) => (
                 <div key={item.id} className="py-4 flex items-center justify-between gap-x-4 gap-y-3 flex-wrap">
                   <div className="flex items-center gap-4 min-w-0">
-                    <img
+                    <ProductImage
                       src={item.image}
                       alt={item.productName}
-                      referrerPolicy="no-referrer"
-                      className="w-16 h-20 object-cover rounded-xl bg-[#F4ECE9] shrink-0"
+                      className="w-16 h-20 rounded-xl shrink-0"
                     />
                     <div>
                       <h4 className="font-serif text-sm text-[#181716]">{item.productName}</h4>
                       <p className="text-xs text-[#827E77]">{item.variantDetails}</p>
-                      <span className="text-[10px] font-mono text-[#A29E96]">SKU: {item.sku}</span>
                       <p className="text-xs text-[#63605A] mt-1">
                         Qty: {item.quantity} &times; {formatPrice(item.unitPrice)}
                       </p>

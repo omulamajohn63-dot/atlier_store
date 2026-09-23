@@ -4,6 +4,10 @@ import { OrderDTO } from '../types/api';
 /**
  * Maps a server OrderDTO onto the domain Order used by the orders UI.
  * Source of truth for every server-backed order surface so mapping stays DRY.
+ *
+ * The timeline comes straight from the authoritative backend audit trail
+ * (real events only). When a mock/local API omits it, fall back to a single
+ * truthful "Placed" event rather than inventing milestones.
  */
 export function mapServerOrder(serverOrder: OrderDTO): Order {
   const nameParts = (serverOrder.customer.fullName || '').split(' ').filter(Boolean);
@@ -20,6 +24,22 @@ export function mapServerOrder(serverOrder: OrderDTO): Order {
     postalCode: serverOrder.customer.postalCode || '',
     country: 'Kenya',
   };
+
+  const timeline = Array.isArray(serverOrder.timeline) && serverOrder.timeline.length > 0
+    ? serverOrder.timeline.map((event) => ({
+        status: event.status,
+        title: event.title,
+        description: event.description,
+        timestamp: event.timestamp,
+        completed: event.completed,
+      }))
+    : [{
+        status: 'confirmed' as OrderStatus,
+        title: 'Order Placed',
+        description: 'Order registered in the modeza order ledger.',
+        timestamp: serverOrder.createdAt,
+        completed: true,
+      }];
 
   return {
     id: serverOrder.id,
@@ -46,22 +66,7 @@ export function mapServerOrder(serverOrder: OrderDTO): Order {
     paymentStatus: serverOrder.paymentStatus,
     paymentMethod: serverOrder.paymentMethod,
     notes: serverOrder.customer.deliveryInstructions,
-    timeline: [
-      {
-        status: 'confirmed' as OrderStatus,
-        title: 'Order Authorized & Received',
-        description: 'Order registered in the modeza order ledger.',
-        timestamp: serverOrder.createdAt,
-        completed: true,
-      },
-      {
-        status: 'processing' as OrderStatus,
-        title: 'MODEZA Preparation',
-        description: 'The order is being prepared for delivery.',
-        timestamp: serverOrder.updatedAt,
-        completed: serverOrder.status !== 'pending',
-      },
-    ],
+    timeline,
     createdAt: serverOrder.createdAt,
     updatedAt: serverOrder.updatedAt,
   };

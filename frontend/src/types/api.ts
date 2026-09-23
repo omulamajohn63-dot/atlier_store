@@ -85,6 +85,27 @@ export interface CartDTO {
   currency: string;
 }
 
+export interface CartMergeSummaryItem {
+  variantId: string;
+  productName?: string;
+  reason: 'unavailable' | 'out_of_stock' | 'clamped';
+}
+
+export interface CartMergeSummary {
+  merged: number;
+  clamped: number;
+  skipped: number;
+  skippedItems: CartMergeSummaryItem[];
+}
+
+export interface CartMergeResponse extends CartDTO {
+  mergeSummary: CartMergeSummary;
+}
+
+export interface CartMergeResponse extends CartDTO {
+  mergeSummary: CartMergeSummary;
+}
+
 export interface OrderItemDTO {
   id: string;
   productId: string;
@@ -97,6 +118,16 @@ export interface OrderItemDTO {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+}
+
+export type OrderDTOStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'received' | 'cancelled';
+
+export interface OrderTimelineItemDTO {
+  status: OrderDTOStatus;
+  title: string;
+  description: string;
+  timestamp: string;
+  completed: boolean;
 }
 
 export interface OrderDTO {
@@ -121,12 +152,13 @@ export interface OrderDTO {
   total: number;
   shippingMethod: 'standard' | 'express';
   paymentMethod: 'mpesa' | 'card' | 'cash_on_delivery' | 'pay_on_delivery';
-  status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'received' | 'cancelled';
+  status: OrderDTOStatus;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   paymentIntentId?: string;
   currency: string;
   createdAt: string;
   updatedAt: string;
+  timeline: OrderTimelineItemDTO[];
 }
 
 export interface PaymentIntentDTO {

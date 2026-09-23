@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useRouter } from '../router/RouterContext';
 import { useOrders } from '../context/OrdersContext';
 import { Button } from '../components/ui/Button';
+import { ProductImage } from '../components/ui/ProductImage';
 import { formatPrice } from '../utils/currency';
 import { CheckCircle2, PackageCheck, ArrowRight, Printer, Download, Mail, MapPin, Eye } from 'lucide-react';
 import { api } from '../services/apiClient';
@@ -181,11 +182,10 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
               {resolvedOrder.items.map((item) => (
                 <div key={item.id} className="py-2.5 flex items-center justify-between text-xs">
                   <div className="flex items-center gap-3">
-                    <img
+                    <ProductImage
                       src={item.image}
                       alt={item.productName}
-                      referrerPolicy="no-referrer"
-                      className="w-10 h-12 object-cover rounded-lg bg-[#F4ECE9]"
+                      className="w-10 h-12 rounded-lg"
                     />
                     <div>
                       <p className="font-medium text-[#181716]">{item.productName}</p>

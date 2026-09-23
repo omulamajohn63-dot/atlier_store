@@ -1,0 +1,388 @@
+# MODEZA Boutique — Project Documentation
+
+Full-stack fashion e-commerce store targeting the **Kenyan market** (currency: **KES**, payments via **M-Pesa**).
+
+---
+
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Directory Structure](#directory-structure)
+- [Features](#features)
+- [Frontend](#frontend)
+- [Backend (Django)](#backend-django)
+- [API Endpoints](#api-endpoints)
+- [Database & Auth](#database--auth)
+- [Payments (M-Pesa)](#payments-mpesa)
+- [Environment Variables](#environment-variables)
+- [Local Development](#local-development)
+- [Deployment](#deployment)
+- [Observability & Security](#observability--security)
+- [Documentation Index](#documentation-index)
+
+---
+
+## Architecture
+
+```
+Browser ──▶ Vercel (Vite SPA, /assets)
+             │ VITE_API_BASE_URL ──▶ Render (Django /api/*)
+             │ VITE_SUPABASE_URL ──▶ Supabase (auth, account data)
+             └ MPesa callback ────▶ Render /api/payments/mpesa/callback
+```
+
+| Layer | Service | Role |
+|---|---|---|
+| Frontend | **Vercel** | React SPA served as static assets |
+| Backend API | **Render** (Docker) | Django REST Framework, `/api/*` |
+| Auth + DB | **Supabase** | Auth (JWT) + PostgreSQL |
+| Payments | **M-Pesa Daraja API** | STK Push / sandbox payments |
+
+---
+
+## Tech Stack
+
+### Frontend
+- **React 19** + **TypeScript** SPA
+- **Vite 6** build tool
+- **Tailwind CSS 4** (`@tailwindcss/vite` plugin) — warm boutique palette (`#FAF9F6` bg, `#181716` text)
+- **motion** (Framer Motion successor) for page transitions
+- **lucide-react** icons
+- **@supabase/supabase-js** for auth
+- **zod** for schema validation
+- Custom hash-aware router (no React Router)
+- React Context for state (no Redux/Zustand)
+- Express/TypeScript API prototype bundled with the frontend (`src/server/`)
+
+### Backend
+- **Django 6** + **Django REST Framework**
+- **PyJWT** for Supabase JWT verification
+- **reportlab** for PDF receipts
+- **openpyxl** for Excel product imports
+- **gunicorn** + **whitenoise** for serving
+- **psycopg2-binary** / **dj-database-url** for Postgres
+
+### Infrastructure
+- Docker (Python 3.12-slim) for backend
+- `render.yaml` Blueprint for Render deployment
+- `vercel.json` for SPA routing on Vercel
+- k6 for load testing
+
+---
+
+## Directory Structure
+
+```
+boutique-fashion-store/
+├── README.md                      # Deployment runbook
+├── PROJECT.md                     # This file
+├── .env.example                   # Master env template
+├── render.yaml                    # Render Blueprint
+├── questionnaire-answers.md       # Feature-state audit
+├── load-test-info.md              # k6 load-testing guide & API contracts
+├── supabase/                      # setup.sql, cleanup.sql
+├── backend/                       # Django project
+│   ├── manage.py, Dockerfile, requirements.txt, .env.example
+│   ├── botique_backend/           # settings, urls, middleware, logging
+│   ├── accounts/                  # Supabase JWT auth, /api/auth/me
+│   ├── catalog/                   # products, categories, variants
+│   ├── cart/                      # guest carts (x-cart-id header)
+│   ├── orders/                    # checkout, order lifecycle
+│   ├── payments/                  # M-Pesa create-intent/confirm/webhook
+│   ├── inventory/                 # stock + reservations ledger
+│   ├── receipts/                  # PDF/email receipts
+│   ├── audit/                     # audit log + /api/audit/events
+│   ├── access_control/            # roles: customer/staff/admin
+│   ├── admin_ui/                  # server-rendered admin dashboard
+│   ├── admin_api/                 # staff REST endpoints
+│   ├── store/                     # /api/health/
+│   └── docs/                      # LOGGING.md, ADMIN_VARIANTS.md
+└── frontend/                      # React + Vite storefront
+    ├── package.json, server.ts, vite.config.ts, vercel.json
+    ├── src/
+    │   ├── pages/                 # storefront + account pages
+    │   ├── components/            # ui/, orders/, variant/, account/
+    │   ├── context/               # Store, Auth, Cart, Orders, Wishlist…
+    │   ├── router/                # custom RouterContext
+    │   ├── services/              # apiClient, supabaseClient
+    │   ├── server/                # Express API prototype (routes/, db/)
+    │   └── types/, lib/, data/, utils/
+    ├── supabase/migrations/       # schema, wishlist, RLS policies
+    └── dist/                      # build output
+```
+
+---
+
+## Features
+
+### Storefront pages
+| Page | Route | Notes |
+|---|---|---|
+| Home | `/` | Landing |
+| Shop | `/shop` | Category, collection, occasion, filter, sort, search, sale |
+| Product Detail | `/product/:slug` | Variant/color pickers, quick view |
+| Cart | `/cart` | Drawer + page, localStorage persistence |
+| Checkout | `/checkout` | M-Pesa payment flow |
+| Order Success | `/order/success` | Confirmation |
+| Order Tracking | `/track` | Status + progress |
+| Wishlist | `/wishlist` | Saved items |
+| Recently Viewed | `/recently-viewed` | History |
+| About / Legal | `/about`, legal pages | Privacy, terms, shipping, returns, cookies |
+| Account | `/account/*` | Overview, Orders, Notifications, Profile, Addresses, Security |
+
+### Core components
+- Navbar, Footer, CartDrawer, SearchModal, QuickViewModal
+- ProductCard, ProductGrid, ErrorBoundary
+- Order widgets: OrderStatusPill, OrderProgress, OrderItemThumb
+- Variant pickers: VariantSelector, ColorSwatches
+- UI kit (`components/ui/`): Button, Input, Select, Modal, Badge, Toast, Price, QuantitySelector, Loading/Error/EmptyState
+
+### Admin dashboard (server-rendered, `admin_ui/`)
+- Staff login, KPIs, dashboard
+- Product / category / variant management (size-matrix bulk creation, SKU generation)
+- Stock adjustments, Excel product import
+- Order detail, customer detail, notifications center
+- Activity / Error / Security / System-Health centers, request trace
+- CSV / JSON exports
+
+---
+
+## Frontend
+
+### Scripts (`frontend/package.json`)
+
+| Script | Command | Purpose |
+|---|---|---|
+| `npm run dev` | `tsx server.ts` | Dev server (Express + Vite middleware) on port 3000 |
+| `npm run build` | `vite build && esbuild server.ts …` | Production bundle → `dist/` |
+| `npm start` | `node dist/server.cjs` | Serve production build |
+| `npm run preview` | `vite preview` | Preview built SPA |
+| `npm run lint` | `tsc --noEmit` | Typecheck |
+| `npm run test:api` | `tsx src/server/tests/run-tests.ts` | API integration tests |
+
+### State management
+React Contexts: `Store`, `Auth`, `Orders`, `Wishlist`, `Cart`, `Notifications`. Guest cart ID persists in `localStorage` under `modeza_server_cart_id`.
+
+### Routing
+Custom hash-aware `RouterContext` — no React Router dependency.
+
+### Express API prototype
+`frontend/src/server/` contains a local Express/TypeScript API (routes, services, schemas, middleware, db) that mirrors the Django `/api` contract for local development and testing. The Django backend is the source of truth in production.
+
+> **Note:** `@google/genai` is declared in `package.json` but not referenced anywhere in `src/`.
+
+---
+
+## Backend (Django)
+
+### Apps
+
+| App | Responsibility |
+|---|---|
+| `catalog` | Products, categories, variants |
+| `cart` | Guest carts via `x-cart-id` header |
+| `orders` | Checkout, order lifecycle |
+| `payments` | M-Pesa create-intent / confirm / webhook / callback |
+| `inventory` | Stock levels + reservations ledger |
+| `accounts` | Supabase JWT auth, `/api/auth/me` |
+| `receipts` | PDF/email receipts (reportlab) |
+| `audit` | Audit log, client `/api/audit/events` |
+| `access_control` | Roles: customer / staff / admin |
+| `admin_ui` | Custom server-rendered dashboard |
+| `admin_api` | Staff REST endpoints (products, inventory, notifications, maintenance) |
+| `store` | `/api/health/` health check |
+
+---
+
+## API Endpoints
+
+### Public / storefront
+```
+GET    /api/products/                  # list (filter/sort/search)
+GET    /api/products/<slug|uuid>/      # detail
+GET    /api/categories/
+GET    /api/cart                       # get cart (x-cart-id)
+POST   /api/cart/items                 # add item
+POST   /api/orders                     # checkout
+POST   /api/payments/create-intent     # start payment
+POST   /api/payments/confirm           # confirm payment
+POST   /api/payments/webhook           # provider webhook
+POST   /api/payments/mpesa/callback    # M-Pesa callback
+GET    /api/auth/me                    # current user (JWT)
+POST   /api/audit/events               # client audit events
+GET    /api/health/                    # health check
+```
+
+### Admin / staff
+```
+/api/admin/*                           # staff REST endpoints
+```
+
+### Throttling (DRF)
+| Scope | Limit |
+|---|---|
+| Anonymous | 60/min |
+| Authenticated | 120/min |
+| Orders | 20/min |
+| Payments | 10/min |
+
+`LOAD_TEST_MODE` raises limits for load testing.
+
+---
+
+## Database & Auth
+
+### Database
+- **Dev default:** SQLite (`backend/db.sqlite3`)
+- **Production:** Postgres via `DATABASE_URL` (Supabase or Render-managed)
+- SQL migrations live in `supabase/` and `frontend/supabase/migrations/` (profiles, categories, products, variants, carts, orders, payments, reservations, audit logs, wishlist, RLS policies)
+
+### Auth flow
+1. User signs up/in via **Supabase Auth** (email + password, email verification) on the client.
+2. Client sends the Supabase JWT to Django.
+3. Django verifies the token via `SUPABASE_JWT_SECRET` / `ISSUER` / `AUDIENCE` and lazily creates a mapped local user.
+4. Django sessions are also used for local/admin auth.
+
+**Roles:** `customer`, `staff`, `admin` (managed by `access_control`).
+
+---
+
+## Payments (M-Pesa)
+
+- **Provider:** Safaricom **Daraja API** (sandbox supported via `MPESA_ENV`)
+- **Flow:** Checkout → `/api/payments/create-intent` → STK Push → user authorizes → `/api/payments/mpesa/callback` → order confirmed
+- Card payment scaffolding exists but M-Pesa is the primary method
+- Callback secured with `MPESA_CALLBACK_SECRET` / `PAYMENT_WEBHOOK_SECRET`
+
+---
+
+## Environment Variables
+
+Three templates exist: root `.env.example` (master), `backend/.env.example`, `frontend/.env.example`.
+
+### Django
+| Variable | Purpose |
+|---|---|
+| `DJANGO_SECRET_KEY` | Secret key |
+| `DJANGO_DEBUG` | Debug flag |
+| `DJANGO_ALLOWED_HOSTS` | Allowed hosts |
+| `DATABASE_URL` | Postgres connection string |
+| `FRONTEND_ORIGIN` | CORS origin |
+| `STORE_*` | Store branding |
+| `EMAIL_*` | Email (receipts/notifications) |
+
+### Supabase
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_URL` | Project URL |
+| `SUPABASE_JWT_SECRET` | JWT verification |
+| `SUPABASE_JWT_ISSUER` / `SUPABASE_JWT_AUDIENCE` | JWT claims |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only**, never expose to client |
+| `SUPABASE_STORAGE_BUCKET` | Media storage |
+
+### Payments
+| Variable | Purpose |
+|---|---|
+| `PAYMENT_WEBHOOK_SECRET` | Webhook signature |
+| `MPESA_CALLBACK_SECRET` | Callback verification |
+| `MPESA_ENV` | `sandbox` / `production` |
+| `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` | API credentials |
+| `MPESA_SHORTCODE` / `MPESA_PASSKEY` | Till number credentials |
+| `MPESA_CALLBACK_URL` | Public callback URL |
+
+### Observability
+| Variable | Purpose |
+|---|---|
+| `LOG_LEVEL` / `LOG_FORMAT` | Logging (`json` \| `text`) |
+| `AUDIT_LOG_RETENTION_DAYS` | Audit retention |
+| `USE_X_FORWARDED_FOR` | Trust proxy headers |
+| `LOAD_TEST_MODE` | Raise throttle limits |
+
+### Frontend (`VITE_*` baked at build)
+| Variable | Purpose |
+|---|---|
+| `VITE_API_BASE_URL` | Django API base URL |
+| `VITE_ADMIN_URL` | Admin dashboard URL |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | Supabase client |
+
+> ⚠️ **Do not commit real secrets.** `frontend/.env.local` and `backend/.env` may contain live credentials — keep them out of version control.
+
+---
+
+## Local Development
+
+### Backend (port 8000)
+```bash
+cd backend
+python -m venv ../.venv
+# Windows: ..\.venv\Scripts\activate    macOS/Linux: source ../.venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env            # fill in Supabase / payment keys
+python manage.py migrate
+python manage.py runserver      # http://127.0.0.1:8000
+```
+
+### Frontend (port 3000)
+```bash
+cd frontend
+npm install
+cp .env.example .env.local      # set VITE_API_BASE_URL=http://127.0.0.1:8000
+npm run dev                     # http://localhost:3000
+```
+
+### Verify
+```bash
+cd frontend
+npm run lint        # typecheck
+npm run test:api    # API integration tests
+```
+
+---
+
+## Deployment
+
+### Backend → Render
+- Defined in `render.yaml` (Render Blueprint)
+- `backend/Dockerfile`: Python 3.12-slim; runs `migrate --noinput` + `gunicorn` on start; `collectstatic` baked in
+- Create a superuser via `ensure_superuser`
+- Health check: `/api/health/`
+
+### Frontend → Vercel
+- `vercel.json` forces Vite build, output `dist`, rewrites all non-`/api` routes to `index.html`
+- Set `VITE_*` env vars in Vercel project settings **before build**
+
+### Post-deploy checklist
+1. Verify `/api/health/` returns OK
+2. Confirm CORS: `FRONTEND_ORIGIN` matches the Vercel domain
+3. Set `MPESA_CALLBACK_URL` to the public Render URL
+4. Create admin superuser
+5. Smoke-test checkout in M-Pesa sandbox
+
+---
+
+## Observability & Security
+
+- **Structured logging:** `LOG_FORMAT=json|text`, levels via `LOG_LEVEL`
+- **Request correlation:** `X-Request-ID` on every request
+- **Audit trail:** `AuditLogService` with canonical event constants; queryable via `/api/audit/events` and admin Activity center
+- **Admin notifications:** stock, errors, security events
+- **Throttling:** DRF per-scope rate limits (see [API Endpoints](#api-endpoints))
+- **RBAC:** customer / staff / admin roles via `access_control`
+- **RLS:** Supabase row-level security policies in SQL migrations
+- **Secure cookies:** configurable via env flags behind `X-Forwarded-Proto`
+
+---
+
+## Documentation Index
+
+| File | Contents |
+|---|---|
+| `README.md` | Deployment runbook (Render, Vercel, post-deploy) |
+| `PROJECT.md` | This file — full project documentation |
+| `questionnaire-answers.md` | Feature-state audit (auth, products, orders, payments, security, gaps) |
+| `load-test-info.md` | k6 load-testing guide + API contracts |
+| `backend/docs/LOGGING.md` | Logging / audit / notification spec |
+| `backend/docs/ADMIN_VARIANTS.md` | Product variant admin feature spec |
+| `frontend/README.md` | Frontend local-run instructions |
+| `.env.example` | Master environment variable template |

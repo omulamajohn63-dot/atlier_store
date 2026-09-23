@@ -9,6 +9,7 @@ import { setPostAuthDestination } from '../utils/postAuthRedirect';
 import { getSavedAddresses, SavedAddress } from '../utils/addressBook';
 import { Button } from '../components/ui/Button';
 import { Price } from '../components/ui/Price';
+import { ProductImage } from '../components/ui/ProductImage';
 import {
   formatPrice,
   FREE_SHIPPING_THRESHOLD,
@@ -376,6 +377,40 @@ export const CheckoutPage: React.FC = () => {
       void audit('payment_failed', 'Payment confirmation failed.', {}, { message: errorObj.message });
     }
   };
+
+  // While a web payment is pending, poll the authoritative order so that a
+  // provider webhook confirming the STK push completes the checkout
+  // automatically instead of making the customer wait on the manual button.
+  // Cards are sandbox-only (no live webhook) so they keep the manual path.
+  useEffect(() => {
+    if (!paymentPending || !pendingOrderNumber || paymentMethod === 'card') return;
+    let stopped = false;
+    let pollCount = 0;
+    const MAX_POLLS = 30; // 30 x 4s = up to 2 minutes of silent retry
+    const timer = window.setInterval(async () => {
+      pollCount += 1;
+      try {
+        const order = await api.getOrder(pendingOrderNumber);
+        if (order.paymentStatus === 'paid') {
+          stopped = true;
+          window.clearInterval(timer);
+          await clearCart();
+          navigate(`/order/success?order=${order.orderNumber}`);
+          return;
+        }
+      } catch {
+        // Transient network blip; keep polling until the deadline.
+      }
+      if (stopped || pollCount >= MAX_POLLS) {
+        window.clearInterval(timer);
+      }
+    }, 4000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentPending, pendingOrderNumber, paymentMethod]);
 
   if (cart.length === 0) {
     return (
@@ -747,11 +782,10 @@ export const CheckoutPage: React.FC = () => {
                 {cart.map((item) => (
                   <div key={item.id} className="flex items-center gap-3.5 hover:bg-[#FAF9F6] p-1.5 rounded-lg -m-1.5 transition-colors">
                     <div className="w-14 h-16 rounded-lg bg-[#F4ECE9] overflow-hidden shrink-0 border border-[#E8E5DF]">
-                      <img
+                      <ProductImage
                         src={item.image}
                         alt={item.name}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
+                        className="h-full w-full"
                       />
                     </div>
                     <div className="flex-1 min-w-0">

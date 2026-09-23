@@ -20,6 +20,7 @@ export interface OrdersContextType {
   updateOrderStatus: (orderNumber: string, status: OrderStatus) => void;
   cancelOrder: (orderNumber: string) => Promise<{ success: boolean; order?: Order; message: string }>;
   receiveOrder: (orderNumber: string) => Promise<{ success: boolean; order?: Order; message: string }>;
+  requestOrderReturn: (orderNumber: string, reason?: string) => Promise<{ success: boolean; order?: Order; message: string }>;
   searchOrders: (query: string) => Order[];
   resetOrdersToDefault: () => void;
 }
@@ -88,63 +89,11 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
 
         const now = new Date().toISOString();
+        // Timeline comes from the authoritative backend audit trail.
         const mappedOrder: Order = {
-          id: serverOrder.id,
-          orderNumber: serverOrder.orderNumber,
-          customer: input.customer,
-          items: serverOrder.items.map((i) => ({
-            id: i.id,
-            productId: i.productId,
-            variantId: i.variantId,
-            productName: i.productName,
-            variantDetails: `${i.variantSize || ''} ${i.variantColor || ''}`.trim(),
-            sku: i.variantSku,
-            unitPrice: i.unitPrice,
-            quantity: i.quantity,
-            subtotal: i.lineTotal,
-            image: i.imageUrl || '',
-          })),
-          subtotal: serverOrder.subtotal,
-          shippingMethod: serverOrder.shippingMethod,
-          shippingCost: serverOrder.shippingCost,
-          tax: serverOrder.tax,
-          total: serverOrder.total,
-          status: serverOrder.status,
-          paymentStatus: serverOrder.paymentStatus,
-          paymentMethod: serverOrder.paymentMethod,
+          ...mapServerOrder(serverOrder),
           notes: input.notes,
-          timeline: [
-            {
-              status: 'confirmed',
-              title: 'Order Authorized & Received',
-              description: 'Order created with authoritative server inventory decrement.',
-              timestamp: now,
-              completed: true,
-            },
-            {
-              status: 'processing',
-              title: 'MODEZA Preparation & Finishing',
-              description: 'Garments queued for fine inspection and tissue wrapping.',
-              timestamp: now,
-              completed: true,
-            },
-            {
-              status: 'shipped',
-              title: 'Courier Dispatch',
-              description: 'Scheduled for courier collection.',
-              timestamp: '',
-              completed: false,
-            },
-            {
-              status: 'delivered',
-              title: 'Handover & Signature',
-              description: 'Delivery at client destination.',
-              timestamp: '',
-              completed: false,
-            },
-          ],
-          createdAt: serverOrder.createdAt,
-          updatedAt: serverOrder.updatedAt,
+          updatedAt: now,
         };
 
         setOrders((prev) => [mappedOrder, ...prev]);
@@ -226,37 +175,16 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           shippingCost,
           tax,
           total: grandTotal,
-          status: 'processing',
+          status: 'pending',
           paymentStatus: 'paid',
           notes: input.notes,
           timeline: [
             {
               status: 'confirmed',
-              title: 'Order Authorized & Received',
-              description: 'Payment verified and registered in modeza ledger.',
+              title: 'Order Placed',
+              description: 'Order registered while offline; it will sync with modeza services when back online.',
               timestamp: now,
               completed: true,
-            },
-            {
-              status: 'processing',
-              title: 'MODEZA Preparation & Finishing',
-              description: 'Garments queued for fine inspection and tissue wrapping.',
-              timestamp: now,
-              completed: true,
-            },
-            {
-              status: 'shipped',
-              title: 'Courier Dispatch',
-              description: 'Scheduled for courier collection.',
-              timestamp: '',
-              completed: false,
-            },
-            {
-              status: 'delivered',
-              title: 'Handover & Signature',
-              description: 'Delivery at client destination.',
-              timestamp: '',
-              completed: false,
             },
           ],
           createdAt: now,
@@ -332,22 +260,8 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         // Authoritative server cancellation releases reserved modeza stock.
         const serverOrder = await api.cancelOrder(order.orderNumber);
-        const mapped = mapServerOrder(serverOrder);
-        const updated: Order = {
-          ...mapped,
-          timeline: [
-            ...mapped.timeline,
-            {
-              status: 'cancelled',
-              title: 'Order Cancelled & Restocked',
-              description: 'Client cancellation confirmed. MODEZA inventory restocked.',
-              timestamp: new Date().toISOString(),
-              completed: true,
-            },
-          ],
-        };
-        applyCancelled(updated);
-        return { success: true, order: updated, message: `Order ${orderNumber} has been cancelled and restocked.` };
+        applyCancelled(mapServerOrder(serverOrder));
+        return { success: true, order: mapServerOrder(serverOrder), message: `Order ${orderNumber} has been cancelled and restocked.` };
       } catch (err: unknown) {
         const errorObj = err as Error & { code?: string };
         // The backend refused the cancellation (e.g. too late to cancel). Surface its message.
@@ -379,8 +293,8 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             ...order.timeline,
             {
               status: 'cancelled',
-              title: 'Order Cancelled & Restocked',
-              description: 'Client cancellation confirmed. MODEZA inventory restocked.',
+              title: 'Order Cancelled (Offline)',
+              description: 'Cancellation recorded locally while offline; it will sync with modeza services when back online.',
               timestamp: now,
               completed: true,
             },
@@ -416,23 +330,11 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       try {
         // Authoritative server confirmation (settles cash/pay-on-delivery balances).
+        // The backend timeline carries the real order_received event.
         const serverOrder = await api.receiveOrder(order.orderNumber);
         const mapped = mapServerOrder(serverOrder);
-        const updated: Order = {
-          ...mapped,
-          timeline: [
-            ...mapped.timeline,
-            {
-              status: 'received',
-              title: 'Order Received',
-              description: 'Customer confirmed receipt of their order.',
-              timestamp: serverOrder.updatedAt || new Date().toISOString(),
-              completed: true,
-            },
-          ],
-        };
-        applyReceived(updated);
-        return { success: true, order: updated, message: `Order ${orderNumber} has been marked as received.` };
+        applyReceived(mapped);
+        return { success: true, order: mapped, message: `Order ${orderNumber} has been marked as received.` };
       } catch (err: unknown) {
         const errorObj = err as Error & { code?: string };
         if (errorObj.code && errorObj.code !== 'NOT_FOUND') {
@@ -456,8 +358,8 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             ...order.timeline,
             {
               status: 'received',
-              title: 'Order Received',
-              description: 'Customer confirmed receipt of their order.',
+              title: 'Order Received (Offline)',
+              description: 'Receipt confirmed locally while offline; it will sync with modeza services when back online.',
               timestamp: now,
               completed: true,
             },
@@ -485,6 +387,41 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [orders]
   );
 
+  const requestOrderReturn = useCallback(
+    async (orderNumber: string, reason = ''): Promise<{ success: boolean; order?: Order; message: string }> => {
+      const order = orders.find((o) => o.orderNumber.toUpperCase() === orderNumber.toUpperCase());
+      if (!order) {
+        return { success: false, message: 'Order not found.' };
+      }
+      if (order.paymentStatus === 'refunded') {
+        return { success: false, message: 'A refund is already recorded for this order.' };
+      }
+      if (order.status !== 'received' && order.status !== 'delivered') {
+        return { success: false, message: 'Only received or delivered orders can request a refund.' };
+      }
+
+      try {
+        // Authoritative request is recorded in the backend audit trail and
+        // notifies staff; payment reversal stays a staff action.
+        const serverOrder = await api.requestOrderReturn(order.orderNumber, reason);
+        const mapped = mapServerOrder(serverOrder);
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.orderNumber.toUpperCase() === mapped.orderNumber.toUpperCase() ? mapped : o
+          )
+        );
+        return { success: true, order: mapped, message: 'Your return/refund request has been submitted.' };
+      } catch (err: unknown) {
+        const errorObj = err as Error & { code?: string };
+        return {
+          success: false,
+          message: errorObj.message || 'The refund request could not be submitted.',
+        };
+      }
+    },
+    [orders]
+  );
+
   const resetOrdersToDefault = useCallback(() => {
     setOrders([]);
     try {
@@ -503,6 +440,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updateOrderStatus,
         cancelOrder,
         receiveOrder,
+        requestOrderReturn,
         searchOrders,
         resetOrdersToDefault,
       }}

@@ -23,8 +23,11 @@ import {
   Heart,
   Package,
   Star,
+  Bell,
 } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
+import { api } from '../services/apiClient';
+import { ProductImage } from '../components/ui/ProductImage';
 import { motion } from 'motion/react';
 import { audit } from '../lib/logger';
 import {
@@ -76,6 +79,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const [addedToast, setAddedToast] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [openAccordion, setOpenAccordion] = useState<string | null>('composition');
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [notifyState, setNotifyState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
+  const [notifyMessage, setNotifyMessage] = useState('');
 
   const hasAnyVariants = (product?.variants?.length ?? 0) > 0;
   const priceSummary = product ? getPriceSummary(product) : null;
@@ -129,6 +135,31 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     } else {
       setStockError(result.message || 'Unable to add piece to bag.');
       void refreshCatalog();
+    }
+  };
+
+  const handleNotifyMe = async () => {
+    if (!resolvedVariant) return;
+    const email = notifyEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setNotifyState('error');
+      setNotifyMessage('Enter a valid email address.');
+      return;
+    }
+    setNotifyState('saving');
+    setNotifyMessage('');
+    try {
+      const result = await api.subscribeBackInStock(resolvedVariant.id, email);
+      setNotifyState('done');
+      setNotifyMessage(
+        result.alreadySubscribed
+          ? 'You are already on the list — we will notify you when it is back.'
+          : (result.message || 'We will notify you when this item is back in stock.')
+      );
+    } catch (err: unknown) {
+      const errorObj = err as Error & { code?: string };
+      setNotifyState('error');
+      setNotifyMessage(errorObj.message || 'The request could not be saved. Please try again.');
     }
   };
 
@@ -256,11 +287,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="aspect-[3/4] w-full rounded-3xl overflow-hidden bg-[#F4ECE9] border border-[#E8E5DF] relative group shadow-xl hover:shadow-2xl transition-all"
           >
-            <img
+            <ProductImage
               src={product.images[activeImageIndex] || product.images[0]}
               alt={`${product.name} view ${activeImageIndex + 1}`}
-              className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              referrerPolicy="no-referrer"
+              className="h-full w-full"
+              imgClassName="transition-transform duration-700 ease-out group-hover:scale-105"
             />
 
             {/* Wishlist overlay button */}
@@ -306,11 +337,10 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                       : 'border-transparent opacity-65 hover:opacity-100 hover:border-[#D8D3CB]'
                   }`}
                 >
-                  <img
+                  <ProductImage
                     src={img}
                     alt={`${product.name} thumb ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
+                    className="h-full w-full"
                   />
                   {activeImageIndex === idx && (
                     <span className="absolute inset-0 ring-2 ring-inset ring-white/30 pointer-events-none" />
@@ -428,6 +458,48 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                 {cta.label}
               </Button>
             </div>
+
+            {cta.disabled && resolvedVariant && !resolvedVariantPurchasable && !stillSelecting && (
+              <div className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] p-4 space-y-3">
+                <p className="text-xs text-[#63605A] flex items-center gap-2">
+                  <Bell className="w-4 h-4 shrink-0" />
+                  Sold out — leave your email and we will notify you when it is back.
+                </p>
+                {notifyState === 'done' ? (
+                  <p className="text-xs text-[#2E5A44] bg-[#E8EFEA] border border-[#2E5A44]/20 rounded-lg px-3 py-2.5" role="status">
+                    <Check className="inline w-4 h-4 mr-1.5" />
+                    {notifyMessage}
+                  </p>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="email"
+                      value={notifyEmail}
+                      onChange={(e) => { setNotifyEmail(e.target.value); setNotifyState('idle'); }}
+                      placeholder="you@example.com"
+                      aria-label="Email for back-in-stock notification"
+                      className="flex-1 rounded-lg border border-[#E8E5DF] bg-white px-3 py-2 text-sm text-[#181716] outline-none focus:border-[#181716]"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={() => void handleNotifyMe()}
+                      disabled={notifyState === 'saving'}
+                      className="text-xs uppercase tracking-wider"
+                    >
+                      {notifyState === 'saving' ? 'Notifying…' : 'Notify Me'}
+                    </Button>
+                  </div>
+                )}
+                {notifyState === 'error' && (
+                  <p className="text-xs text-[#9B1C1C] flex items-center gap-1.5" role="alert">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {notifyMessage}
+                  </p>
+                )}
+              </div>
+            )}
 
             {addedToast && (
               <motion.div

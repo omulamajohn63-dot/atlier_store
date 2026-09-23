@@ -13,4 +13,6 @@ urlpatterns = [
          OrderDetailView.as_view(), name='order-receive'),
     path('orders/<str:order_number>/mark-received-paid',
          OrderDetailView.as_view(), name='order-mark-received-paid'),
+    path('orders/<str:order_number>/return',
+         OrderDetailView.as_view(), name='order-return'),
 ]

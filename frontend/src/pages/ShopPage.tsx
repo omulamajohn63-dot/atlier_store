@@ -218,7 +218,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           <Search className="w-4 h-4 text-[#827E77] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search catalog (/api/products)..."
+            placeholder="Search the collection..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-8 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"

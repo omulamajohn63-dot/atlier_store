@@ -2,6 +2,7 @@ import {
   ProductDTO,
   CategoryDTO,
   CartDTO,
+  CartMergeResponse,
   OrderDTO,
   PaymentIntentDTO,
   ReceiptDTO,
@@ -29,6 +30,12 @@ export function getOrCreateCartId(): string {
 export function saveCartId(cartId: string): void {
   if (typeof window !== 'undefined' && cartId) {
     localStorage.setItem(CART_STORAGE_KEY, cartId);
+  }
+}
+
+export function resetCartId(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(CART_STORAGE_KEY);
   }
 }
 
@@ -204,6 +211,12 @@ export const api = {
     });
   },
 
+  async mergeCart(): Promise<CartMergeResponse> {
+    return request<CartMergeResponse>('/api/cart/merge', {
+      method: 'POST',
+    }, true, true);
+  },
+
   async cancelOrder(orderNumber: string): Promise<OrderDTO> {
     return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/cancel`, {
       method: 'POST',
@@ -213,6 +226,13 @@ export const api = {
   async receiveOrder(orderNumber: string): Promise<OrderDTO> {
     return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/mark-received-paid`, {
       method: 'POST',
+    }, true, true);
+  },
+
+  async requestOrderReturn(orderNumber: string, reason = ''): Promise<OrderDTO> {
+    return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/return`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     }, true, true);
   },
 
@@ -314,6 +334,15 @@ export const api = {
     return request<{ variantId: string; stockQuantity: number }>(`/api/admin/inventory/${encodeURIComponent(variantId)}`, {
       method: 'PATCH',
       body: JSON.stringify({ delta, reason }),
+    });
+  },
+
+  async subscribeBackInStock(variantId: string, email: string): Promise<{
+    ok: boolean; alreadySubscribed?: boolean; message?: string;
+  }> {
+    return request<{ ok: boolean; alreadySubscribed?: boolean; message?: string }>('/api/back-in-stock', {
+      method: 'POST',
+      body: JSON.stringify({ variantId, email }),
     });
   },
 };

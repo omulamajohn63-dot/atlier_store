@@ -8,6 +8,7 @@ import { setPostAuthDestination } from '../utils/postAuthRedirect';
 import { Button } from './ui/Button';
 import { QuantitySelector } from './ui/QuantitySelector';
 import { Price } from './ui/Price';
+import { ProductImage } from './ui/ProductImage';
 import { formatPrice, FREE_SHIPPING_THRESHOLD, STANDARD_SHIPPING_COST } from '../utils/currency';
 
 export const CartDrawer: React.FC = () => {
@@ -135,11 +136,10 @@ export const CartDrawer: React.FC = () => {
                     >
                       {/* Image */}
                       <div className="w-20 h-24 bg-[#F4ECE9] rounded-lg overflow-hidden shrink-0">
-                        <img
+                        <ProductImage
                           src={item.image}
                           alt={item.name}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
+                          className="h-full w-full"
                         />
                       </div>
 

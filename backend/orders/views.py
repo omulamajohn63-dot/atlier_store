@@ -6,7 +6,7 @@ from audit.services import AuditLogService
 
 from .models import Order
 from .serializers import OrderSerializer
-from .services import cancel_order, create_order, mark_received_paid, receive_order
+from .services import cancel_order, create_order, mark_received_paid, receive_order, request_refund
 
 
 def cart_key(request):
@@ -73,6 +73,8 @@ class OrderDetailView(APIView):
             return self.receive(request, order_number)
         if request.path.endswith('/mark-received-paid'):
             return self.mark_received_paid(request, order_number)
+        if request.path.endswith('/return'):
+            return self.request_return(request, order_number)
         return Response({'error': {'code': 'METHOD_NOT_ALLOWED', 'message': 'Unsupported operation.', 'details': {}}}, status=405)
 
     def cancel(self, request, order_number):
@@ -127,4 +129,25 @@ class OrderDetailView(APIView):
             return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot mark this order as received and paid.', 'details': {}}}, status=403)
 
         order = mark_received_paid(order)
+        return Response(OrderSerializer(order, context={'request': request}).data)
+
+    def request_return(self, request, order_number):
+        order = Order.objects.select_related('cart').filter(
+            order_number=order_number).first()
+        if not order:
+            return Response({'error': {'code': 'NOT_FOUND', 'message': 'Order was not found.', 'details': {}}}, status=404)
+
+        if request.user.is_authenticated:
+            allowed = order.user_id == request.user.id
+        else:
+            allowed = bool(
+                cart_key(request) and order.cart and order.cart.cart_key == cart_key(request))
+
+        if not allowed:
+            return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot request a refund for this order.', 'details': {}}}, status=403)
+
+        reason = request.data.get('reason', '') if isinstance(request.data, dict) else ''
+        if reason and not isinstance(reason, str):
+            reason = ''
+        order = request_refund(order, reason)
         return Response(OrderSerializer(order, context={'request': request}).data)

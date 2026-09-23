@@ -5,6 +5,7 @@ import { useStore } from '../context/StoreContext';
 import { Product } from '../types';
 import { useRouter } from '../router/RouterContext';
 import { Price } from './ui/Price';
+import { ProductImage } from './ui/ProductImage';
 
 export interface SearchModalProps {
   isOpen: boolean;
@@ -213,11 +214,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         <div className="relative w-14 h-16 shrink-0 rounded-lg overflow-hidden bg-[#F4ECE9] border border-[#E8E5DF]">
-                          <img
+                          <ProductImage
                             src={product.images[0]}
                             alt={product.name}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            referrerPolicy="no-referrer"
+                            className="h-full w-full"
+                            imgClassName="transition-transform duration-300 group-hover:scale-105"
                           />
                         </div>
                         <div className="min-w-0">

@@ -7,6 +7,7 @@ import { setPostAuthDestination } from '../utils/postAuthRedirect';
 import { QuantitySelector } from '../components/ui/QuantitySelector';
 import { Price } from '../components/ui/Price';
 import { Button } from '../components/ui/Button';
+import { ProductImage } from '../components/ui/ProductImage';
 import { ShoppingBag, Trash2, ArrowRight, ShieldCheck, Truck, ArrowLeft, Tag, Lock, X } from 'lucide-react';
 import { EmptyState } from '../components/ui/EmptyState';
 import {
@@ -185,11 +186,11 @@ export const CartPage: React.FC = () => {
                       className="w-20 h-26 rounded-xl overflow-hidden bg-[#F4ECE9] shrink-0 cursor-pointer shadow-sm group-hover:shadow-md transition-shadow"
                       onClick={() => goToProduct(item.productId)}
                     >
-                      <img
+                      <ProductImage
                         src={item.image}
                         alt={item.name}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        referrerPolicy="no-referrer"
+                        className="h-full w-full"
+                        imgClassName="transition-transform duration-300 group-hover:scale-105"
                       />
                     </div>
                     <div className="space-y-1.5 min-w-0">

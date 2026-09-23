@@ -1,9 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { CartItem, Product, ProductVariant, VariantSize } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { CartItem, Product, ProductVariant, VariantSize, ToastType } from '../types';
 import { useStore } from './StoreContext';
+import { useAuth } from './AuthContext';
 import { FREE_SHIPPING_THRESHOLD, STANDARD_SHIPPING_COST, VAT_RATE } from '../utils/currency';
-import { api } from '../services/apiClient';
+import { api, resetCartId } from '../services/apiClient';
 import { CartDTO } from '../types/api';
+import { SimpleToast } from '../components/ui/Toast';
 
 interface AppliedPromo {
   code: string;
@@ -72,31 +74,91 @@ function mapCartDtoToItems(dto: CartDTO): CartItem[] {
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { validatePromoCode } = useStore();
+  const { user } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [serverSubtotal, setServerSubtotal] = useState<number>(0);
   const [serverItemCount, setServerItemCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const previousUser = useRef<{ id: string | undefined } | null | undefined>(undefined);
+
+  const applyServerCart = useCallback((dto: CartDTO) => {
+    setCart(mapCartDtoToItems(dto));
+    setServerSubtotal(dto.subtotal);
+    setServerItemCount(dto.itemCount);
+  }, []);
 
   // Synchronize cart with authoritative server state on load
   const refreshCart = useCallback(async () => {
     try {
       setIsLoading(true);
       const serverCart = await api.getCart();
-      setCart(mapCartDtoToItems(serverCart));
-      setServerSubtotal(serverCart.subtotal);
-      setServerItemCount(serverCart.itemCount);
+      applyServerCart(serverCart);
     } catch (err) {
       console.warn('[CartContext] Failed to load server cart, using fallback:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applyServerCart]);
 
   useEffect(() => {
     refreshCart();
   }, [refreshCart]);
+
+  /**
+   * On sign-in, fold any anonymous guest bag into the authenticated account
+   * bag (server-authoritative). The response carries the canonical account
+   * cart key in ``x-cart-id``, which the api client persists automatically so
+   * subsequent requests reuse the same account cart. Stock risks surfaced by
+   * the merge are reported to the customer instead of being silently dropped.
+   */
+  const mergeGuestCartWithAccount = useCallback(async () => {
+    try {
+      const result = await api.mergeCart();
+      applyServerCart(result);
+      const summary = result.mergeSummary;
+      if (summary && (summary.merged > 0 || summary.clamped > 0 || summary.skipped > 0)) {
+        const notes: string[] = [];
+        if (summary.merged > 0) {
+          notes.push(`${summary.merged} item${summary.merged === 1 ? '' : 's'} moved to your account bag.`);
+        }
+        if (summary.clamped > 0) {
+          notes.push(`Quantity ${summary.clamped === 1 ? 'was' : 'were'} adjusted to available stock.`);
+        }
+        if (summary.skipped > 0) {
+          notes.push(`${summary.skipped} item${summary.skipped === 1 ? ' was' : 's were'} removed — no longer available.`);
+        }
+        setSyncToast({ message: notes.join(' '), type: summary.skipped > 0 ? 'info' : 'success' });
+      }
+    } catch (err) {
+      console.warn('[CartContext] Failed to merge guest cart with account:', err);
+      // Account merge isn't critical to browsing; keep the authoritative list.
+      await refreshCart();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (previousUser.current === undefined) {
+      previousUser.current = user;
+      return;
+    }
+    const hadUser = Boolean(previousUser.current);
+    const hasUser = Boolean(user);
+    previousUser.current = user;
+
+    if (hasUser && !hadUser) {
+      void mergeGuestCartWithAccount();
+    } else if (!hasUser && hadUser) {
+      // Signed out: drop the account cart key so the next session starts with
+      // a fresh anonymous bag and never leaks the previous user's cart.
+      resetCartId();
+      setCart([]);
+      setServerSubtotal(0);
+      setServerItemCount(0);
+    }
+  }, [user, mergeGuestCartWithAccount]);
 
   const addToCart = async (
     product: Product,
@@ -106,9 +168,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       const updatedServerCart = await api.addCartItem(variant.id, quantity);
-      setCart(mapCartDtoToItems(updatedServerCart));
-      setServerSubtotal(updatedServerCart.subtotal);
-      setServerItemCount(updatedServerCart.itemCount);
+      applyServerCart(updatedServerCart);
       setIsCartDrawerOpen(true);
       return { success: true };
     } catch (err: unknown) {
@@ -127,9 +187,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setIsLoading(true);
       const updatedServerCart = await api.updateCartItem(cartItemId, newQuantity);
-      setCart(mapCartDtoToItems(updatedServerCart));
-      setServerSubtotal(updatedServerCart.subtotal);
-      setServerItemCount(updatedServerCart.itemCount);
+      applyServerCart(updatedServerCart);
     } catch (err) {
       console.error('[CartContext] Update quantity failed:', err);
       // Re-fetch authoritative state to undo invalid optimistic values
@@ -143,9 +201,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       const updatedServerCart = await api.removeCartItem(cartItemId);
-      setCart(mapCartDtoToItems(updatedServerCart));
-      setServerSubtotal(updatedServerCart.subtotal);
-      setServerItemCount(updatedServerCart.itemCount);
+      applyServerCart(updatedServerCart);
     } catch (err) {
       console.error('[CartContext] Remove item failed:', err);
       await refreshCart();
@@ -158,9 +214,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       const cleared = await api.clearCart();
-      setCart(mapCartDtoToItems(cleared));
-      setServerSubtotal(0);
-      setServerItemCount(0);
+      applyServerCart(cleared);
       setAppliedPromo(null);
     } catch (err) {
       console.error('[CartContext] Clear cart failed:', err);
@@ -239,6 +293,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }}
     >
       {children}
+      {syncToast && (
+        <SimpleToast type={syncToast.type} message={syncToast.message} onClose={() => setSyncToast(null)} />
+      )}
     </CartContext.Provider>
   );
 };

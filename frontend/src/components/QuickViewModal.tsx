@@ -9,6 +9,7 @@ import { Price } from './ui/Price';
 import { Button } from './ui/Button';
 import { QuantitySelector } from './ui/QuantitySelector';
 import { Badge } from './ui/Badge';
+import { ProductImage } from './ui/ProductImage';
 import { VariantSelector } from './variant/VariantSelector';
 import { formatPrice } from '../utils/currency';
 import {
@@ -151,11 +152,11 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
               {/* Image Preview Column */}
               <div className="p-6 bg-[#FFFFFF] border-b md:border-b-0 md:border-r border-[#E8E5DF] flex flex-col justify-between">
                 <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[#F4ECE9] border border-[#E8E5DF] group">
-                  <img
+                  <ProductImage
                     src={product.images[activeImageIndex] || product.images[0]}
                     alt={`${product.name} view ${activeImageIndex + 1}`}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    referrerPolicy="no-referrer"
+                    className="h-full w-full"
+                    imgClassName="transition-transform duration-500 group-hover:scale-105"
                   />
                   {product.compareAtPrice && product.compareAtPrice > product.price && (
                     <span className="absolute top-4 left-4 px-3 py-1 bg-[#E68057] text-[#181716] text-[10px] uppercase font-semibold tracking-widest rounded-full">
@@ -181,11 +182,10 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
                         aria-label={`View image ${idx + 1}`}
                         aria-current={activeImageIndex === idx}
                       >
-                        <img
+                        <ProductImage
                           src={img}
                           alt=""
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
+                          className="h-full w-full"
                         />
                       </button>
                     ))}

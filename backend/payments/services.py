@@ -29,8 +29,13 @@ def get_order_for_cart(order_number, cart_key):
 @transaction.atomic
 def create_intent(order_number, method, phone_number, cart_key):
     order = get_order_for_cart(order_number, cart_key)
+    # Serialize against concurrent checkout retries so a double submit cannot
+    # mint two intents (or exceed one pending intent per order).
+    order = Order.objects.select_for_update().get(pk=order.pk)
     if order.payment_status == Order.PaymentStatus.PAID:
         raise ValidationError({'order': 'Order is already paid.'})
+    if order.status == Order.Status.CANCELLED:
+        raise ValidationError({'order': 'Order was cancelled and cannot be paid.'})
     existing = PaymentIntent.objects.filter(
         order=order, status=PaymentIntent.Status.PENDING).first()
     if existing:
@@ -66,10 +71,20 @@ def _mark_intent_succeeded(intent, gateway_reference):
     intent.gateway_reference = gateway_reference or f'TXN-{uuid.uuid4().hex[:12].upper()}'
     intent.save(update_fields=['status', 'gateway_reference', 'updated_at'])
     order = intent.order
+    if order.status == Order.Status.CANCELLED:
+        # A payment arriving after cancellation must not revive the order.
+        return order
+    if order.payment_status == Order.PaymentStatus.PAID:
+        # Idempotency: the same intent may be confirmed by both the customer
+        # flow and the provider webhook; never duplicate side effects.
+        return order
     StockReservation.objects.filter(order=order, status=StockReservation.Status.ACTIVE).update(
         status=StockReservation.Status.COMMITTED)
     order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=['payment_status', 'updated_at'])
+    # A successful online payment settles the order, so the official receipt is
+    # minted immediately (idempotent; a failing receipt never reverts payment).
+    generate_receipt(order, intent=intent)
     audit_log = AuditLogService.log(
         'payment_success',
         object_type='order',
@@ -101,6 +116,9 @@ def _mark_intent_succeeded(intent, gateway_reference):
 @transaction.atomic
 def confirm_payment(order_number, payment_intent_id, gateway_reference, cart_key):
     order = get_order_for_cart(order_number, cart_key)
+    if order.status == Order.Status.CANCELLED:
+        raise ValidationError(
+            {'order': 'Order was cancelled and cannot be paid.'})
     try:
         intent = PaymentIntent.objects.select_for_update().get(id=payment_intent_id)
     except PaymentIntent.DoesNotExist as exc:
@@ -123,18 +141,31 @@ def process_webhook(payload, signature, event_id):
     event, data = payload.get('event'), payload.get('data', {})
     if not event_id:
         raise ValidationError({'eventId': 'Webhook event ID is required.'})
-    if PaymentEvent.objects.filter(event_id=event_id).exists():
-        return {'received': True, 'status': 'duplicate'}
-    intent_id = data.get('paymentIntentId')
-    intent = PaymentIntent.objects.filter(
-        id=intent_id).first() if intent_id else None
-    PaymentEvent.objects.create(
-        event_id=event_id, payment_intent=intent, event_type=event or 'unknown', payload=payload)
+    # Atomic duplicate suppression: the unique event_id constraint guarantees
+    # the first writer wins even under concurrent replays. A replay is
+    # acknowledged as a duplicate but side effects stay idempotent so the
+    # single authoritative outcome survives retries.
+    event_obj, created = PaymentEvent.objects.get_or_create(
+        event_id=event_id,
+        defaults={'event_type': event or 'unknown', 'payload': payload},
+    )
+    if created and event_obj.payment_intent_id is None:
+        intent_id = data.get('paymentIntentId')
+        intent = PaymentIntent.objects.filter(
+            id=intent_id).first() if intent_id else None
+        if intent:
+            event_obj.payment_intent = intent
+            event_obj.save(update_fields=['payment_intent'])
+    intent = event_obj.payment_intent
     if event in ('payment_intent.succeeded', 'mpesa.stk_callback.success') and intent:
         order = _mark_intent_succeeded(intent, data.get('transactionId', ''))
         return {'received': True, 'status': 'order_marked_paid', 'orderNumber': order.order_number}
     if event in ('payment_intent.payment_failed', 'mpesa.stk_callback.failed') and intent:
         order = intent.order
+        if order.status == Order.Status.CANCELLED or order.payment_status == Order.PaymentStatus.PAID:
+            return {'received': True, 'status': 'duplicate'}
+        if not created:
+            return {'received': True, 'status': 'duplicate'}
         intent.status = PaymentIntent.Status.FAILED
         intent.save(update_fields=['status', 'updated_at'])
         audit_log = AuditLogService.log(

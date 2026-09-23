@@ -101,3 +101,8 @@ export function canMarkReceived(status: OrderStatus, paymentMethod?: string): bo
   const isDeliveryPayment = paymentMethod !== 'mpesa' && paymentMethod !== 'card';
   return status === 'pending' && isDeliveryPayment;
 }
+
+/** Statuses where a customer can request a return/refund (backend request_refund). */
+export function canRequestRefund(status: OrderStatus): boolean {
+  return status === 'received' || status === 'delivered';
+}

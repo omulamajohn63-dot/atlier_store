@@ -2,6 +2,7 @@ import uuid
 
 from django.http import HttpResponse
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,7 +10,12 @@ from audit.services import AuditLogService
 
 from .models import CartItem
 from .serializers import CartSerializer
-from .services import add_item, get_or_create_cart, update_item
+from .services import (
+    add_item,
+    get_or_create_cart,
+    merge_carts,
+    update_item,
+)
 
 
 def cart_key_from_request(request):
@@ -97,3 +103,25 @@ class CartItemView(APIView):
             description=f'Removed {item.variant.sku} from cart.',
         )
         return response_with_cart(request, cart)
+
+
+class CartMergeView(APIView):
+    """Fold the current guest cart into the authenticated user's cart.
+
+    Requires a valid Supabase session (``Authorization: Bearer``). The guest
+    cart is identified by the ``x-cart-id`` header; its adoptable lines move
+    into the canonical account cart keyed ``u:<user_id>``, the guest cart is
+    deleted, and the response carries the account cart key in ``x-cart-id`` so
+    the storefront keeps reusing the same persistent cart.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        cart, summary = merge_carts(request.user, cart_key_from_request(request))
+        serializer = CartSerializer(cart, context={'request': request})
+        payload = dict(serializer.data)
+        payload['mergeSummary'] = summary
+        response = Response(payload, status=status.HTTP_200_OK)
+        response['x-cart-id'] = cart.cart_key
+        return response

@@ -1,8 +1,34 @@
 from rest_framework import serializers
 
+from audit.models import AuditLog
 from catalog.serializers import major_units
 
 from .models import Order, OrderItem
+
+# Real, backend-recorded order milestones. Every event is derived from the
+# immutable audit trail (never invented), so customers always see genuine
+# history with timestamps that match what staff observe back-office.
+TIMELINE_ACTIONS = (
+    'order_created',
+    'payment_success',
+    'order_confirmed',
+    'status_change',
+    'order_received',
+    'order_cancelled',
+)
+
+TIMELINE_LABELS = {
+    'order_created': ('confirmed', 'Order Placed',
+                      'We received your order and registered it in the modeza database.'),
+    'payment_success': ('confirmed', 'Payment Received',
+                        'Payment was received and verified for this order.'),
+    'order_confirmed': ('confirmed', 'Order Confirmed',
+                        'Your order was confirmed by the boutique.'),
+    'order_received': ('received', 'Order Received',
+                       'You marked this order as received.'),
+    'order_cancelled': ('cancelled', 'Order Cancelled',
+                        'Your order was cancelled and any reserved stock was returned.'),
+}
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -64,11 +90,45 @@ class OrderSerializer(serializers.ModelSerializer):
     createdAt = serializers.DateTimeField(source='created_at')
     updatedAt = serializers.DateTimeField(source='updated_at')
     items = OrderItemSerializer(many=True, read_only=True)
+    timeline = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = ('id', 'orderNumber', 'cartId', 'customer', 'items', 'subtotal', 'shippingCost', 'tax', 'total',
-                  'shippingMethod', 'paymentMethod', 'status', 'paymentStatus', 'paymentIntentId', 'currency', 'createdAt', 'updatedAt')
+                  'shippingMethod', 'paymentMethod', 'status', 'paymentStatus', 'paymentIntentId', 'currency', 'createdAt', 'updatedAt', 'timeline')
+
+    def get_timeline(self, obj):
+        """Real order history derived from the audit trail (newest last).
+
+        ``status_change`` events carry ``metadata.to`` so lifecycle moves that
+        are not their own audit action still surface as legit-timestamped steps.
+        """
+        events = []
+        logs = (
+            AuditLog.objects
+            .filter(object_type='order', object_id=str(obj.pk),
+                    action__in=TIMELINE_ACTIONS)
+            .order_by('created_at', 'id')
+        )
+        for log in logs:
+            if log.action == 'status_change':
+                to_status = (log.metadata or {}).get('to')
+                if not isinstance(to_status, str) or to_status not in Order.Status.values:
+                    continue
+                status = to_status
+                label = ' '.join(w.capitalize() for w in to_status.split('_'))
+                title = f'{label}'
+                description = log.description or f'Order status changed to {label}.'
+            else:
+                status, title, description = TIMELINE_LABELS[log.action]
+            events.append({
+                'status': status,
+                'title': title,
+                'description': description,
+                'timestamp': log.created_at.isoformat(),
+                'completed': True,
+            })
+        return events
 
     def get_cartId(self, obj):
         return obj.cart.cart_key if obj.cart else ''

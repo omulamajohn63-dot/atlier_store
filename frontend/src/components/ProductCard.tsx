@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product } from '../types';
 import { Price } from './ui/Price';
 import { Badge } from './ui/Badge';
+import { ProductImage } from './ui/ProductImage';
 import { Eye, Heart, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
@@ -116,11 +117,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         onClick={() => onClick?.(product)}
       >
         <div className="relative w-full overflow-hidden rounded-xl bg-[#F4ECE9] mb-2.5">
-          <img
+          <ProductImage
             src={isHovered && hasMultipleImages ? product.images[1] : product.images[0]}
             alt={product.name}
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
+            className="h-full w-full"
+            imgClassName="transition-transform duration-500 ease-out group-hover:scale-105"
           />
           <button
             type="button"
@@ -158,11 +159,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       {/* Visual Image Frame (Portrait 3:4) */}
       <div className="relative overflow-hidden rounded-xl bg-[#F4ECE9] mb-3.5 image-zoom">
         <div className={`${imageAspectRatio} w-full`}>
-          <img
+          <ProductImage
             src={isHovered && hasMultipleImages ? product.images[1] : product.images[0]}
             alt={product.name}
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover object-center transition-transform duration-500 ease-out"
+            className="h-full w-full"
+            imgClassName="transition-transform duration-500 ease-out"
           />
         </div>
 

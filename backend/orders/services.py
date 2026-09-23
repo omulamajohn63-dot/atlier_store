@@ -302,6 +302,41 @@ def refund_order(order):
 
 
 @transaction.atomic
+def request_refund(order, reason=''):
+    """Customer-initiated return/refund request for a received order.
+
+    The request is recorded in the authoritative audit trail (real event, no
+    invented state) and surfaces as an admin notification. Actual payment
+    reversal remains a staff action via :func:`refund_order`.
+    """
+    if order.payment_status == Order.PaymentStatus.REFUNDED:
+        return order
+    if order.status not in (Order.Status.RECEIVED, Order.Status.DELIVERED):
+        raise ValidationError(
+            {'status': 'Only received or delivered orders can request a refund.'})
+    audit_log = _audit_order(
+        'refund_requested', order,
+        metadata={'reason': reason[:500]},
+    )
+    AdminNotificationService.notify_for_audit(
+        audit_log,
+        event_key=f'order-refund-requested:{order.pk}',
+        message=f'Customer requested a refund for order {order.order_number}.',
+        link=f'/admin/dashboard/orders/{order.pk}/',
+    )
+    if order.user is not None:
+        notify_customer(
+            order.user,
+            'payment',
+            'Return/refund requested',
+            f'We received your refund request for order {order.order_number}.',
+            link=f'/account/orders/{order.order_number}',
+            event_key=f'customer-order-refund-requested:{order.pk}',
+        )
+    return order
+
+
+@transaction.atomic
 def cancel_order(order):
     if order.status == Order.Status.CANCELLED:
         return order
