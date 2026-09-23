@@ -333,6 +333,20 @@
     margin-bottom: 16px;
     align-items: start;
   }
+  .dashboard-panels-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: start;
+  }
+  .dashboard-panels-grid > .dashboard-grid-2 { display: contents; }
+  .dashboard-panel-orders { grid-column: 1; grid-row: 1; }
+  .dashboard-panel-customers { grid-column: 2; grid-row: 1; }
+  .dashboard-panel-actions { grid-column: 1; grid-row: 2; }
+  .dashboard-panel-attention { grid-column: 2; grid-row: 2; }
+  .dashboard-panel-inventory { grid-column: 1; grid-row: 3; }
+  .dashboard-panel-errors { grid-column: 2; grid-row: 3; }
   .dashboard-panel {
     border-radius: 16px;
     overflow: hidden;
@@ -596,7 +610,15 @@
 
   @media (max-width: 1080px) {
     .dashboard-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .dashboard-grid-2 { grid-template-columns: 1fr; }
+    .dashboard-grid-2,
+    .dashboard-panels-grid { grid-template-columns: 1fr; }
+    .dashboard-panels-grid > .dashboard-grid-2 { display: contents; }
+    .dashboard-panel-orders,
+    .dashboard-panel-customers,
+    .dashboard-panel-actions,
+    .dashboard-panel-attention,
+    .dashboard-panel-inventory,
+    .dashboard-panel-errors { grid-column: 1; grid-row: auto; }
   }
   @media (max-width: 640px) {
     .dashboard-hero { padding: 20px; }
@@ -742,9 +764,10 @@
     </div>
   </section>
 
+  <div class="dashboard-panels-grid">
   <div class="dashboard-grid-2">
 
-    <section class="card dashboard-panel">
+    <section class="card dashboard-panel dashboard-panel-orders">
       <div class="dashboard-panel-header">
         <h3><i class="ph ph-receipt"></i> Recent Orders</h3>
         <a class="dashboard-panel-link" href="/admin/dashboard/orders/">View all <i class="ph ph-arrow-right"></i></a>
@@ -775,7 +798,7 @@
       </div>
     </section>
 
-    <section class="card dashboard-panel">
+    <section class="card dashboard-panel dashboard-panel-inventory">
       <div class="dashboard-panel-header">
         <h3><i class="ph ph-archive-box"></i> Inventory Alerts</h3>
         <a class="dashboard-panel-link" href="/admin/dashboard/inventory/adjust/">Manage stock <i class="ph ph-arrow-right"></i></a>
@@ -802,7 +825,7 @@
 
   <div class="dashboard-grid-2">
 
-    <section class="card dashboard-panel">
+    <section class="card dashboard-panel dashboard-panel-actions">
       <div class="dashboard-panel-header">
         <h3><i class="ph ph-list-checks"></i> Quick Actions</h3>
       </div>
@@ -840,7 +863,7 @@
       </div>
     </section>
 
-    <section class="card dashboard-panel">
+    <section class="card dashboard-panel dashboard-panel-attention">
       <div class="dashboard-panel-header">
         <h3><i class="ph ph-pulse"></i> Activity &amp; Attention</h3>
         <a class="dashboard-panel-link" href="/admin/dashboard/activity/">View logs <i class="ph ph-arrow-right"></i></a>
@@ -883,7 +906,7 @@
 
   <div class="dashboard-grid-2">
 
-    <section class="card dashboard-panel">
+    <section class="card dashboard-panel dashboard-panel-customers">
       <div class="dashboard-panel-header">
         <h3><i class="ph ph-users"></i> Recent Customer Activity</h3>
         <a class="dashboard-panel-link" href="/admin/dashboard/activity/">Full audit <i class="ph ph-arrow-right"></i></a>
@@ -908,7 +931,7 @@
       </div>
     </section>
 
-    <section class="card dashboard-panel">
+    <section class="card dashboard-panel dashboard-panel-errors">
       <div class="dashboard-panel-header">
         <h3><i class="ph ph-warning-octagon"></i> Customer Errors (7 days)</h3>
         <a class="dashboard-panel-link" href="/admin/dashboard/activity/errors/">Error center <i class="ph ph-arrow-right"></i></a>
@@ -926,6 +949,8 @@
         </table>
       </div>
     </section>
+
+  </div>
 
   </div>
 
