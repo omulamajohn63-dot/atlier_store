@@ -126,47 +126,6 @@ class ProductImportLog(models.Model):
         return f"Import log {self.filename} ({self.rows_success}/{self.rows_total})"
 
 
-class ImportJob(models.Model):
-    class Status(models.TextChoices):
-        UPLOADED = 'uploaded', 'Uploaded'
-        VALIDATING = 'validating', 'Validating'
-        READY = 'ready', 'Ready'
-        PROCESSING = 'processing', 'Processing'
-        COMPLETED = 'completed', 'Completed'
-        COMPLETED_WITH_ERRORS = 'completed_with_errors', 'Completed with errors'
-        FAILED = 'failed', 'Failed'
-        CANCELLED = 'cancelled', 'Cancelled'
-
-    uploaded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name='bulk_import_jobs')
-    filename = models.CharField(max_length=255)
-    status = models.CharField(
-        max_length=30, choices=Status.choices, default=Status.UPLOADED)
-    total_rows = models.PositiveIntegerField(default=0)
-    processed_rows = models.PositiveIntegerField(default=0)
-    successful_rows = models.PositiveIntegerField(default=0)
-    failed_rows = models.PositiveIntegerField(default=0)
-    created_products = models.PositiveIntegerField(default=0)
-    updated_products = models.PositiveIntegerField(default=0)
-    created_variants = models.PositiveIntegerField(default=0)
-    updated_variants = models.PositiveIntegerField(default=0)
-    uploaded_images = models.PositiveIntegerField(default=0)
-    error_count = models.PositiveIntegerField(default=0)
-    warning_count = models.PositiveIntegerField(default=0)
-    validation_report = models.JSONField(default=dict, blank=True)
-    result_summary = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    started_at = models.DateTimeField(null=True, blank=True)
-    completed_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ('-created_at',)
-
-    def __str__(self):
-        return f"ImportJob {self.filename} ({self.status})"
-
-
 class ProductVariant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product = models.ForeignKey(

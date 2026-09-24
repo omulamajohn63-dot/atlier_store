@@ -1,23 +1,18 @@
 import csv
 import io
-import mimetypes
-import os
 import re
 import unicodedata
-import zipfile
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 from django.conf import settings
-from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 from django.utils.text import slugify
-from openpyxl import Workbook, load_workbook
+from openpyxl import load_workbook
 
-from .models import Category, ImportJob, Product, ProductImage, ProductImportLog
+from .models import Category, Product, ProductImage, ProductImportLog
 
 
 REQUIRED_COLUMNS = {'name', 'price', 'category', 'sku', 'stock_quantity'}
@@ -136,136 +131,6 @@ class ProductImportService:
                 return [], f'Unable to parse XLSX file: {exc}'
 
         return [], 'Unsupported file type. Please upload CSV or XLSX.'
-
-    @staticmethod
-    def build_template_workbook() -> Workbook:
-        workbook = Workbook()
-        products_sheet = workbook.active
-        products_sheet.title = 'Products'
-        products_sheet.append([
-            'name', 'price', 'category', 'sku', 'stock_quantity',
-            'description', 'size', 'color', 'is_active'
-        ])
-        products_sheet.append([
-            'Luna Silk Dress', '2450', 'Dresses', 'SKU-LUNA-001', '10',
-            'Soft silk dress with a fluid silhouette.', 'M', 'Ivory', 'true'
-        ])
-        products_sheet.append([
-            'Luna Silk Dress', '2450', 'Dresses', 'SKU-LUNA-002', '7',
-            'Soft silk dress with a fluid silhouette.', 'L', 'Ivory', 'true'
-        ])
-
-        instructions_sheet = workbook.create_sheet('Instructions')
-        instructions_sheet.append(['Bulk product import instructions'])
-        instructions_sheet.append([])
-        instructions_sheet.append(
-            ['Required columns', 'name', 'price', 'category', 'sku', 'stock_quantity'])
-        instructions_sheet.append(
-            ['Optional columns', 'description', 'size', 'color', 'is_active'])
-        instructions_sheet.append(
-            ['Notes', 'Rows with the same product name/category can represent the same catalog item with multiple variants.'])
-        instructions_sheet.append(
-            ['Image files', 'Put all referenced JPG/PNG/WebP images in an images/ folder inside the ZIP archive.'])
-
-        example_sheet = workbook.create_sheet('Example')
-        example_sheet.append(
-            ['name', 'price', 'category', 'sku', 'stock_quantity', 'size', 'color'])
-        example_sheet.append(
-            ['Luna Silk Dress', '2450', 'Dresses', 'SKU-LUNA-001', '10', 'S', 'Black'])
-        example_sheet.append(
-            ['Luna Silk Dress', '2450', 'Dresses', 'SKU-LUNA-002', '7', 'M', 'Black'])
-        example_sheet.append(
-            ['Luna Silk Dress', '4600', 'Dresses', 'SKU-LUNA-003', '3', 'S', 'Red'])
-        return workbook
-
-    @staticmethod
-    def _validate_zip_member(member_name: str) -> bool:
-        candidate = member_name.replace('\\', '/').strip('/')
-        if not candidate or candidate.startswith('.'):
-            return False
-        if candidate.startswith('..') or '..' in PurePosixPath(candidate).parts:
-            return False
-        if candidate.startswith('/'):
-            return False
-        return True
-
-    @staticmethod
-    def import_products_from_zip(file, created_by=None) -> 'ImportResult':
-        results = ImportResult(file_name=getattr(file, 'name', ''))
-        if not file:
-            results.messages.append('No ZIP file was uploaded.')
-            return results
-
-        file_name = (getattr(file, 'name', '') or '').lower()
-        if not file_name.endswith('.zip'):
-            results.messages.append(
-                'This import requires a ZIP package containing products.xlsx and an images/ folder.')
-            return results
-
-        try:
-            raw = file.read()
-            if not zipfile.is_zipfile(io.BytesIO(raw)):
-                results.messages.append(
-                    'The uploaded file is not a valid ZIP archive.')
-                return results
-
-            image_files = []
-            product_payload = b''
-            workbook_name = None
-
-            with zipfile.ZipFile(io.BytesIO(raw), 'r') as archive:
-                members = archive.namelist()
-                if not members:
-                    results.messages.append('The ZIP archive is empty.')
-                    return results
-
-                for member_name in members:
-                    member_name = member_name.replace('\\', '/')
-                    if not ProductImportService._validate_zip_member(member_name):
-                        raise ValueError(
-                            f'Unsafe file entry rejected: {member_name}')
-                    if member_name.endswith('/'):
-                        continue
-                    lower_name = member_name.lower()
-                    if lower_name == 'products.xlsx' or lower_name.endswith('.xlsx') or lower_name.endswith('.xls'):
-                        product_payload = archive.read(member_name)
-                        workbook_name = os.path.basename(
-                            member_name) or 'products.xlsx'
-                        continue
-                    if lower_name.startswith('images/') and not lower_name.endswith('.zip'):
-                        image_bytes = archive.read(member_name)
-                        image_name = os.path.basename(member_name)
-                        if not image_name:
-                            continue
-                        if not image_name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp', '.gif')):
-                            results.messages.append(
-                                f'Unsupported image extension ignored: {image_name}')
-                            continue
-                        image_files.append(SimpleUploadedFile(
-                            image_name,
-                            image_bytes,
-                            content_type=mimetypes.guess_type(
-                                image_name)[0] or 'image/jpeg',
-                        ))
-
-                if not product_payload:
-                    results.messages.append(
-                        'The ZIP file must contain a products.xlsx workbook.')
-                    return results
-
-            workbook_file = SimpleUploadedFile(
-                workbook_name or 'products.xlsx',
-                product_payload,
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            )
-            return ProductImportService.import_products_from_file(
-                workbook_file,
-                image_files=image_files,
-                created_by=created_by,
-            )
-        except Exception as exc:
-            results.messages.append(f'Unable to process ZIP package: {exc}')
-            return results
 
     @staticmethod
     def validate_columns(headers: Sequence[str]) -> List[str]:
@@ -488,34 +353,6 @@ class ProductImportService:
                 'messages': results.messages,
             },
             created_by=created_by,
-        )
-
-        ImportJob.objects.create(
-            uploaded_by=created_by,
-            filename=getattr(file, 'name', ''),
-            status=ImportJob.Status.COMPLETED if results.rows_failed == 0 else ImportJob.Status.COMPLETED_WITH_ERRORS,
-            total_rows=results.rows_total,
-            processed_rows=results.rows_total,
-            successful_rows=results.rows_success,
-            failed_rows=results.rows_failed,
-            created_products=0,
-            updated_products=0,
-            created_variants=0,
-            updated_variants=0,
-            uploaded_images=0,
-            error_count=results.rows_failed,
-            warning_count=0,
-            validation_report={'messages': results.messages},
-            result_summary={'rows': [
-                {
-                    'row_number': row.row_number,
-                    'sku': row.sku,
-                    'status': row.status,
-                    'product_id': row.product_id,
-                    'errors': row.errors,
-                }
-                for row in results.rows
-            ]},
         )
 
         return results
