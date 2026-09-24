@@ -35,7 +35,7 @@ TIMELINE_LABELS = {
 class CustomerSerializer(serializers.Serializer):
     fullName = serializers.CharField(min_length=2, max_length=100)
     email = serializers.EmailField()
-    phone = serializers.RegexField(regex=r'^[\d\s\+\-\(\)]{9,20}$')
+    phone = serializers.RegexField(regex=r'^[\d\s\+\-\(\)\./#*]{9,25}$')
     addressLine1 = serializers.CharField(min_length=3, max_length=200)
     addressLine2 = serializers.CharField(max_length=200, required=False, allow_blank=True)
     city = serializers.CharField(min_length=2, max_length=100)

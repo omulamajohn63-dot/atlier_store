@@ -76,7 +76,7 @@ export const AccountOverviewPage: React.FC = () => {
         description="A glance at your MODEZA — orders, wishlist and the latest from your boutique."
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5 md:grid-cols-3">
         <StatCard
           label="Active Orders"
           value={activeOrders}

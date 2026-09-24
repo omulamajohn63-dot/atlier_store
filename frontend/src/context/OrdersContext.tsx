@@ -69,13 +69,19 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return { success: false, error: 'Your cart is empty.' };
       }
 
+      const normalizePhone = (phone: string): string => {
+        return phone
+          .replace(/[^\d\s\+\-\(\)\./#*]/g, '')
+          .slice(0, 25);
+      };
+
       // Try authoritative backend order placement via /api/orders
       try {
         const serverOrder = await api.createOrder({
           customer: {
             fullName: `${input.customer.firstName} ${input.customer.lastName}`.trim(),
             email: input.customer.email,
-            phone: input.customer.phone,
+            phone: normalizePhone(input.customer.phone),
             addressLine1: input.customer.addressLine1,
             addressLine2: input.customer.addressLine2,
             city: input.customer.city,

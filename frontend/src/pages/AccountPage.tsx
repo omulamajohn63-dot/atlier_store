@@ -257,19 +257,20 @@ export const AccountPage: React.FC = () => {
           {/* Mobile nav */}
           <div className="lg:hidden">
             <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar" role="tablist" aria-label="Account sections">
-              {FLAT_NAV.map(({ label, href }) => {
+              {FLAT_NAV.map(({ label, href, icon }) => {
                 const active = route.path === href;
                 return (
                   <button
                     key={href}
                     type="button"
                     onClick={() => navigate(href)}
-                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition min-w-[120px] justify-center ${
                       active
                         ? 'border-[#A2574F] bg-[#A2574F] text-[#FAF9F6]'
                         : 'border-[#E8E5DF] bg-white text-[#63605A] hover:text-[#181716]'
                     }`}
                   >
+                    <span className={active ? 'text-[#FAF9F6]' : 'text-[#A2574F]'}>{icon}</span>
                     {label}
                   </button>
                 );

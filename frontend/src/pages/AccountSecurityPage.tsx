@@ -70,7 +70,7 @@ export const AccountSecurityPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           <Input
             label="Current password"
             type="password"
@@ -81,7 +81,7 @@ export const AccountSecurityPage: React.FC = () => {
             placeholder="••••••••"
             icon={<Lock className="h-4 w-4" />}
           />
-          <div className="grid gap-5 sm:grid-cols-1">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5">
             <Input
               label="New password"
               type="password"

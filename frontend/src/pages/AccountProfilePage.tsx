@@ -38,7 +38,7 @@ export const AccountProfilePage: React.FC = () => {
       />
 
       <form onSubmit={handleSave} className="rounded-2xl border border-[#E8E5DF] bg-white p-6 shadow-xs sm:p-8">
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           <Input
             label="Full name"
             type="text"

@@ -269,7 +269,7 @@ export const AccountOrdersPage: React.FC = () => {
 
       {/* Status filters + search */}
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter orders by status">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar" role="tablist" aria-label="Filter orders by status">
           {filterTabs.map((tab) => {
             const selected = filterKey === tab.key;
             return (
@@ -279,7 +279,7 @@ export const AccountOrdersPage: React.FC = () => {
                 role="tab"
                 aria-selected={selected}
                 onClick={() => setFilterKey(tab.key)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
                   selected
                     ? 'border-[#A2574F] bg-[#A2574F] text-[#FAF9F6] shadow-xs'
                     : 'border-[#E8E5DF] bg-white text-[#63605A] hover:border-[#D8D3CB] hover:text-[#181716]'
@@ -303,7 +303,7 @@ export const AccountOrdersPage: React.FC = () => {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search orders..."
             aria-label="Search orders by order number or product name"
-            className="w-full rounded-full border border-[#E8E5DF] bg-white py-3 pl-11 pr-11 text-sm text-[#181716] shadow-xs outline-none transition-colors placeholder:text-[#A29E96] focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20"
+            className="w-full rounded-full border border-[#E8E5DF] bg-white py-3 pl-11 pr-11 text-sm text-[#181716] shadow-xs outline-none transition-colors placeholder:text-[#A29E96] focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 sm:pl-12 sm:pr-12"
           />
           {query && (
             <button

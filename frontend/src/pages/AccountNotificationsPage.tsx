@@ -78,14 +78,18 @@ export const AccountNotificationsPage: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid grid-cols-2 gap-1 rounded-full border border-[#E8E5DF] bg-[#FAF9F6] p-1">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar" role="tablist" aria-label="Filter notifications">
           {(['all', 'unread'] as Filter[]).map((f) => (
             <button
               key={f}
               type="button"
+              role="tab"
+              aria-selected={filter === f}
               onClick={() => setFilter(f)}
-              className={`rounded-full px-5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition ${
-                filter === f ? 'bg-[#A2574F] text-[#FAF9F6] shadow-xs' : 'text-[#63605A] hover:text-[#181716]'
+              className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
+                filter === f
+                  ? 'border-[#A2574F] bg-[#A2574F] text-[#FAF9F6] shadow-xs'
+                  : 'border-[#E8E5DF] bg-white text-[#63605A] hover:border-[#D8D3CB] hover:text-[#181716]'
               }`}
             >
               {f === 'all' ? 'All' : 'Unread'}

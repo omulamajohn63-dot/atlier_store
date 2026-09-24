@@ -205,7 +205,7 @@ export const AccountAddressesPage: React.FC = () => {
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
         title={editingId ? 'Edit Address' : 'Add a New Address'}
-        maxWidth="lg"
+        maxWidth="xl"
       >
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -253,17 +253,22 @@ export const AccountAddressesPage: React.FC = () => {
             placeholder="Apt 4B"
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <select
-              id="address-country"
-              value={draft.country}
-              disabled
-              className="w-full bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#63605A]"
-              aria-label="Country"
-            >
-              <option value="Kenya">Kenya</option>
-            </select>
-            <label className="block">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="block sm:col-span-1">
+              <span className="block text-xs font-semibold uppercase tracking-wider text-[#63605A] mb-1.5">
+                Country
+              </span>
+              <select
+                id="address-country"
+                value={draft.country}
+                disabled
+                className="w-full bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl px-3.5 py-2.5 text-sm text-[#63605A]"
+                aria-label="Country"
+              >
+                <option value="Kenya">Kenya</option>
+              </select>
+            </label>
+            <label className="block sm:col-span-2">
               <span className="block text-xs font-semibold uppercase tracking-wider text-[#63605A] mb-1.5">
                 County <span className="text-[#9E332B]">*</span>
               </span>
@@ -284,7 +289,7 @@ export const AccountAddressesPage: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="block">
+            <label className="block sm:col-span-1">
               <span className="block text-xs font-semibold uppercase tracking-wider text-[#63605A] mb-1.5">
                 Subcounty <span className="text-[#9E332B]">*</span>
               </span>
@@ -306,10 +311,7 @@ export const AccountAddressesPage: React.FC = () => {
                 ))}
               </select>
             </label>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="block">
+            <label className="block sm:col-span-2">
               <span className="block text-xs font-semibold uppercase tracking-wider text-[#63605A] mb-1.5">
                 City <span className="text-[#9E332B]">*</span>
               </span>
@@ -331,6 +333,9 @@ export const AccountAddressesPage: React.FC = () => {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Postal Code"
               id="address-postal"

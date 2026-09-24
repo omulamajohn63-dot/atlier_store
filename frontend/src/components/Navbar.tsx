@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingBag, Search, Menu, X, Heart, User, ChevronDown, ArrowRight, Bell, CheckCheck, Sparkles } from 'lucide-react';
+import { ShoppingBag, Search, Menu, X, Heart, User, ChevronDown, ArrowRight, Bell, CheckCheck, Sparkles, LogOut } from 'lucide-react';
 import { CategorySlug } from '../types';
 import { useRouter } from '../router/RouterContext';
 import { useCart } from '../context/CartContext';
 import { useStore } from '../context/StoreContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useNotifications } from '../context/NotificationsContext';
+import { useAuth } from '../context/AuthContext';
 import { Badge } from './ui/Badge';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -538,6 +539,7 @@ const MobileMenu: React.FC<{
   cartCount: number;
   wishlistCount: number;
 }> = ({ isOpen, onClose, onNavigate, categories, productCategories, currentCategory, cartCount, wishlistCount }) => {
+  const { user, signOut } = useAuth();
   if (!isOpen) return null;
 
   return (
@@ -626,6 +628,19 @@ const MobileMenu: React.FC<{
 
           <div className="mt-8 space-y-2 border-t border-[#E8E5DF] pt-6">
             <MobileLink label="My Account" onClick={() => onNavigate('/account')} />
+            {user && (
+              <button
+                type="button"
+                onClick={() => {
+                  void signOut();
+                  onClose();
+                }}
+                className="w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] text-[#9E332B] hover:bg-[#FDF2F2] flex items-center gap-3"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </button>
+            )}
             <MobileLink label={`Wishlist (${wishlistCount})`} onClick={() => onNavigate('/wishlist')} />
             <MobileLink label="Track Order" onClick={() => onNavigate('/track')} />
             <MobileLink label={`Cart (${cartCount})`} onClick={() => onNavigate('/cart')} />
