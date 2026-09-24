@@ -1,10 +1,14 @@
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
-from rest_framework.test import APIClient
+import io
+import zipfile
 from unittest.mock import Mock, patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase
+from PIL import Image
+from rest_framework.test import APIClient
+
 from catalog.models import Category, Product, ProductVariant
-from catalog.services import ProductGenerationService
+from catalog.services import ProductGenerationService, ProductImportService
 from botique_backend.storage import SupabaseStorage
 
 
@@ -127,3 +131,34 @@ class CatalogApiTests(TestCase):
         self.assertEqual(response.json()['data'][0]['slug'], 'featured-dress')
         self.assertEqual(price_response.status_code, 200)
         self.assertEqual(price_response.json()['data'][0]['price'], 120)
+
+    def test_import_products_from_zip_package(self):
+        workbook_buffer = io.BytesIO()
+        workbook = __import__('openpyxl').Workbook()
+        sheet = workbook.active
+        sheet.append(['name', 'price', 'category', 'sku', 'stock_quantity'])
+        sheet.append(['Luna Silk Dress', '2450',
+                     'Dresses', 'SKU-LUNA-001', '10'])
+        workbook.save(workbook_buffer)
+
+        image_buffer = io.BytesIO()
+        Image.new('RGB', (10, 10), color='white').save(
+            image_buffer, format='PNG')
+        image_buffer.seek(0)
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as archive:
+            archive.writestr('products.xlsx', workbook_buffer.getvalue())
+            archive.writestr('images/luna-silk-dress.png',
+                             image_buffer.getvalue())
+
+        zip_file = SimpleUploadedFile(
+            'MODEZA_IMPORT.zip',
+            zip_buffer.getvalue(),
+            content_type='application/zip',
+        )
+
+        result = ProductImportService.import_products_from_zip(zip_file)
+
+        self.assertEqual(result.rows_success, 1)
+        self.assertTrue(Product.objects.filter(sku='SKU-LUNA-001').exists())

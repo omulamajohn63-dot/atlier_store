@@ -70,9 +70,10 @@
 
   <div class="card">
     <div class="card-body">
-      <form method="post" action="{% if product %}/admin/dashboard/products/{{ product.id }}/edit/{% else %}/admin/dashboard/products/new/{% endif %}" enctype="multipart/form-data" class="form-grid">
+      <form method="post" action="{% if product %}/admin/dashboard/confirm/{% else %}/admin/dashboard/products/new/{% endif %}" enctype="multipart/form-data" class="form-grid">
         {% csrf_token %}
         {% if product %}
+          <input type="hidden" name="action" value="update-product">
           <input type="hidden" name="product_id" value="{{ product.id }}">
         {% endif %}
         {{ form.as_p }}

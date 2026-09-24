@@ -37,6 +37,7 @@ from access_control.services import (
 )
 from catalog.models import Category, Product, ProductVariant
 from catalog.services import ProductGenerationService, import_products_from_file
+from catalog.services import ProductImportService
 from audit.services import AuditLogService
 from botique_backend.storage import object_key_from_url, supabase_storage_enabled
 from inventory.services import adjust_stock
@@ -512,13 +513,20 @@ class ProductImportPageView(View):
         result = None
 
         if not file:
-            messages.error(request, 'Please upload a CSV/XLSX file.')
+            messages.error(request, 'Please upload a ZIP, CSV, or XLSX file.')
         else:
-            result = import_products_from_file(
-                file,
-                image_files,
-                created_by=request.user,
-            )
+            file_name = (getattr(file, 'name', '') or '').lower()
+            if file_name.endswith('.zip'):
+                result = ProductImportService.import_products_from_zip(
+                    file,
+                    created_by=request.user,
+                )
+            else:
+                result = import_products_from_file(
+                    file,
+                    image_files,
+                    created_by=request.user,
+                )
             AuditLogService.log(
                 'file_upload',
                 category='catalog',
@@ -528,6 +536,9 @@ class ProductImportPageView(View):
                           'rows_failed': result.rows_failed},
                 description=f'Product import from {file.name}.',
             )
+            if result.messages:
+                for message in result.messages:
+                    messages.warning(request, message)
             messages.success(
                 request,
                 f'Import complete: {result.rows_success} rows succeeded, {result.rows_failed} failed.',
@@ -548,20 +559,43 @@ class ProductImportPageView(View):
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductImportTemplateDownloadView(View):
     def get(self, request):
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow([
-            'name', 'price', 'category', 'sku',
-            'stock_quantity', 'description', 'size', 'color', 'is_active',
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        products_sheet = workbook.active
+        products_sheet.title = 'Products'
+        products_sheet.append([
+            'name', 'price', 'category', 'sku', 'stock_quantity',
+            'description', 'size', 'color', 'is_active'
         ])
-        writer.writerow([
+        products_sheet.append([
             'Silk Wrap Dress', '2450', 'Dresses', 'SKU-DRESS-001',
-            '10', 'Soft silk wrap dress', 'M', 'Ivory', 'true',
+            '10', 'Soft silk wrap dress', 'M', 'Ivory', 'true'
         ])
-        response = HttpResponse(output.getvalue(), content_type='text/csv')
-        response['Content-Disposition'] = (
-            'attachment; filename="product_import_template.csv"'
-        )
+
+        instructions_sheet = workbook.create_sheet('Instructions')
+        instructions_sheet.append(['Required columns'])
+        instructions_sheet.append(
+            ['name', 'price', 'category', 'sku', 'stock_quantity'])
+        instructions_sheet.append([])
+        instructions_sheet.append(
+            ['Optional columns', 'description', 'size', 'color', 'is_active'])
+        instructions_sheet.append(
+            ['Image bundle', 'Place image files inside an images/ folder inside the ZIP archive.'])
+
+        example_sheet = workbook.create_sheet('Example')
+        example_sheet.append(
+            ['name', 'price', 'category', 'sku', 'stock_quantity', 'size', 'color'])
+        example_sheet.append(
+            ['Luna Silk Dress', '2450', 'Dresses', 'SKU-LUNA-001', '10', 'S', 'Black'])
+        example_sheet.append(
+            ['Luna Silk Dress', '2450', 'Dresses', 'SKU-LUNA-002', '7', 'M', 'Black'])
+
+        output = io.BytesIO()
+        workbook.save(output)
+        response = HttpResponse(output.getvalue(
+        ), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="modeza_product_import_template.xlsx"'
         return response
 
 

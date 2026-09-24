@@ -22,8 +22,8 @@
       <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 20px;">
         {% csrf_token %}
         <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="id_file">CSV/XLSX file</label>
-          <input class="form-control" type="file" name="file" accept=".csv,.xlsx,.xls" required id="id_file">
+          <label class="form-label" for="id_file">ZIP / CSV / XLSX file</label>
+          <input class="form-control" type="file" name="file" accept=".zip,.csv,.xlsx,.xls" required id="id_file">
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="id_image_files">Product images</label>
