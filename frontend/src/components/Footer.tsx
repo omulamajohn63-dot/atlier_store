@@ -1,8 +1,23 @@
 import React, { useState } from 'react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  Facebook,
+  Heart,
+  Instagram,
+  Mail,
+  MapPin,
+  Phone,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+  Twitter,
+  Youtube,
+} from 'lucide-react';
 import { useRouter } from '../router/RouterContext';
-import { Button } from './ui/Button';
 import { addNewsletterSubscriber } from '../utils/newsletter';
-import { Sparkles, Truck, RotateCcw, ShieldCheck, Mail, MapPin, Phone, ArrowRight, Instagram, Twitter, Facebook, Youtube, CheckCircle2 } from 'lucide-react';
+import { Button, Card, Input } from './modeza';
 
 export const Footer: React.FC = () => {
   const { navigate } = useRouter();
@@ -16,16 +31,6 @@ export const Footer: React.FC = () => {
     { icon: Facebook, label: 'Facebook' },
     { icon: Youtube, label: 'YouTube' },
   ];
-
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newsletterEmail.trim()) return;
-    const result = addNewsletterSubscriber(newsletterEmail.trim());
-    setNewsletterStatus(result.status);
-    if (result.status === 'subscribed') {
-      setNewsletterEmail('');
-    }
-  };
 
   const footerLinks = {
     collections: [
@@ -59,260 +64,238 @@ export const Footer: React.FC = () => {
     ],
   };
 
-  return (
-    <footer className="bg-[#FFFFFF] border-t border-[#E8E5DF] relative overflow-hidden">
-      {/* Decorative gradient backdrop */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/20 to-transparent" />
-      <div className="absolute top-0 left-1/4 w-1/2 h-px bg-gradient-to-r from-transparent via-[#A2574F]/30 to-transparent" />
+  const handleNewsletterSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newsletterEmail.trim()) return;
+    const result = addNewsletterSubscriber(newsletterEmail.trim());
+    setNewsletterStatus(result.status);
+    if (result.status === 'subscribed') {
+      setNewsletterEmail('');
+    }
+  };
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12">
-          {/* Brand Philosophy */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="space-y-4">
+  const statusDescriptionId = newsletterStatus === 'idle'
+    ? 'newsletter-privacy'
+    : 'newsletter-status';
+
+  return (
+    <footer className="relative overflow-hidden border-t border-[#E8E5DF] bg-white">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/30 to-transparent" aria-hidden="true" />
+      <div className="absolute left-1/4 top-0 h-px w-1/2 bg-gradient-to-r from-transparent via-[#A2574F]/30 to-transparent" aria-hidden="true" />
+
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-5 lg:gap-12">
+          <div className="space-y-6 lg:col-span-2">
+            <div className="max-w-xl space-y-4">
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="text-left font-serif text-2xl sm:text-3xl tracking-tight text-[#181716] block hover:text-[#A2574F] transition-colors"
+                className="block rounded-sm text-left font-serif text-2xl tracking-tight text-[#181716] transition-colors hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-4 sm:text-3xl"
               >
                 MODEZA
               </button>
-              <p className="text-sm text-[#63605A] leading-relaxed max-w-md">
+              <p className="text-sm leading-relaxed text-[#63605A]">
                 A modern fashion boutique dedicated to conscious luxury, timeless silhouettes,
                 and ethical European craftsmanship. Every garment is produced in small, limited
                 batches using certified sustainable fibers.
               </p>
             </div>
 
-            {/* Value Props */}
-            <div className="grid grid-cols-3 gap-4 pt-2 border-t border-[#E8E5DF]">
+            <div className="grid grid-cols-1 gap-3 border-t border-[#E8E5DF] pt-5 sm:grid-cols-3 sm:gap-4">
               <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[#A2574F] flex-shrink-0" />
+                <Truck className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
                 <span className="text-xs text-[#63605A]">Express Courier</span>
               </div>
               <div className="flex items-center gap-2">
-                <RotateCcw className="w-4 h-4 text-[#A2574F] flex-shrink-0" />
+                <RotateCcw className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
                 <span className="text-xs text-[#63605A]">30-Day Returns</span>
               </div>
               <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#A2574F] flex-shrink-0" />
+                <ShieldCheck className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
                 <span className="text-xs text-[#63605A]">Secure Checkout</span>
               </div>
             </div>
 
-            {/* Location & Contact */}
-            <div className="space-y-3 pt-2 text-xs text-[#827E77]">
+            <div className="space-y-3 pt-1 text-xs text-[#827E77]">
               <div className="flex items-center gap-2">
-                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>Porto &bull; Paris &bull; New York</span>
               </div>
               <div className="flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                <a href="mailto:concierge@modeza-boutique.com" className="hover:text-[#181716] transition-colors">
+                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <a
+                  href="mailto:concierge@modeza-boutique.com"
+                  className="rounded-sm transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+                >
                   concierge@modeza-boutique.com
                 </a>
               </div>
               <div className="flex items-center gap-2">
-                <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>+351 220 000 000</span>
               </div>
             </div>
 
-            {/* Social Links */}
-            <div className="pt-4 border-t border-[#E8E5DF]">
-              <span className="text-[10px] uppercase tracking-widest font-semibold text-[#827E77] block mb-3">
+            <div className="border-t border-[#E8E5DF] pt-5">
+              <span className="mb-3 block text-[10px] font-semibold uppercase tracking-widest text-[#827E77]">
                 Follow the MODEZA
               </span>
               <div className="flex gap-3">
                 {socialLinks.map((social) => (
                   <span
                     key={social.label}
-                    aria-label={social.label}
+                    role="img"
+                    aria-label={`${social.label} profile coming soon`}
                     title={`${social.label} — shared profiles launch soon`}
-                    className="w-9 h-9 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center text-[#A29E96]"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E8E5DF] bg-[#FAF9F6] text-[#A29E96]"
                   >
-                    <social.icon className="w-4.5 h-4.5" />
+                    <social.icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Collections */}
-          <div className="space-y-4">
-            <h5 className="text-xs uppercase tracking-widest font-semibold text-[#181716]">
-              Collections
-            </h5>
-            <ul className="space-y-3">
-              {footerLinks.collections.map((link) => (
-                <li key={link.path || link.label}>
-                  {link.path ? (
-                    <button
-                      onClick={() => navigate(link.path)}
-                      className="w-full text-left text-sm text-[#63605A] hover:text-[#181716] transition-colors flex items-center justify-between group"
-                    >
-                      <span>{link.label}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-[#A29E96] group-hover:text-[#A2574F] group-hover:translate-x-1 transition-all opacity-0 group-hover:opacity-100" />
-                    </button>
-                  ) : (
-                    <span className="text-sm text-[#827E77] cursor-default flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-[#C0857B]" />
-                      {link.label}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Client Care */}
-          <div className="space-y-4">
-            <h5 className="text-xs uppercase tracking-widest font-semibold text-[#181716]">
-              Client Care
-            </h5>
-            <ul className="space-y-3">
-              {footerLinks.clientCare.map((link, index) => (
-                <li key={index}>
-                  {link.path ? (
-                    <button
-                      onClick={() => navigate(link.path)}
-                      className={`w-full text-left text-sm transition-colors flex items-center justify-between group ${link.highlight ? 'font-medium text-[#181716] hover:text-[#A2574F]' : 'text-[#63605A] hover:text-[#181716]'}`}
-                    >
-                      <span>{link.label}</span>
-                      <ArrowRight className={`w-3.5 h-3.5 transition-all ${link.highlight ? 'text-[#A29E96]' : 'text-[#A29E96] group-hover:text-[#A2574F] group-hover:translate-x-1 opacity-0 group-hover:opacity-100'}`} />
-                    </button>
-                  ) : (
-                    <span className="text-sm text-[#827E77] cursor-default flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#C0857B]" />
-                      {link.label}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Company */}
-          <div className="space-y-4">
-            <h5 className="text-xs uppercase tracking-widest font-semibold text-[#181716]">
-              The MODEZA
-            </h5>
-            <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.path || link.label}>
-                  <button
-                    onClick={() => navigate(link.path)}
-                    className="w-full text-left text-sm text-[#63605A] hover:text-[#181716] transition-colors flex items-center justify-between group"
-                  >
-                    <span>{link.label}</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-[#A29E96] group-hover:text-[#A2574F] group-hover:translate-x-1 transition-all opacity-0 group-hover:opacity-100" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <FooterLinkGroup
+            title="Collections"
+            links={footerLinks.collections}
+            onNavigate={navigate}
+          />
+          <FooterLinkGroup
+            title="Client Care"
+            links={footerLinks.clientCare}
+            onNavigate={navigate}
+          />
+          <FooterLinkGroup
+            title="The MODEZA"
+            links={footerLinks.company}
+            onNavigate={navigate}
+          />
         </div>
 
-        {/* Newsletter Section */}
-        <div className="mt-12 lg:mt-16 p-6 lg:p-8 rounded-3xl bg-gradient-to-br from-[#FAF9F6] to-[#F3F1ED] border border-[#E8E5DF] relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#A2574F]/5 via-transparent to-transparent" />
-          <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-            <div className="lg:col-span-2 space-y-3">
-              <span className="text-xs uppercase tracking-widest font-semibold text-[#A2574F] flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5" />
-                Private Salon & Capsule Drops
+        <Card className="relative mt-12 overflow-hidden rounded-3xl border border-[#E8E5DF] bg-gradient-to-br from-[#FAF9F6] to-[#F3F1ED] p-0 shadow-none lg:mt-16">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#A2574F]/5 via-transparent to-transparent" aria-hidden="true" />
+          <div className="relative grid grid-cols-1 items-center gap-6 p-6 lg:grid-cols-3 lg:p-8">
+            <div className="space-y-3 lg:col-span-2">
+              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[#A2574F]">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Private Salon &amp; Capsule Drops
               </span>
-              <h3 className="font-serif text-xl sm:text-2xl lg:text-3xl text-[#181716] font-normal leading-tight">
+              <h2 className="font-serif text-xl font-normal leading-tight text-[#181716] sm:text-2xl lg:text-3xl">
                 Join The MODEZA Gazette
-              </h3>
-              <p className="text-sm text-[#63605A] max-w-md leading-relaxed">
+              </h2>
+              <p className="max-w-md text-sm leading-relaxed text-[#63605A]">
                 Subscribers receive private pre-order access 48 hours prior to public seasonal releases
-                and invitations to modeza archive events.
+                and invitations to MODEZA archive events.
               </p>
             </div>
+
             <div className="lg:col-span-1">
               <form
                 onSubmit={handleNewsletterSubmit}
-                className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto sm:mx-0"
+                className="mx-auto flex max-w-md flex-col items-center justify-center gap-3 sm:mx-0 sm:flex-row"
               >
-                <div className="relative w-full">
-                  <Mail className="w-4.5 h-4.5 text-[#827E77] absolute left-4 top-1/2 -translate-y-1/2" aria-hidden="true" />
-                  <input
+                <div className="relative w-full min-w-0">
+                  <Input
+                    id="newsletter-email"
                     type="email"
                     required
                     value={newsletterEmail}
-                    onChange={(e) => {
-                      setNewsletterEmail(e.target.value);
+                    onChange={(event) => {
+                      setNewsletterEmail(event.target.value);
                       setNewsletterStatus('idle');
                     }}
                     placeholder="Enter your email address"
                     aria-label="Email address for The MODEZA Gazette"
-                    className="w-full pl-11 pr-4 py-3.5 bg-[#FFFFFF] border border-[#E8E5DF] rounded-xl text-sm text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
+                    aria-describedby={statusDescriptionId}
+                    icon={<Mail className="h-4 w-4" aria-hidden="true" />}
+                    className="h-12 py-3.5 pl-10"
                   />
                 </div>
-                <Button variant="primary" size="md" type="submit" className="w-full sm:w-auto gap-2">
-                  <span>Subscribe</span>
-                  <ArrowRight className="w-4 h-4" />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  className="w-full shrink-0 gap-2 sm:w-auto"
+                >
+                  Subscribe
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </form>
+
               {newsletterStatus === 'idle' && (
-                <p className="text-[11px] text-[#827E77] pt-2 text-center sm:text-left">
+                <p id="newsletter-privacy" className="pt-2 text-center text-[11px] text-[#827E77] sm:text-left">
                   We respect your privacy. Unsubscribe at any moment.
                 </p>
               )}
               {newsletterStatus === 'subscribed' && (
-                <p className="text-[11px] leading-relaxed text-[#2E5A44] pt-2 text-center sm:text-left flex items-start justify-center sm:justify-start gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />
+                <p
+                  id="newsletter-status"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="flex items-start justify-center gap-1.5 pt-2 text-center text-[11px] leading-relaxed text-[#2E5A44] sm:justify-start sm:text-left"
+                >
+                  <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>
-                    You're on the list. This preview save sign-ups on this device — live salon emails arrive once
+                    You&apos;re on the list. This preview saves sign-ups on this device; live salon emails arrive once
                     the marketplace launches.
                   </span>
                 </p>
               )}
               {newsletterStatus === 'duplicate' && (
-                <p className="text-[11px] text-[#63605A] pt-2 text-center sm:text-left flex items-start justify-center sm:justify-start gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-px text-[#A2574F]" aria-hidden="true" />
+                <p
+                  id="newsletter-status"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="flex items-start justify-center gap-1.5 pt-2 text-center text-[11px] leading-relaxed text-[#63605A] sm:justify-start sm:text-left"
+                >
+                  <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-[#A2574F]" aria-hidden="true" />
                   <span>This email is already on the Gazette list.</span>
                 </p>
               )}
             </div>
           </div>
-        </div>
+        </Card>
 
         <div className="mt-12 border-t border-[#F3F1ED] pt-6">
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3" aria-label="Legal">
             <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A29E96]">Legal</span>
             {footerLinks.legal.map((link) => (
               <button
                 key={link.path}
+                type="button"
                 onClick={() => navigate(link.path)}
-                className="text-xs text-[#827E77] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] rounded-sm"
+                className="rounded-sm text-xs text-[#827E77] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
               >
                 {link.label}
               </button>
             ))}
-          </div>
+          </nav>
         </div>
 
-        {/* Bottom copyright & attribution */}
-        <div className="border-t border-[#F3F1ED] mt-6 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#827E77]">
+        <div className="mt-6 flex flex-col items-center justify-between gap-4 border-t border-[#F3F1ED] pt-8 text-xs text-[#827E77] sm:flex-row">
           <p>&copy; {new Date().getFullYear()} MODEZA Prêt-à-Porter. All rights reserved.</p>
-          <div className="flex items-center gap-6 flex-wrap justify-center sm:justify-end">
-            <button onClick={() => navigate('/')} className="hover:text-[#181716] transition-colors flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Storefront
-            </button>
-            <button onClick={() => navigate('/shop')} className="hover:text-[#181716] transition-colors flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              Catalogue
-            </button>
-            <a href={adminUrl} className="hover:text-[#181716] transition-colors flex items-center gap-1" target="_blank" rel="noreferrer">
-              <MapPin className="w-3.5 h-3.5" />
+          <div className="flex flex-wrap items-center justify-center gap-5 sm:justify-end sm:gap-6">
+            <FooterUtilityLink label="Storefront" onClick={() => navigate('/')}>
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            </FooterUtilityLink>
+            <FooterUtilityLink label="Catalogue" onClick={() => navigate('/shop')}>
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            </FooterUtilityLink>
+            <a
+              href={adminUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 rounded-sm transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+            >
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
               Staff Portal
             </a>
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider">
               <span>Made with</span>
-              <span className="text-[#9E332B]">♥</span>
+              <Heart className="h-3 w-3 fill-[#9E332B] text-[#9E332B]" aria-hidden="true" />
               <span>in Portugal</span>
             </div>
           </div>
@@ -321,3 +304,68 @@ export const Footer: React.FC = () => {
     </footer>
   );
 };
+
+interface FooterLinkItem {
+  label: string;
+  path: string | null;
+  highlight?: boolean;
+}
+
+const FooterLinkGroup: React.FC<{
+  title: string;
+  links: FooterLinkItem[];
+  onNavigate: (path: string) => void;
+}> = ({ title, links, onNavigate }) => (
+  <nav aria-label={title}>
+    <h2 className="text-xs font-semibold uppercase tracking-widest text-[#181716]">{title}</h2>
+    <ul className="mt-4 space-y-3">
+      {links.map((link) => (
+        <li key={link.path || link.label}>
+          {link.path ? (
+            <button
+              type="button"
+              onClick={() => onNavigate(link.path as string)}
+              className={`group flex w-full items-center justify-between rounded-sm text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
+                link.highlight
+                  ? 'font-medium text-[#181716] hover:text-[#A2574F]'
+                  : 'text-[#63605A] hover:text-[#181716]'
+              }`}
+            >
+              <span>{link.label}</span>
+              <ArrowRight
+                className={`h-3.5 w-3.5 shrink-0 text-[#A29E96] transition-all group-hover:translate-x-1 group-hover:text-[#A2574F] ${
+                  link.path && !link.highlight ? 'opacity-0 group-hover:opacity-100' : ''
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+          ) : (
+            <span className="flex cursor-default items-center gap-1 text-sm text-[#827E77]">
+              {title === 'Client Care' ? (
+                <ShieldCheck className="h-3.5 w-3.5 text-[#C0857B]" aria-hidden="true" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-[#C0857B]" aria-hidden="true" />
+              )}
+              {link.label}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  </nav>
+);
+
+const FooterUtilityLink: React.FC<{
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}> = ({ label, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex items-center gap-1 rounded-sm transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+  >
+    {children}
+    {label}
+  </button>
+);

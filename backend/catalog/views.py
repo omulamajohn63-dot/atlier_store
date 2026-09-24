@@ -39,7 +39,8 @@ class ProductListView(APIView):
         products = Product.objects.filter(
             status=Product.Status.ACTIVE,
             category__is_active=True,
-        ).select_related('category').prefetch_related('variants')
+        ).select_related('category').prefetch_related(
+            'product_images', 'variants__variant_images')
         category = request.query_params.get('category')
         search = request.query_params.get('search', '').strip()
         sort = request.query_params.get('sort', 'newest')
@@ -90,7 +91,7 @@ class ProductDetailView(APIView):
             product_lookup |= Q(id=identifier)
         product = get_object_or_404(
             Product.objects.select_related(
-                'category').prefetch_related('variants'),
+                'category').prefetch_related('product_images', 'variants__variant_images'),
             product_lookup,
             status=Product.Status.ACTIVE,
             category__is_active=True,
@@ -109,7 +110,8 @@ class CategoryDetailView(APIView):
     def get(self, request, slug):
         category = get_object_or_404(Category, slug=slug, is_active=True)
         products = category.products.filter(
-            status=Product.Status.ACTIVE).prefetch_related('variants')
+            status=Product.Status.ACTIVE).prefetch_related(
+                'product_images', 'variants__variant_images')
         return Response({
             'category': CategorySerializer(category).data,
             'products': ProductSerializer(

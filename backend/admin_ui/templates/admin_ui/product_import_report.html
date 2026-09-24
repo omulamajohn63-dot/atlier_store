@@ -1,0 +1,50 @@
+{% extends "admin_ui/base_admin.html" %}
+
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li><a href="/admin/dashboard/products/import/">Bulk Import</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'admin-product-import-history' %}">History</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Report</li>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 1180px; margin: 0 auto;">
+  <div class="page-header">
+    <div><h2 class="page-title">{{ page_title }}</h2><p class="page-subtitle">{{ page_subtitle }}</p></div>
+    <a class="btn btn-secondary" href="{% url 'admin-product-import-history' %}"><i class="ph ph-arrow-left"></i> History</a>
+  </div>
+  <div class="card"><div class="card-body">
+    <div class="summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+      <div class="summary-item"><span>Status</span><strong>{{ job.get_status_display }}</strong></div>
+      <div class="summary-item"><span>Created</span><strong>{{ job.created_at|date:"Y-m-d H:i" }}</strong></div>
+      <div class="summary-item"><span>Products created</span><strong>{{ job.created_products }}</strong></div>
+      <div class="summary-item"><span>Products updated</span><strong>{{ job.updated_products }}</strong></div>
+      <div class="summary-item"><span>Variants created</span><strong>{{ job.created_variants }}</strong></div>
+      <div class="summary-item"><span>Variants updated</span><strong>{{ job.updated_variants }}</strong></div>
+      <div class="summary-item"><span>Images uploaded</span><strong>{{ job.uploaded_images }}</strong></div>
+      <div class="summary-item"><span>Errors / Warnings</span><strong>{{ job.error_count }} / {{ job.warning_count }}</strong></div>
+    </div>
+  </div></div>
+
+  {% if report.validation_results.products %}
+  <div class="card" style="margin-top: 24px;"><div class="card-header"><h3 class="card-title">Validated Products</h3></div><div class="table-container"><table class="table"><thead><tr><th>Product</th><th>Variants</th><th>Images</th><th>Action</th><th>Status</th></tr></thead><tbody>
+    {% for item in report.validation_results.products %}<tr><td><strong>{{ item.name|default:item.product_code }}</strong><br><small>{{ item.product_code }}</small></td><td>{{ item.variant_count }}</td><td>{{ item.image_count }}</td><td>{{ item.action }}</td><td>{{ item.status }}</td></tr>{% endfor %}
+  </tbody></table></div></div>
+  {% endif %}
+
+  {% if report.validation_results.errors %}
+  <div class="card" style="margin-top: 24px;"><div class="card-header"><h3 class="card-title">Errors</h3></div><div class="table-container"><table class="table"><thead><tr><th>Row</th><th>Field</th><th>Message</th></tr></thead><tbody>{% for item in report.validation_results.errors %}<tr><td>{{ item.row_number|default:"Package" }}</td><td>{{ item.field }}</td><td>{{ item.message }}</td></tr>{% endfor %}</tbody></table></div></div>
+  {% endif %}
+
+  {% if report.validation_results.warnings %}
+  <div class="card" style="margin-top: 24px;"><div class="card-header"><h3 class="card-title">Warnings</h3></div><div class="table-container"><table class="table"><thead><tr><th>Row</th><th>Field</th><th>Message</th></tr></thead><tbody>{% for item in report.validation_results.warnings %}<tr><td>{{ item.row_number|default:"Package" }}</td><td>{{ item.field }}</td><td>{{ item.message }}</td></tr>{% endfor %}</tbody></table></div></div>
+  {% endif %}
+
+  {% if report.import_results.errors %}
+  <div class="card" style="margin-top: 24px;"><div class="card-header"><h3 class="card-title">Import Failures</h3></div><div class="table-container"><table class="table"><thead><tr><th>Product code</th><th>Message</th></tr></thead><tbody>{% for item in report.import_results.errors %}<tr><td>{{ item.product_code }}</td><td>{{ item.message }}</td></tr>{% endfor %}</tbody></table></div></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -6,19 +6,38 @@ import {
   Download,
   MapPin,
   Printer,
+  RotateCcw,
   Truck,
   X,
 } from 'lucide-react';
-import { useRouter } from '../router/RouterContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Progress,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '../components/modeza';
 import { useOrders } from '../context/OrdersContext';
-import { Button } from '../components/ui/Button';
-import { ErrorState } from '../components/ui/ErrorState';
-import { OrderDetailSkeleton } from '../components/ui/LoadingState';
-import { OrderStatusPill } from '../components/orders/OrderStatusPill';
-import { OrderProgress } from '../components/orders/OrderProgress';
+import { useRouter } from '../router/RouterContext';
 import { OrderItemThumb } from '../components/orders/OrderItemThumb';
+import { OrderProgress } from '../components/orders/OrderProgress';
 import { api } from '../services/apiClient';
-import { Order, PaymentStatus } from '../types';
+import { Order, OrderStatus, PaymentStatus } from '../types';
 import { ReceiptDTO } from '../types/api';
 import { formatPrice } from '../utils/currency';
 import { formatOrderDate, mapServerOrder, totalQuantity } from '../utils/orderMapper';
@@ -28,13 +47,16 @@ import {
   canRequestRefund,
   isActiveOrder,
   isTrackable,
+  ORDER_STATUS_META,
 } from '../utils/orderStatus';
 
 interface CustomerOrderDetailPageProps {
   orderNumber?: string;
 }
 
-const statusLabel: Record<PaymentStatus, string> = {
+type OrderAction = 'received' | 'cancel' | 'refund';
+
+const paymentStatusLabels: Record<PaymentStatus, string> = {
   pending: 'Pending',
   paid: 'Paid',
   failed: 'Failed',
@@ -55,6 +77,48 @@ function paymentMethodLabel(method?: string): string {
   }
 }
 
+function getStatusBadgeVariant(status: OrderStatus): 'success' | 'warning' | 'destructive' | 'default' | 'secondary' {
+  switch (status) {
+    case 'cancelled':
+      return 'destructive';
+    case 'pending':
+      return 'warning';
+    case 'shipped':
+      return 'default';
+    case 'processing':
+      return 'secondary';
+    default:
+      return 'success';
+  }
+}
+
+function StatusBadge({ status }: { status: OrderStatus }) {
+  return (
+    <Badge variant={getStatusBadgeVariant(status)} size="sm" className="gap-1.5">
+      <span className="sr-only">Order status: </span>
+      {ORDER_STATUS_META[status].label}
+    </Badge>
+  );
+}
+
+function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+  const variant = status === 'paid'
+    ? 'success'
+    : status === 'failed'
+      ? 'destructive'
+      : status === 'refunded'
+        ? 'secondary'
+        : 'warning';
+
+  return <Badge variant={variant} size="sm">{paymentStatusLabels[status]}</Badge>;
+}
+
+function getProgressValue(order: Order): number {
+  if (order.status === 'cancelled') return 100;
+  const rank = Math.max(0, ORDER_STATUS_META[order.status].rank);
+  return Math.round((rank / 4) * 100);
+}
+
 export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = ({ orderNumber: propOrderNumber }) => {
   const { navigate } = useRouter();
   const { getOrder, receiveOrder, cancelOrder, requestOrderReturn } = useOrders();
@@ -68,77 +132,83 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<OrderAction | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const completionTimestamp = useCallback((status: 'delivered' | 'received' | 'cancelled') => {
     if (!order) return '';
     const timelineTimestamp = order.timeline.find((event) => event.status === status)?.timestamp;
-    return (
-      timelineTimestamp ||
-      (status === 'cancelled' ? order.updatedAt : '') ||
-      ''
-    );
+    return timelineTimestamp || (status === 'cancelled' ? order.updatedAt : '');
   }, [order]);
-
-  const handleMarkReceived = useCallback(async () => {
-    if (!order) return;
-    if (!window.confirm(`Mark order ${order.orderNumber} as received?`)) {
-      return;
-    }
-
-    const result = await receiveOrder(order.orderNumber);
-    if (result.success && result.order) {
-      setOrder(result.order);
-      setError('');
-    } else {
-      setError(result.message);
-    }
-  }, [order, receiveOrder]);
-
-  const handleCancel = useCallback(async () => {
-    if (!order) return;
-    if (!window.confirm(`Cancel order ${order.orderNumber}? Reserved modeza stock will be returned.`)) {
-      return;
-    }
-
-    const result = await cancelOrder(order.orderNumber);
-    if (result.success && result.order) {
-      setOrder(result.order);
-      setError('');
-    } else {
-      setError(result.message);
-    }
-  }, [order, cancelOrder]);
-
-  const handleRequestRefund = useCallback(async () => {
-    if (!order) return;
-    if (!window.confirm(`Request a refund for order ${order.orderNumber}? A staff member will review your request.`)) {
-      return;
-    }
-
-    const result = await requestOrderReturn(order.orderNumber, '');
-    if (result.success && result.order) {
-      setOrder(result.order);
-      setError('');
-    } else {
-      setError(result.message);
-    }
-  }, [order, requestOrderReturn]);
 
   useEffect(() => {
     const orderNum = propOrderNumber || '';
-    if (!orderNum) return;
-
-    const local = getOrder(orderNum);
-    if (local) {
-      setOrder(local);
+    if (!orderNum) {
+      setLoading(false);
+      return;
     }
+
+    let cancelled = false;
+    const local = getOrder(orderNum);
+    if (local) setOrder(local);
 
     setLoading(true);
     api
       .getOrder(orderNum)
       .then((serverOrder) => {
-        const mapped = mapServerOrder(serverOrder);
-        setOrder(mapped);
+        if (cancelled) return;
+        setOrder(mapServerOrder(serverOrder));
+        setError('');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOrder(null);
+        setError('No order could be found for this reference.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [propOrderNumber, getOrder]);
+
+  const handleConfirmAction = useCallback(async () => {
+    if (!order || !pendingAction) return;
+
+    setActionLoading(true);
+    setError('');
+
+    try {
+      const result = pendingAction === 'received'
+        ? await receiveOrder(order.orderNumber)
+        : pendingAction === 'cancel'
+          ? await cancelOrder(order.orderNumber)
+          : await requestOrderReturn(order.orderNumber, '');
+
+      if (result.success && result.order) {
+        setOrder(result.order);
+        setError('');
+      } else {
+        setError(result.message);
+      }
+    } catch {
+      setError('The order could not be updated right now. Please try again.');
+    } finally {
+      setActionLoading(false);
+      setPendingAction(null);
+    }
+  }, [cancelOrder, order, pendingAction, receiveOrder, requestOrderReturn]);
+
+  const handleRetry = useCallback(() => {
+    if (!propOrderNumber) return;
+    setLoading(true);
+    setError('');
+    api
+      .getOrder(propOrderNumber)
+      .then((serverOrder) => {
+        setOrder(mapServerOrder(serverOrder));
         setError('');
       })
       .catch(() => {
@@ -146,7 +216,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
         setError('No order could be found for this reference.');
       })
       .finally(() => setLoading(false));
-  }, [propOrderNumber, getOrder]);
+  }, [propOrderNumber]);
 
   const handleDownloadReceipt = useCallback(async () => {
     if (!receipt) return;
@@ -195,8 +265,10 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
     if (!order || order.status !== 'confirmed') {
       setReceipt(null);
       setReceiptError('');
+      setReceiptLoading(false);
       return;
     }
+
     let cancelled = false;
     setReceipt(null);
     setReceiptError('');
@@ -213,16 +285,17 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
       })
       .catch((err) => {
         if (cancelled) return;
-        const error = err as Error & { code?: string; status?: number };
-        if (error.status === 404 && error.code === 'RECEIPT_NOT_FOUND') {
+        const receiptApiError = err as Error & { code?: string; status?: number };
+        if (receiptApiError.status === 404 && receiptApiError.code === 'RECEIPT_NOT_FOUND') {
           setReceiptError('The official receipt is not available yet. Please try again shortly.');
           return;
         }
-        setReceiptError(error.message || 'The official receipt could not be checked.');
+        setReceiptError(receiptApiError.message || 'The official receipt could not be checked.');
       })
       .finally(() => {
         if (!cancelled) setReceiptLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
@@ -230,371 +303,393 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
 
   if (!propOrderNumber) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-12">
-        <ErrorState
-          variant="page"
-          title="Missing order reference"
-          message="We couldn't identify the order you're looking for."
-          onRetry={() => navigate('/account/orders')}
-          retryLabel="Back to Orders"
-        />
+      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+        <Card className="mx-auto max-w-xl p-8 text-center shadow-sm sm:p-12">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F3F1ED] text-[#827E77]">
+            <X className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <CardTitle className="mt-5 text-2xl">Missing order reference</CardTitle>
+          <CardDescription className="mx-auto mt-3 max-w-sm text-sm leading-6">
+            We could not identify the order you are looking for.
+          </CardDescription>
+          <Button type="button" variant="primary" size="md" onClick={() => navigate('/account/orders')} className="mt-7">
+            Back to orders
+          </Button>
+        </Card>
       </div>
     );
   }
 
   const showErrorPanel = !loading && !order;
+  const progressValue = order ? getProgressValue(order) : 0;
+  const deliveryTimestamp = order ? completionTimestamp('delivered') || completionTimestamp('received') : '';
+  const cancellationTimestamp = order ? completionTimestamp('cancelled') : '';
+  const actionIsCancellation = pendingAction === 'cancel';
+  const actionIsRefund = pendingAction === 'refund';
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
-      <a
-        href="/account/orders"
-        onClick={(event) => {
-          event.preventDefault();
-          navigate('/account/orders');
-        }}
-        className="inline-flex items-center gap-2 rounded-sm text-xs font-semibold uppercase tracking-[0.14em] text-[#63605A] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => navigate('/account/orders')}
+        className="-ml-3 gap-2 text-[#63605A] hover:text-[#181716]"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to Orders
-      </a>
+        Back to orders
+      </Button>
 
-      {loading && <OrderDetailSkeleton />}
+      {loading && !order && (
+        <Card className="mt-8 p-8 text-center shadow-sm sm:p-12" aria-busy="true">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F3F1ED] text-[#A2574F]">
+            <Truck className="h-6 w-6 animate-pulse" aria-hidden="true" />
+          </div>
+          <p className="mt-5 text-sm font-medium text-[#181716]" role="status" aria-live="polite">Loading your order…</p>
+          <Progress className="mx-auto mt-5 h-1.5 max-w-xs" aria-label="Loading order" />
+        </Card>
+      )}
 
       {showErrorPanel && (
-        <div className="mt-10">
-          <ErrorState
-            variant="page"
-            title="Something went wrong"
-            message="We couldn't load this order right now."
-            onRetry={() => {
-              setLoading(true);
-              api
-                .getOrder(propOrderNumber)
-                .then((serverOrder) => {
-                  setOrder(mapServerOrder(serverOrder));
-                  setError('');
-                })
-                .catch(() => {
-                  setOrder(null);
-                  setError('No order could be found for this reference.');
-                })
-                .finally(() => setLoading(false));
-            }}
-          />
-        </div>
+        <Card className="mx-auto mt-10 max-w-xl p-8 text-center shadow-sm sm:p-12" role="alert">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FDF2F2] text-[#9E332B]">
+            <X className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <CardTitle className="mt-5 text-2xl">Something went wrong</CardTitle>
+          <CardDescription className="mx-auto mt-3 max-w-sm text-sm leading-6">
+            {error || 'We could not load this order right now.'}
+          </CardDescription>
+          <Button type="button" variant="primary" size="md" onClick={handleRetry} className="mt-7">
+            Try again
+          </Button>
+        </Card>
       )}
 
       {order && (
-        <div className="mt-8 space-y-10">
-          {/* Header */}
-          <header className="flex flex-wrap items-start justify-between gap-6 border-b border-[#F3F1ED] pb-8">
+        <div className="mt-8 space-y-8" aria-busy={loading || receiptLoading}>
+          {loading && (
+            <p className="flex items-center gap-2 text-xs text-[#827E77]" role="status" aria-live="polite">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-[#A2574F]" aria-hidden="true" />
+              Refreshing the latest order status…
+            </p>
+          )}
+
+          <header className="flex flex-wrap items-start justify-between gap-6 border-b border-[#F3F1ED] pb-7">
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#827E77]">Order</p>
-              <h1 className="font-serif text-3xl tracking-tight text-[#181716] sm:text-4xl">
-                {order.orderNumber}
-              </h1>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#827E77]">Order</p>
+              <h1 className="break-all font-serif text-3xl tracking-tight text-[#181716] sm:text-4xl">{order.orderNumber}</h1>
               <p className="text-sm text-[#63605A]">
                 Placed {formatOrderDate(order.createdAt, { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <OrderStatusPill status={order.status} />
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#E8E5DF] bg-white px-3 py-1 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={order.status} />
+              <Badge variant="default" size="sm" className="gap-1.5">
                 <CreditCard className="h-3 w-3 text-[#A2574F]" aria-hidden="true" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#181716] sm:text-[11px]">
-                  {paymentMethodLabel(order.paymentMethod)} · {statusLabel[order.paymentStatus]}
-                </span>
-              </span>
+                {paymentMethodLabel(order.paymentMethod)} · {paymentStatusLabels[order.paymentStatus]}
+              </Badge>
             </div>
           </header>
 
-          <div className="grid gap-8 lg:grid-cols-[1.65fr_1fr] lg:gap-12">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(18rem,1fr)] lg:gap-10">
             <div className="space-y-8">
-              {/* Status / delivery */}
               {order.status === 'cancelled' ? (
-                <section className="rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-5 sm:p-6">
-                  <p className="flex items-center gap-2.5 text-sm font-medium text-[#63605A]">
-                    <X className="h-4 w-4 shrink-0 text-[#827E77]" aria-hidden="true" />
-                    This order was cancelled
-                    {completionTimestamp('cancelled') ? (
-                      <span>
-                        {' '}
-                        on{' '}
-                        {formatOrderDate(completionTimestamp('cancelled'), {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    ) : null}
-                    .
-                  </p>
-                </section>
-              ) : order.status === 'delivered' || order.status === 'received' ? (
-                <section className="flex items-center gap-3 rounded-2xl border border-[#C8D8CA] bg-[#F2F6F2] p-5 sm:p-6">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white shadow-xs">
-                    <Check className="h-4 w-4 text-[#2E5A44]" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-[#181716]">
-                      {order.status === 'delivered'
-                        ? 'Delivered'
-                        : 'Order received'}
-                      {(completionTimestamp('delivered') || completionTimestamp('received')) && (
-                        <span>{' '}on{' '}
-                          {formatOrderDate(
-                            completionTimestamp('delivered') || completionTimestamp('received'),
-                            { day: 'numeric', month: 'long', year: 'numeric' }
-                          )}
-                        </span>
+                <Card className="border-[#F8B4B4] bg-[#FDF2F2] p-5 shadow-none sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#9E332B]">
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-[#181716]">This order was cancelled</p>
+                      {cancellationTimestamp && (
+                        <p className="mt-1 text-xs text-[#63605A]">
+                          Recorded on {formatOrderDate(cancellationTimestamp, { day: 'numeric', month: 'long', year: 'numeric' })}.
+                        </p>
                       )}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[#63605A]">
-                      Thank you for shopping with the modeza.
-                    </p>
+                      <p className="mt-2 text-xs leading-5 text-[#63605A]">Reserved MODEZA stock has been returned to available inventory.</p>
+                    </div>
                   </div>
-                </section>
+                </Card>
+              ) : order.status === 'delivered' || order.status === 'received' ? (
+                <Card className="border-[#C8D8CA] bg-[#F2F6F2] p-5 shadow-none sm:p-6">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#2E5A44] shadow-xs">
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-[#181716]">
+                        {order.status === 'delivered' ? 'Delivered' : 'Order received'}
+                        {deliveryTimestamp && (
+                          <span>
+                            {' '}on {formatOrderDate(deliveryTimestamp, { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[#63605A]">Thank you for shopping with the modeza.</p>
+                    </div>
+                  </div>
+                </Card>
               ) : isActiveOrder(order.status) ? (
-                <section className="rounded-2xl border border-[#E8E5DF] bg-white p-5 sm:p-6">
-                  <div className="flex items-center justify-between gap-4">
-                    <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                      Order status
-                    </h2>
+                <Card className="p-5 shadow-sm sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Order status</p>
+                      <h2 className="mt-1 text-sm font-semibold text-[#181716]">Your journey so far</h2>
+                    </div>
                     {isTrackable(order.status) && (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => navigate(`/track?order=${encodeURIComponent(order.orderNumber)}`)}
-                        className="gap-1.5 text-xs"
+                        className="gap-1.5"
                       >
                         <Truck className="h-3.5 w-3.5" aria-hidden="true" />
-                        Track Order
+                        Track order
                       </Button>
                     )}
                   </div>
+                  <Progress
+                    value={progressValue}
+                    className="mt-5 h-2"
+                    aria-label="Order lifecycle progress"
+                    aria-valuetext={`${progressValue}% complete`}
+                  />
                   <OrderProgress order={order} className="mt-6" />
-                </section>
+                </Card>
               ) : null}
 
-              {/* Shipped notice (no fabricated tracking data) */}
               {order.status === 'shipped' && (
-                <section className="flex items-start gap-3.5 rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-5 sm:p-6">
+                <Card className="flex items-start gap-3.5 bg-[#FAF9F6] p-5 shadow-none sm:p-6">
                   <Truck className="mt-0.5 h-5 w-5 shrink-0 text-[#181716]" aria-hidden="true" />
-                  <div className="flex-1">
+                  <div>
                     <p className="text-sm font-medium text-[#181716]">Your order is on its way</p>
-                    <p className="mt-1 text-xs leading-relaxed text-[#63605A]">
-                      Your pieces have been dispatched. You'll receive SMS and email updates as it travels to
-                      you.
+                    <p className="mt-1 text-xs leading-5 text-[#63605A]">
+                      Your pieces have been dispatched. You will receive SMS and email updates as they travel to you.
                     </p>
                   </div>
-                </section>
+                </Card>
               )}
 
-              {/* Items */}
-              <section>
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                  {totalQuantity(order)} {totalQuantity(order) === 1 ? 'item' : 'items'}
-                </h2>
-                <div className="mt-4 divide-y divide-[#F3F1ED] overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white">
-                  {order.items.map((item) => (
-                    <div key={item.id} className="flex flex-wrap items-center gap-4 p-4 sm:gap-5 sm:p-5">
-                      <OrderItemThumb
-                        item={item}
-                        className="h-20 w-16 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-24 sm:w-20"
-                      />
-                      <div className="min-w-[7.5rem] flex-1">
-                        <h3 className="font-serif text-sm text-[#181716] sm:text-base">{item.productName}</h3>
-                        <p className="mt-1 text-xs text-[#63605A]">{item.variantDetails || '—'}</p>
-                        <p className="mt-1 text-xs text-[#827E77]">
-                          Qty {item.quantity} × {formatPrice(item.unitPrice)}
+              <Tabs defaultValue="items" className="w-full">
+                <TabsList className="w-full justify-start overflow-x-auto" aria-label="Order details">
+                  <TabsTrigger value="items">Pieces ({totalQuantity(order)})</TabsTrigger>
+                  <TabsTrigger value="delivery">Delivery</TabsTrigger>
+                </TabsList>
+                <TabsContent value="items">
+                  <Card className="overflow-hidden p-0 shadow-sm" aria-labelledby="order-items-heading">
+                    <CardHeader className="border-b border-[#F3F1ED] p-5 sm:p-6">
+                      <CardTitle id="order-items-heading" className="text-lg">Reserved pieces</CardTitle>
+                      <CardDescription className="text-xs">The items currently recorded on this order.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ul className="divide-y divide-[#F3F1ED]">
+                        {order.items.map((item) => (
+                          <li key={item.id} className="flex flex-wrap items-center gap-4 p-4 sm:gap-5 sm:p-5">
+                            <OrderItemThumb
+                              item={item}
+                              className="h-20 w-16 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-24 sm:w-20"
+                            />
+                            <div className="min-w-[7.5rem] flex-1">
+                              <h3 className="font-serif text-sm text-[#181716] sm:text-base">{item.productName}</h3>
+                              <p className="mt-1 text-xs text-[#63605A]">{item.variantDetails || '—'}</p>
+                              <p className="mt-1 text-xs text-[#827E77]">Qty {item.quantity} × {formatPrice(item.unitPrice)}</p>
+                            </div>
+                            <div className="shrink-0 font-serif text-sm text-[#181716] sm:text-base">{formatPrice(item.subtotal)}</div>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="delivery">
+                  <Card className="p-5 shadow-sm sm:p-6" aria-labelledby="order-delivery-heading">
+                    <CardHeader className="p-0">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-[#A2574F]" aria-hidden="true" />
+                        <CardTitle id="order-delivery-heading" className="text-lg">Delivery address</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <address className="mt-5 text-sm not-italic leading-6 text-[#63605A]">
+                        <p className="font-medium text-[#181716]">{order.customer.firstName} {order.customer.lastName}</p>
+                        <p>
+                          {order.customer.addressLine1}
+                          {order.customer.addressLine2 ? `, ${order.customer.addressLine2}` : ''}
                         </p>
-                      </div>
-                      <div className="shrink-0 font-serif text-sm text-[#181716] sm:text-base">
-                        {formatPrice(item.subtotal)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* Delivery address */}
-              <section className="rounded-2xl border border-[#E8E5DF] bg-white p-5 sm:p-6">
-                <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                  <MapPin className="h-3.5 w-3.5 text-[#A2574F]" aria-hidden="true" />
-                  Delivery address
-                </h2>
-                <div className="mt-4 text-sm text-[#181716]">
-                  <p className="font-medium">
-                    {order.customer.firstName} {order.customer.lastName}
-                  </p>
-                  <p className="mt-1 text-[#63605A]">
-                    {order.customer.addressLine1}
-                    {order.customer.addressLine2 ? `, ${order.customer.addressLine2}` : ''}
-                  </p>
-                  <p className="text-[#63605A]">
-                    {order.customer.city}
-                    {order.customer.stateOrProvince ? `, ${order.customer.stateOrProvince}` : ''}
-                    {order.customer.postalCode ? ` ${order.customer.postalCode}` : ''}
-                  </p>
-                  <p className="text-[#63605A]">{order.customer.country}</p>
-                </div>
-              </section>
+                        <p>
+                          {order.customer.city}
+                          {order.customer.stateOrProvince ? `, ${order.customer.stateOrProvince}` : ''}
+                          {order.customer.postalCode ? ` ${order.customer.postalCode}` : ''}
+                        </p>
+                        <p>{order.customer.country}</p>
+                      </address>
+                      <p className="mt-5 border-t border-[#F3F1ED] pt-4 text-xs text-[#827E77]">
+                        Courier: {order.shippingMethod === 'express' ? 'Carbon-neutral priority air' : 'Standard land'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
 
-            <aside className="space-y-6">
-              {/* Order summary */}
-              <section className="rounded-2xl border border-[#E8E5DF] bg-white p-5 sm:p-6">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                  Order summary
-                </h2>
-                <dl className="mt-5 space-y-2.5 text-xs text-[#63605A]">
-                  <div className="flex items-center justify-between">
-                    <dt>Subtotal</dt>
-                    <dd className="font-medium text-[#181716]">{formatPrice(order.subtotal)}</dd>
+            <aside className="space-y-6" aria-label="Order totals and actions">
+              <Card className="p-0 shadow-sm" aria-labelledby="order-summary-heading">
+                <CardHeader className="border-b border-[#F3F1ED] p-5 sm:p-6">
+                  <CardTitle id="order-summary-heading" className="text-lg">Order summary</CardTitle>
+                </CardHeader>
+                <CardContent className="p-5 pt-5 sm:p-6 sm:pt-6">
+                  <dl className="space-y-3 text-xs text-[#63605A]">
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Subtotal</dt>
+                      <dd className="font-medium text-[#181716]">{formatPrice(order.subtotal)}</dd>
+                    </div>
+                    {order.discount && (
+                      <div className="flex items-center justify-between gap-4 text-[#2E5A44]">
+                        <dt>Privilege ({order.discount.code})</dt>
+                        <dd className="font-medium">-{formatPrice(order.discount.amount)}</dd>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Delivery</dt>
+                      <dd className="font-medium text-[#181716]">
+                        {order.shippingCost === 0 ? 'Complimentary' : formatPrice(order.shippingCost)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>VAT</dt>
+                      <dd className="font-medium text-[#181716]">{formatPrice(order.tax)}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 border-t border-[#F3F1ED] pt-3">
+                      <dt className="text-sm font-medium text-[#181716]">Total</dt>
+                      <dd className="font-serif text-xl text-[#181716]">{formatPrice(order.total)}</dd>
+                    </div>
+                  </dl>
+                </CardContent>
+              </Card>
+
+              <Card className="p-0 shadow-sm" aria-labelledby="order-payment-heading">
+                <CardHeader className="border-b border-[#F3F1ED] p-5 sm:p-6">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-[#A2574F]" aria-hidden="true" />
+                    <CardTitle id="order-payment-heading" className="text-lg">Payment</CardTitle>
                   </div>
-                  {order.discount && (
-                    <div className="flex items-center justify-between text-[#2E5A44]">
-                      <dt>Privilege ({order.discount.code})</dt>
-                      <dd className="font-medium">-{formatPrice(order.discount.amount)}</dd>
+                </CardHeader>
+                <CardContent className="p-5 pt-5 sm:p-6 sm:pt-6">
+                  <dl className="space-y-3 text-xs text-[#63605A]">
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Method</dt>
+                      <dd className="font-medium capitalize text-[#181716]">{paymentMethodLabel(order.paymentMethod)}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Status</dt>
+                      <dd><PaymentStatusBadge status={order.paymentStatus} /></dd>
+                    </div>
+                  </dl>
+                </CardContent>
+              </Card>
+
+              <Card className="space-y-2.5 bg-[#FAF9F6] p-5 shadow-none hover:shadow-sm sm:p-6" aria-labelledby="order-actions-heading">
+                <CardHeader className="p-0">
+                  <CardTitle id="order-actions-heading" className="text-lg">Need to make a change?</CardTitle>
+                  <CardDescription className="text-xs">Available actions depend on this order's current status.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2.5 p-0">
+                  {isTrackable(order.status) && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="md"
+                      onClick={() => navigate(`/track?order=${encodeURIComponent(order.orderNumber)}`)}
+                      className="w-full gap-2"
+                    >
+                      <Truck className="h-4 w-4" aria-hidden="true" />
+                      Track order
+                    </Button>
+                  )}
+                  {canMarkReceived(order.status, order.paymentMethod) && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="md"
+                      onClick={() => setPendingAction('received')}
+                      className="w-full"
+                    >
+                      Mark as received
+                    </Button>
+                  )}
+                  {canCancel(order.status) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={() => setPendingAction('cancel')}
+                      className="w-full border-[#F8B4B4] text-[#9E332B] hover:border-[#9E332B] hover:bg-[#FDF2F2] hover:text-[#9E332B]"
+                    >
+                      Cancel order
+                    </Button>
+                  )}
+                  {canRequestRefund(order.status) && order.paymentStatus === 'paid' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={() => setPendingAction('refund')}
+                      className="w-full"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                      Request refund
+                    </Button>
+                  )}
+                  {order.paymentStatus === 'refunded' && (
+                    <div className="flex items-center justify-center rounded-full border border-[#E8E5DF] bg-white px-3 py-2 text-xs uppercase tracking-wider text-[#827E77]">
+                      Refunded
                     </div>
                   )}
-                  <div className="flex items-center justify-between">
-                    <dt>Delivery</dt>
-                    <dd className="font-medium text-[#181716]">
-                      {order.shippingCost === 0 ? 'Complimentary' : formatPrice(order.shippingCost)}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt>VAT</dt>
-                    <dd className="font-medium text-[#181716]">{formatPrice(order.tax)}</dd>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-[#F3F1ED] pt-3">
-                    <dt className="text-sm font-medium text-[#181716]">Total</dt>
-                    <dd className="font-serif text-xl text-[#181716]">{formatPrice(order.total)}</dd>
-                  </div>
-                </dl>
-              </section>
-
-              {/* Payment */}
-              <section className="rounded-2xl border border-[#E8E5DF] bg-white p-5 sm:p-6">
-                <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-                  <CreditCard className="h-3.5 w-3.5 text-[#A2574F]" aria-hidden="true" />
-                  Payment
-                </h2>
-                <dl className="mt-4 space-y-2.5 text-xs text-[#63605A]">
-                  <div className="flex items-center justify-between">
-                    <dt>Method</dt>
-                    <dd className="font-medium capitalize text-[#181716]">
-                      {paymentMethodLabel(order.paymentMethod)}
-                    </dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt>Status</dt>
-                    <dd
-                      className={`inline-flex items-center gap-1.5 font-medium ${
-                        order.paymentStatus === 'paid'
-                          ? 'text-[#2E5A44]'
-                          : order.paymentStatus === 'refunded'
-                          ? 'text-[#827E77]'
-                          : order.paymentStatus === 'failed'
-                          ? 'text-[#9E332B]'
-                          : 'text-[#63605A]'
-                      }`}
+                  {receiptLoading ? (
+                    <Button type="button" variant="outline" size="md" isLoading disabled className="w-full gap-2">
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Checking receipt
+                    </Button>
+                  ) : receipt ? (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="md"
+                      isLoading={downloading}
+                      onClick={() => void handleDownloadReceipt()}
+                      className="w-full gap-2"
                     >
-                      {order.paymentStatus === 'paid' && (
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      {statusLabel[order.paymentStatus]}
-                    </dd>
-                  </div>
-                </dl>
-              </section>
-
-              {/* Actions */}
-              <section className="flex flex-col gap-2.5 rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-5 sm:p-6">
-                {isTrackable(order.status) && (
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Download receipt (PDF)
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" size="md" disabled className="w-full gap-2">
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Receipt unavailable
+                    </Button>
+                  )}
                   <Button
                     type="button"
-                    variant="primary"
+                    variant="outline"
                     size="md"
-                    onClick={() => navigate(`/track?order=${encodeURIComponent(order.orderNumber)}`)}
-                    className="gap-2 text-xs uppercase tracking-wider"
+                    onClick={() => void handleOpenReceipt()}
+                    disabled={downloading || receiptLoading || !receipt}
+                    className="w-full gap-2"
                   >
-                    <Truck className="h-4 w-4" aria-hidden="true" />
-                    Track Order
+                    <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                    Print receipt
                   </Button>
-                )}
-                {canMarkReceived(order.status, order.paymentMethod) && (
-                  <Button type="button" variant="secondary" size="md" onClick={() => void handleMarkReceived()} className="text-xs uppercase tracking-wider">
-                    Mark as Received
-                  </Button>
-                )}
-                {canCancel(order.status) && (
-                  <Button type="button" variant="outline" size="md" onClick={handleCancel} className="text-xs uppercase tracking-wider">
-                    Cancel Order
-                  </Button>
-                )}
-                {canRequestRefund(order.status) && order.paymentStatus === 'paid' && (
-                  <Button type="button" variant="outline" size="md" onClick={() => void handleRequestRefund()} className="text-xs uppercase tracking-wider">
-                    Request Refund
-                  </Button>
-                )}
-                {order.paymentStatus === 'refunded' && (
-                  <div className="flex items-center justify-center rounded-md border border-[#E8E5DF] bg-white px-3 py-2 text-xs uppercase tracking-wider text-[#827E77]">
-                    Refunded
-                  </div>
-                )}
-                {receiptLoading ? (
-                  <Button type="button" variant="outline" size="md" disabled className="gap-2 text-xs" aria-busy="true">
-                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                    Checking receipt…
-                  </Button>
-                ) : receipt ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => void handleDownloadReceipt()}
-                    disabled={downloading}
-                    className="gap-2 text-xs uppercase tracking-wider"
-                  >
-                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                    {downloading ? 'Downloading…' : 'Download Receipt (PDF)'}
-                  </Button>
-                ) : (
-                  <Button type="button" variant="outline" size="md" disabled className="gap-2 text-xs">
-                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                    Receipt unavailable
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => void handleOpenReceipt()}
-                  disabled={downloading || receiptLoading || !receipt}
-                  className="gap-2 text-xs uppercase tracking-wider"
-                >
-                  <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-                  Print Receipt
-                </Button>
-              </section>
+                </CardContent>
+              </Card>
 
               {receiptError && (
-                <div
-                  role="alert"
-                  className="rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-xs leading-relaxed text-[#9B1C1C]"
-                >
+                <div role="alert" className="rounded-2xl border border-[#F8B4B4] bg-[#FDF2F2] p-4 text-xs leading-5 text-[#9B1C1C]">
                   {receiptError}
                 </div>
               )}
-
               {error && (
-                <div
-                  role="alert"
-                  className="rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-xs leading-relaxed text-[#9B1C1C]"
-                >
+                <div role="alert" className="rounded-2xl border border-[#F8B4B4] bg-[#FDF2F2] p-4 text-xs leading-5 text-[#9B1C1C]">
                   {error}
                 </div>
               )}
@@ -602,6 +697,39 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
           </div>
         </div>
       )}
+
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !actionLoading) setPendingAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {actionIsCancellation ? 'Cancel this order?' : actionIsRefund ? 'Request a refund?' : 'Confirm order receipt'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {actionIsCancellation
+                ? `Cancelling ${order?.orderNumber} will return the reserved MODEZA stock.`
+                : actionIsRefund
+                  ? `A staff member will review the refund request for ${order?.orderNumber}.`
+                  : `Confirm that you have received ${order?.orderNumber}.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoading}>Keep order</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={actionLoading}
+              aria-busy={actionLoading}
+              className={actionIsCancellation ? 'bg-[#9E332B] hover:bg-[#8B2A24]' : undefined}
+              onClick={() => void handleConfirmAction()}
+            >
+              {actionLoading ? 'Updating…' : actionIsCancellation ? 'Cancel order' : actionIsRefund ? 'Submit request' : 'Confirm receipt'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

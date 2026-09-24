@@ -4,8 +4,13 @@ import { ProductCard } from '../components/ProductCard';
 import { CategorySlug, Product } from '../types';
 import { ShopOccasion } from '../router/RouterContext';
 import { useRouter } from '../router/RouterContext';
-import { Search, SlidersHorizontal, ArrowUpDown, X, Package, Filter } from 'lucide-react';
-import { Button } from '../components/ui/Button';
+import { Search, SlidersHorizontal, ArrowUpDown, X, Package, Filter, ChevronRight, Sparkles } from 'lucide-react';
+import { Button } from '../components/modeza/Button';
+import { Input, Select as SortSelect } from '../components/modeza/Input';
+import { Badge } from '../components/modeza/Badge';
+import { Card } from '../components/modeza/Card';
+import { Checkbox } from '../components/modeza/Checkbox';
+import { Progress } from '../components/modeza/Progress';
 import { motion, AnimatePresence } from 'motion/react';
 import { audit } from '../lib/logger';
 
@@ -31,6 +36,13 @@ const OCCASION_TITLES: Record<ShopOccasion, string> = {
   evening: 'Evening & Occasion',
   'special-occasions': 'Special Occasions',
 };
+
+const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
+  { value: 'featured', label: 'Featured First' },
+  { value: 'newest', label: 'New Arrivals' },
+  { value: 'price-asc', label: 'Price: Low to High' },
+  { value: 'price-desc', label: 'Price: High to Low' },
+];
 
 export const ShopPage: React.FC<ShopPageProps> = ({
   initialCategory = 'all',
@@ -72,7 +84,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
   }, [initialCategory, initialQuery]);
 
-  // Filter in-stock items if checked
   const filteredProducts = useMemo(() => {
     let list = products.filter((product) => {
       const matchesCategory = selectedCategory === 'all' || product.categorySlug === selectedCategory;
@@ -87,8 +98,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       const matchesSale = !selectedSale || product.compareAtPrice !== undefined;
       const search = searchQuery.trim().toLowerCase();
       const matchesSearch = !search || [product.name, product.tagline, product.description]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(search));
+        .some((value) => value?.toLowerCase().includes(search) ?? false);
       return matchesCategory && matchesCollection && matchesOccasion && matchesSale && matchesSearch;
     });
 
@@ -111,6 +121,19 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const isAllProductsView = selectedCategory === 'all' && !selectedCollection && !selectedOccasion && !selectedSale && !searchQuery && !onlyInStock;
   const displayedProducts = isAllProductsView ? filteredProducts : filteredProducts.slice(0, itemsToShow);
   const hasMore = !isAllProductsView && itemsToShow < filteredProducts.length;
+  const activeFilterCount = [
+    Boolean(searchQuery),
+    onlyInStock,
+    selectedCategory !== 'all',
+    Boolean(selectedCollection),
+    Boolean(selectedOccasion),
+    selectedSale,
+  ].filter(Boolean).length;
+  const hasActiveFilters = activeFilterCount > 0;
+  const activeSortLabel = SORT_OPTIONS.find((option) => option.value === sortBy)?.label ?? 'Featured First';
+  const visibleProgress = filteredProducts.length > 0
+    ? Math.min(100, Math.round((displayedProducts.length / filteredProducts.length) * 100))
+    : 0;
 
   const headerTitle = selectedSale
     ? 'The Sale Edit'
@@ -141,155 +164,203 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 2xl:max-w-[88rem]">
-      {/* 1. SHOP HEADER & BREADCRUMB */}
-      <div className="border-b border-[#E8E5DF] pb-8 relative">
-        {/* Decorative gradient */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#A2574F]/10 to-transparent pointer-events-none" />
+    <div className="mx-auto w-full max-w-7xl space-y-8 px-4 pb-20 pt-6 sm:px-6 sm:pt-10 lg:px-8 2xl:max-w-[88rem]">
+      <Card className="relative overflow-hidden rounded-[2rem] border-white/10 bg-[#181716] p-0 text-[#FAF9F6] shadow-xl hover:shadow-xl">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[#A2574F]/25 blur-3xl" />
+          <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-[#993A8B]/15 blur-3xl" />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E68057]/60 to-transparent" />
+        </div>
 
-        <nav className="text-xs text-[#827E77] flex items-center gap-2 mb-4" aria-label="Breadcrumb">
-          <button onClick={() => navigate('/')} className="hover:text-[#181716] transition-colors">
-            Home
-          </button>
-          <span>/</span>
-          <span className="text-[#181716] font-medium">Shop</span>
-          {selectedCategory !== 'all' && (
-            <>
-              <span>/</span>
-              <span className="text-[#181716] font-medium capitalize">{selectedCategory}</span>
-            </>
-          )}
-        </nav>
+        <div className="relative px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-11">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/')}
+              className="-ml-3 h-8 px-3 text-[10px] text-white/55 hover:bg-white/10 hover:text-white focus-visible:ring-offset-[#181716]"
+            >
+              Home
+            </Button>
+            <ChevronRight className="h-3 w-3" aria-hidden="true" />
+            <span className="text-white/80">Shop</span>
+            {selectedCategory !== 'all' && (
+              <>
+                <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                <span className="max-w-40 truncate text-white/80 capitalize sm:max-w-none">{selectedCategory}</span>
+              </>
+            )}
+          </nav>
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="font-serif text-3xl sm:text-4xl text-[#181716] font-normal tracking-tight text-balance">
+          <div className="mt-8 grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-12">
+            <div className="max-w-3xl">
+              <Badge variant="new" size="lg" className="mb-5 gap-1.5">
+                <Sparkles className="h-3 w-3" aria-hidden="true" />
+                MODEZA Collection
+              </Badge>
+              <h1 className="font-serif text-4xl font-normal leading-[1.08] tracking-tight text-balance sm:text-5xl lg:text-6xl">
                 {headerTitle}
               </h1>
-              {selectedCategory !== 'all' && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory('all')}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F4ECE9] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#A2574F] hover:text-[#FAF9F6] transition-all"
-                >
-                  <X className="w-3 h-3" />
-                  Clear Category
-                </button>
-              )}
-              {selectedOccasion && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedOccasion(undefined)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F4ECE9] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#A2574F] hover:text-[#FAF9F6] transition-all"
-                >
-                  <X className="w-3 h-3" />
-                  Clear Occasion
-                </button>
-              )}
-              {selectedSale && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedSale(false)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#F4ECE9] text-[10px] font-semibold uppercase tracking-wider text-[#63605A] hover:bg-[#A2574F] hover:text-[#FAF9F6] transition-all"
-                >
-                  <X className="w-3 h-3" />
-                  Clear Sale
-                </button>
+              <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/65 text-pretty sm:text-base">
+                {headerDescription}
+              </p>
+
+              {(selectedCategory !== 'all' || selectedOccasion || selectedSale) && (
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+                    Refining
+                  </span>
+                  {selectedCategory !== 'all' && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedCategory('all')}
+                      className="h-8 border border-white/15 px-3 text-[10px] text-white/80 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                      Clear Category
+                    </Button>
+                  )}
+                  {selectedOccasion && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedOccasion(undefined)}
+                      className="h-8 border border-white/15 px-3 text-[10px] text-white/80 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                      Clear Occasion
+                    </Button>
+                  )}
+                  {selectedSale && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedSale(false)}
+                      className="h-8 border border-white/15 px-3 text-[10px] text-white/80 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                      Clear Sale
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
-            <p className="text-sm text-[#63605A] max-w-xl text-pretty">
-              {headerDescription}
-            </p>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[#827E77] tracking-wider uppercase font-semibold">
-              Showing {displayedProducts.length} of {filteredProducts.length} pieces
-            </span>
+            <div className="min-w-52 rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">
+                Collection result
+              </span>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="font-serif text-4xl font-normal text-white sm:text-5xl">
+                  {filteredProducts.length}
+                </span>
+                <span className="text-xs uppercase tracking-wider text-white/50">
+                  {filteredProducts.length === 1 ? 'Piece' : 'Pieces'}
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-white/45">
+                Showing {displayedProducts.length} in the current view
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* 2. FILTER & SEARCH CONTROL TOOLBAR */}
-      <div className="bg-[#FFFFFF] p-4 sm:p-5 rounded-2xl border border-[#E8E5DF] flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
-        {/* Search input */}
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-[#827E77] absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search the collection..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-8 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#827E77] hover:text-[#181716] hover:bg-[#F3F1ED] rounded-full p-0.5 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Filters and Sorting controls */}
-        <div className="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
-          {/* Mobile filters toggle */}
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className="lg:hidden flex items-center gap-2 text-xs font-semibold text-[#181716] bg-[#FAF9F6] px-3 py-2.5 rounded-xl border border-[#E8E5DF] hover:border-[#181716] transition-all"
-          >
-            <Filter className="w-3.5 h-3.5" />
-            Filters
-            {(onlyInStock || searchQuery || selectedOccasion || selectedSale) && <span className="w-1.5 h-1.5 rounded-full bg-[#A2574F]" />}
-          </button>
-
-          <div className="hidden lg:flex items-center gap-3">
-            {/* In stock toggle */}
-            <label className="flex items-center gap-2.5 text-xs text-[#63605A] cursor-pointer bg-[#FAF9F6] px-3.5 py-2.5 rounded-xl border border-[#E8E5DF] hover:border-[#181716] transition-all select-none">
-              <input
-                type="checkbox"
-                checked={onlyInStock}
-                onChange={(e) => setOnlyInStock(e.target.checked)}
-                className="rounded text-[#181716] focus:ring-[#A2574F] selection:bg-transparent cursor-pointer"
-              />
-              <span>In Stock Only</span>
-            </label>
-
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-1.5 bg-[#FAF9F6] px-3.5 py-2.5 rounded-xl border border-[#E8E5DF] text-xs text-[#63605A] hover:border-[#181716] transition-all">
-              <ArrowUpDown className="w-3.5 h-3.5 text-[#827E77]" />
-              <span className="text-[#827E77]">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-transparent text-[#181716] font-medium focus:outline-none cursor-pointer pr-1 appearance-none"
-                aria-label="Sort products"
+      <Card className="sticky top-3 z-30 bg-white/95 p-3 shadow-lg backdrop-blur-xl sm:p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto] lg:items-center">
+          <div className="relative">
+            <Input
+              id="shop-search"
+              type="text"
+              placeholder="Search the collection..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              icon={<Search className="h-4 w-4" aria-hidden="true" />}
+              aria-label="Search products"
+              className="h-11 bg-[#FAF9F6] py-0 pl-10 pr-11 text-sm"
+            />
+            {searchQuery && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear product search"
+                className="absolute right-1.5 top-1/2 h-8 w-8 -translate-y-1/2 text-[#827E77] hover:bg-[#F3F1ED] hover:text-[#181716]"
               >
-                <option value="featured">Featured First</option>
-                <option value="newest">New Arrivals</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-              </select>
-            </div>
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            )}
           </div>
 
-          {(searchQuery || onlyInStock || selectedCategory !== 'all' || selectedCollection || selectedOccasion || selectedSale) && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="flex items-center gap-1.5 text-xs font-semibold text-[#9E332B] hover:text-[#181716] px-3 py-2.5 rounded-xl hover:bg-[#FDF2F2] transition-all"
-            >
-              <X className="w-3.5 h-3.5" />
-              Clear All
-            </button>
-          )}
-        </div>
-      </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
+            <div className="hidden items-center gap-2 lg:flex">
+              <label
+                htmlFor="in-stock-desktop"
+                className="flex h-10 cursor-pointer select-none items-center gap-2.5 rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-3.5 text-xs font-medium text-[#63605A] transition-colors hover:border-[#D8D3CB]"
+              >
+                <Checkbox
+                  id="in-stock-desktop"
+                  checked={onlyInStock}
+                  onCheckedChange={(checked) => setOnlyInStock(checked === true)}
+                  className="h-[18px] w-[18px] rounded-full"
+                />
+                <span>In stock only</span>
+              </label>
 
-      {/* Mobile filter bottom sheet (drawer) - lg:hidden */}
+              <div className="relative w-52">
+                <ArrowUpDown className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[#827E77]" aria-hidden="true" />
+                <SortSelect
+                  id="sort-desktop"
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as SortOption)}
+                  options={SORT_OPTIONS}
+                  aria-label="Sort products"
+                  className="h-10 bg-[#FAF9F6] py-0 pl-10 text-xs font-semibold"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant={showFilters ? 'primary' : 'outline'}
+              size="md"
+              onClick={() => setShowFilters(!showFilters)}
+              aria-expanded={showFilters}
+              aria-controls="mobile-filter-drawer"
+              aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+              className="flex-1 sm:flex-none lg:hidden"
+            >
+              <Filter className="h-3.5 w-3.5" aria-hidden="true" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#A2574F] px-1.5 text-[10px] text-white lg:bg-[#181716]">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={clearFilters}
+                className="text-[#9E332B] hover:bg-[#FDF2F2] hover:text-[#9E332B]"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                Clear All
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
       <AnimatePresence>
         {showFilters && (
           <motion.div
@@ -297,7 +368,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowFilters(false)}
-            className="fixed inset-0 z-[500] bg-[#181716]/40 backdrop-blur-[2px] lg:hidden"
+            className="fixed inset-0 z-[500] bg-[#181716]/50 backdrop-blur-sm lg:hidden"
             aria-hidden="true"
           />
         )}
@@ -306,93 +377,144 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       <AnimatePresence>
         {showFilters && (
           <motion.aside
+            id="mobile-filter-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Product filters"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            className="fixed inset-x-0 bottom-0 z-[600] max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-[#E8E5DF] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl lg:hidden"
-            aria-label="Filters"
+            className="fixed inset-x-0 bottom-0 z-[600] max-h-[88dvh] overflow-y-auto rounded-t-3xl border-t border-[#E8E5DF] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:p-6 sm:max-h-[80dvh] lg:hidden"
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#E8E5DF]" />
+            <div className="mx-auto mb-6 h-1 w-12 rounded-full bg-[#D8D3CB]" />
 
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#181716]">
-                Filters
-              </span>
-              <button
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
+                  Refine selection
+                </span>
+                <p className="mt-1.5 text-sm text-[#63605A]">
+                  {filteredProducts.length} {filteredProducts.length === 1 ? 'piece' : 'pieces'} match your view
+                </p>
+              </div>
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowFilters(false)}
-                className="text-[#827E77] hover:text-[#181716] p-1.5 rounded-full hover:bg-[#F3F1ED] transition-colors"
                 aria-label="Close filters"
+                className="shrink-0 text-[#827E77] hover:bg-[#F3F1ED] hover:text-[#181716]"
               >
-                <X className="w-4 h-4" />
-              </button>
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
             </div>
 
-            <label className="flex items-center gap-2.5 text-xs text-[#63605A] cursor-pointer select-none bg-[#FAF9F6] px-3.5 py-3 rounded-xl border border-[#E8E5DF]">
-              <input
-                type="checkbox"
-                checked={onlyInStock}
-                onChange={(e) => setOnlyInStock(e.target.checked)}
-                className="rounded text-[#181716] focus:ring-[#A2574F] cursor-pointer"
-              />
-              <span>In Stock Only</span>
-            </label>
+            <div className="space-y-3">
+              <label
+                htmlFor="in-stock-mobile"
+                className="flex cursor-pointer select-none items-center gap-3 rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-4 transition-colors hover:border-[#D8D3CB]"
+              >
+                <Checkbox
+                  id="in-stock-mobile"
+                  checked={onlyInStock}
+                  onCheckedChange={(checked) => setOnlyInStock(checked === true)}
+                  className="h-5 w-5 rounded-full"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-[#181716]">In stock only</span>
+                  <span className="mt-0.5 block text-xs text-[#827E77]">Hide unavailable pieces</span>
+                </span>
+              </label>
 
-            <div className="mt-3 flex items-center gap-1.5 bg-[#FAF9F6] px-3.5 py-3 rounded-xl border border-[#E8E5DF] text-xs text-[#63605A]">
-              <ArrowUpDown className="w-3.5 h-3.5 text-[#827E77]" />
-              <span className="text-[#827E77]">Sort:</span>
-              <select
+              <SortSelect
+                id="sort-mobile"
+                label="Sort pieces"
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-transparent text-[#181716] font-medium focus:outline-none cursor-pointer pr-1 flex-1"
-                aria-label="Sort products"
-              >
-                <option value="featured">Featured First</option>
-                <option value="newest">New Arrivals</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-              </select>
+                onChange={(event) => setSortBy(event.target.value as SortOption)}
+                options={SORT_OPTIONS}
+                className="h-12 bg-[#FAF9F6] py-0"
+              />
             </div>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                fullWidth
+                onClick={clearFilters}
+                className="mt-3 text-[#9E332B] hover:bg-[#FDF2F2] hover:text-[#9E332B]"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                Clear All Filters
+              </Button>
+            )}
 
             <Button
+              type="button"
               variant="primary"
               size="lg"
-              className="mt-4 w-full"
+              fullWidth
               onClick={() => setShowFilters(false)}
+              className="mt-5"
             >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
               Apply Filters
             </Button>
           </motion.aside>
         )}
       </AnimatePresence>
 
-      {/* 3. PRODUCT GRID OR EMPTY STATE */}
+      <div className="flex flex-col gap-3 border-b border-[#E8E5DF] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
+            Curated selection
+          </span>
+          <h2 className="mt-2 font-serif text-2xl font-normal text-[#181716] sm:text-3xl">
+            {filteredProducts.length} {filteredProducts.length === 1 ? 'piece' : 'pieces'} in view
+          </h2>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">
+            Order
+          </span>
+          <Badge variant="default" size="lg">{activeSortLabel}</Badge>
+        </div>
+      </div>
+
       {displayedProducts.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="py-20 text-center bg-[#FFFFFF] border border-[#E8E5DF] rounded-2xl p-10 space-y-4 shadow-sm"
-        >
-          <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#A2574F]">
-            <Package className="w-7 h-7 stroke-[1.5]" />
-          </div>
-          <h3 className="font-serif text-xl text-[#181716]">No pieces match your criteria</h3>
-          <p className="text-xs text-[#63605A] max-w-sm mx-auto leading-relaxed">
-            Try resetting your active search or removing the "In Stock Only" filter.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearFilters}
-            className="gap-2"
+        <Card className="overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="px-6 py-16 text-center sm:px-12 sm:py-20"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            Clear All Filters
-          </Button>
-        </motion.div>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E5DF] bg-[#FAF9F6] text-[#A2574F]">
+              <Package className="h-7 w-7 stroke-[1.5]" aria-hidden="true" />
+            </div>
+            <Badge variant="outline" className="mt-5">No matches</Badge>
+            <h3 className="mt-4 font-serif text-2xl font-normal text-[#181716]">
+              No pieces match your criteria
+            </h3>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#63605A]">
+              Try resetting your active search or removing the in-stock filter to reveal more of the collection.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={clearFilters}
+              className="mt-7"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              Clear All Filters
+            </Button>
+          </motion.div>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
+        <section aria-label="Shop products" className="grid grid-cols-1 gap-x-5 gap-y-10 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-3 lg:gap-x-7 xl:grid-cols-4">
           {displayedProducts.map((product, index) => (
             <motion.div
               key={product.id}
@@ -407,20 +529,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               />
             </motion.div>
           ))}
-        </div>
+        </section>
       )}
 
-      {/* 5. LOAD MORE / PAGINATION BEHAVIOR */}
       {hasMore && (
-        <div className="pt-8 text-center">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => setItemsToShow((prev) => prev + 6)}
-            className="px-8 hover-lift-sm"
-          >
-            Load Additional Pieces ({filteredProducts.length - itemsToShow} remaining)
-          </Button>
+        <div className="pt-4">
+          <div className="mx-auto max-w-2xl rounded-2xl border border-[#E8E5DF] bg-white px-5 py-6 text-center shadow-sm sm:px-8">
+            <div className="flex items-center justify-between gap-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
+              <span>Viewing {displayedProducts.length} of {filteredProducts.length}</span>
+              <span className="text-[#A2574F]">{visibleProgress}%</span>
+            </div>
+            <Progress
+              value={visibleProgress}
+              aria-label="Products viewed"
+              aria-valuetext={`${displayedProducts.length} of ${filteredProducts.length} products viewed`}
+              className="mt-3 h-1.5"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => setItemsToShow((prev) => prev + 6)}
+              className="mt-5 w-full px-8 hover-lift-sm sm:w-auto"
+            >
+              Load Additional Pieces ({filteredProducts.length - itemsToShow} remaining)
+            </Button>
+          </div>
         </div>
       )}
     </div>

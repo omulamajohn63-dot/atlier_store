@@ -1,90 +1,280 @@
 {% extends "admin_ui/base_admin.html" %}
+{% load static %}
 
 {% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
 
 {% block breadcrumbs %}
 <li><a href="/admin/dashboard/products/">Products</a></li>
 <li><i class="ph ph-caret-right"></i></li>
-<li class="active">Import</li>
+<li class="active">Bulk Import</li>
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 720px; margin: 0 auto;">
+<div style="max-width: 1180px; margin: 0 auto;">
   <div class="page-header">
     <div>
       <h2 class="page-title">{{ page_title }}</h2>
       <p class="page-subtitle">{{ page_subtitle }}</p>
     </div>
+    <a class="btn btn-secondary" href="{{ download_template_url }}"><i class="ph ph-download-simple"></i> Download Template</a>
   </div>
 
   <div class="card">
     <div class="card-body">
-      <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 20px;">
+      <div id="uploadMessage" class="form-text" style="margin-bottom: 16px;"></div>
+      <form id="uploadForm" enctype="multipart/form-data">
         {% csrf_token %}
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="id_file">CSV/XLSX file</label>
-          <input class="form-control" type="file" name="file" accept=".csv,.xlsx,.xls" required id="id_file">
+        <div class="form-group">
+          <label class="form-label" for="zipFile">Import package</label>
+          <div id="dropZone" class="form-control" style="min-height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer;">
+            <i class="ph ph-zip" style="font-size: 34px; color: var(--accent);"></i>
+            <strong style="margin-top: 8px;">Drop ZIP here or browse</strong>
+            <span class="form-text">The package must contain products.xlsx and an images/ folder.</span>
+          </div>
+          <input id="zipFile" name="file" type="file" accept=".zip,application/zip" hidden>
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="id_image_files">Product images</label>
-          <input class="form-control" type="file" name="image_files" multiple accept="image/*" id="id_image_files">
-          <div class="form-text">Upload images that match your product names or SKUs.</div>
+        <div class="form-group">
+          <label class="form-label" for="importStatus">Import status</label>
+          <select id="importStatus" name="import_status" class="form-control">
+            <option value="DRAFT">Draft</option>
+            <option value="ACTIVE">Published</option>
+          </select>
+          <div class="form-text">Draft is the safe default. Published products become visible to customers.</div>
         </div>
-        <div style="display: flex; gap: 12px; padding-top: 8px;">
-          <button class="btn btn-primary" type="submit"><i class="ph ph-upload-simple"></i> Import Products</button>
-          <a class="btn btn-secondary" href="{{ download_template_url }}"><i class="ph ph-download-simple"></i> Download Template</a>
-          <a class="btn btn-secondary" href="/admin/dashboard/products/">Cancel</a>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="btn btn-primary" type="submit"><i class="ph ph-upload-simple"></i> Validate Import</button>
+          <a class="btn btn-secondary" href="{{ history_url }}"><i class="ph ph-clock-counter-clockwise"></i> Import History</a>
         </div>
       </form>
     </div>
   </div>
 
-  {% if result %}
-  <div class="card" style="margin-top: 24px;">
-    <div class="card-header">
-      <h3 class="card-title">Import Results</h3>
-    </div>
-    <div class="card-body" style="padding: 16px 24px;">
-      <div style="display: flex; gap: 24px; margin-bottom: 16px;">
-        <div><span style="font-size: 12px; color: var(--text-secondary);">Total Rows</span><br><strong>{{ result.rows_total }}</strong></div>
-        <div><span style="font-size: 12px; color: var(--text-secondary);">Succeeded</span><br><strong style="color: var(--status-success);">{{ result.rows_success }}</strong></div>
-        <div><span style="font-size: 12px; color: var(--text-secondary);">Failed</span><br><strong style="color: var(--status-danger);">{{ result.rows_failed }}</strong></div>
+  <div id="jobSection" class="card" style="margin-top: 24px; display: none;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+      <div>
+        <h3 class="card-title">Import Preview</h3>
+        <div id="jobName" class="form-text"></div>
       </div>
-
-      {% if result.messages %}
-      <ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 13px; color: var(--text-secondary);">
-        {% for message in result.messages %}
-        <li>{{ message }}</li>
-        {% endfor %}
-      </ul>
-      {% endif %}
+      <span id="jobStatus" class="status-badge status-neutral"></span>
     </div>
-
-    {% if result.rows %}
-    <div class="table-container">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Row</th>
-            <th>SKU</th>
-            <th>Status</th>
-            <th>Errors</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in result.rows %}
-          <tr>
-            <td>{{ row.row_number }}</td>
-            <td style="font-family: monospace;">{{ row.sku }}</td>
-            <td><span class="status-badge status-{{ row.status|lower }}">{{ row.status }}</span></td>
-            <td style="font-size: 12px; color: var(--text-secondary);">{% if row.errors %}{{ row.errors|join:", " }}{% else %}—{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="card-body">
+      <div id="summary" class="summary-grid"></div>
+      <div id="progressWrap" style="display: none; margin: 20px 0;">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px;"><span id="progressText"></span><strong id="progressPercent"></strong></div>
+        <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+      </div>
+      <div id="issueSummary" style="display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0;"></div>
+      <div id="previewTable"></div>
+      <div id="rowDetails" style="margin-top: 18px;"></div>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px;">
+        <button id="confirmButton" class="btn btn-primary" type="button"><i class="ph ph-check"></i> Confirm Import</button>
+        <button id="cancelButton" class="btn btn-secondary" type="button"><i class="ph ph-x"></i> Cancel</button>
+        <a id="reportLink" class="btn btn-secondary" href="#" style="display: none;"><i class="ph ph-file-text"></i> View Report</a>
+      </div>
     </div>
-    {% endif %}
   </div>
-  {% endif %}
 </div>
+
+{% if job %}{{ job|json_script:"initial-job" }}{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .summary-item { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; }
+  .summary-item span { display: block; color: var(--text-secondary); font-size: 12px; }
+  .summary-item strong { display: block; font-size: 22px; margin-top: 4px; }
+  .progress-track { height: 10px; background: var(--border-light); border-radius: 999px; overflow: hidden; }
+  .progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
+  .issue-link { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 8px 12px; border-radius: var(--radius-sm); font-weight: 600; }
+  .issue-link:hover { background: var(--border-light); }
+  .issue-error { color: var(--status-danger); background: var(--status-danger-bg); }
+  .issue-warning { color: var(--status-warning); background: var(--status-warning-bg); }
+  .issue-ready { color: var(--status-success); background: var(--status-success-bg); }
+  .drop-active { border-color: var(--accent); background: var(--accent-soft); }
+</style>
+<script>
+(function () {
+  const form = document.getElementById('uploadForm');
+  const fileInput = document.getElementById('zipFile');
+  const dropZone = document.getElementById('dropZone');
+  const message = document.getElementById('uploadMessage');
+  const jobSection = document.getElementById('jobSection');
+  const jobName = document.getElementById('jobName');
+  const jobStatus = document.getElementById('jobStatus');
+  const summary = document.getElementById('summary');
+  const issueSummary = document.getElementById('issueSummary');
+  const previewTable = document.getElementById('previewTable');
+  const rowDetails = document.getElementById('rowDetails');
+  const confirmButton = document.getElementById('confirmButton');
+  const cancelButton = document.getElementById('cancelButton');
+  const reportLink = document.getElementById('reportLink');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressText = document.getElementById('progressText');
+  const progressPercent = document.getElementById('progressPercent');
+  const progressBar = document.getElementById('progressBar');
+  const csrf = form.querySelector('[name=csrfmiddlewaretoken]').value;
+  let currentJob = null;
+  let processing = false;
+
+  const initial = document.getElementById('initial-job');
+  if (initial) currentJob = JSON.parse(initial.textContent);
+
+  function apiUrl(path) { return '/api' + path; }
+  async function request(path, options) {
+    const config = Object.assign({ credentials: 'same-origin', headers: { 'X-CSRFToken': csrf } }, options || {});
+    config.headers = Object.assign({}, config.headers, { 'Accept': 'application/json' });
+    const response = await fetch(apiUrl(path), config);
+    let data = null;
+    try { data = await response.json(); } catch (error) { data = {}; }
+    if (!response.ok) throw new Error((data.error && data.error.message) || 'The request could not be completed.');
+    return data;
+  }
+  function setMessage(text, kind) {
+    message.textContent = text || '';
+    message.style.color = kind === 'error' ? 'var(--status-danger)' : kind === 'success' ? 'var(--status-success)' : 'var(--text-secondary)';
+  }
+  function statusClass(status) {
+    if (status === 'COMPLETED') return 'status-success';
+    if (status === 'COMPLETED_WITH_ERRORS' || status === 'FAILED') return 'status-danger';
+    if (status === 'PROCESSING' || status === 'VALIDATING') return 'status-warning';
+    return 'status-neutral';
+  }
+  function renderSummary(data) {
+    const s = data.validation_results && data.validation_results.summary || {};
+    summary.innerHTML = '';
+    [['Products', s.products || 0], ['Variants', s.variants || 0], ['Images', s.images || 0], ['Errors', data.error_count || 0], ['Warnings', data.warning_count || 0]].forEach(function (item) {
+      const div = document.createElement('div');
+      div.className = 'summary-item';
+      div.innerHTML = '<span>' + item[0] + '</span><strong>' + item[1] + '</strong>';
+      summary.appendChild(div);
+    });
+  }
+  function renderIssues(data) {
+    issueSummary.innerHTML = '';
+    const errors = data.error_count || 0;
+    const warnings = data.warning_count || 0;
+    if (errors) issueSummary.innerHTML += '<button class="issue-link issue-error" data-kind="errors">✕ ' + errors + ' Errors</button>';
+    if (warnings) issueSummary.innerHTML += '<button class="issue-link issue-warning" data-kind="warnings">⚠ ' + warnings + ' Warnings</button>';
+    if (!errors && !warnings) issueSummary.innerHTML += '<span class="status-badge status-success">Ready to import</span>';
+    issueSummary.querySelectorAll('[data-kind]').forEach(function (button) {
+      button.addEventListener('click', function () { renderRows(data, button.dataset.kind); });
+    });
+  }
+  function renderRows(data, kind) {
+    const issues = (data.validation_results && data.validation_results[kind]) || [];
+    rowDetails.innerHTML = '';
+    if (!issues.length) return;
+    const heading = document.createElement('h4');
+    heading.textContent = kind === 'errors' ? 'Errors' : 'Warnings';
+    rowDetails.appendChild(heading);
+    const table = document.createElement('table');
+    table.className = 'table';
+    table.innerHTML = '<thead><tr><th>Row</th><th>Field</th><th>Message</th></tr></thead>';
+    const body = document.createElement('tbody');
+    issues.forEach(function (item) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + (item.row_number || '—') + '</td><td>' + (item.field || 'package') + '</td><td>' + (item.message || '') + '</td>';
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    rowDetails.appendChild(table);
+  }
+  function renderPreview(data) {
+    currentJob = data;
+    jobSection.style.display = 'block';
+    jobName.textContent = data.filename || '';
+    jobStatus.textContent = data.status || '';
+    jobStatus.className = 'status-badge ' + statusClass(data.status);
+    renderSummary(data);
+    renderIssues(data);
+    const products = data.validation_results && data.validation_results.products || [];
+    const table = document.createElement('table');
+    table.className = 'table';
+    table.innerHTML = '<thead><tr><th>Product</th><th>Variants</th><th>Images</th><th>Action</th><th>Status</th></tr></thead>';
+    const body = document.createElement('tbody');
+    products.forEach(function (item) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td><strong>' + (item.name || item.product_code) + '</strong><br><small>' + item.product_code + '</small></td><td>' + item.variant_count + '</td><td>' + item.image_count + '</td><td>' + item.action + '</td><td><span class="status-badge ' + (item.status === 'ready' ? 'status-success' : 'status-danger') + '">' + (item.status === 'ready' ? 'Ready' : 'Error') + '</span></td>';
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    previewTable.innerHTML = '';
+    previewTable.appendChild(table);
+    confirmButton.disabled = !data.validation_results || !data.validation_results.can_confirm || data.status !== 'READY';
+    reportLink.style.display = ['COMPLETED', 'COMPLETED_WITH_ERRORS', 'FAILED'].indexOf(data.status) >= 0 ? 'inline-flex' : 'none';
+    if (data.status === 'COMPLETED' || data.status === 'COMPLETED_WITH_ERRORS' || data.status === 'FAILED') reportLink.href = '/admin/dashboard/products/import/' + data.id + '/report/';
+    else reportLink.removeAttribute('href');
+  }
+  function updateProgress(data) {
+    const percent = Number(data.progress || 0);
+    progressWrap.style.display = 'block';
+    progressBar.style.width = percent + '%';
+    progressPercent.textContent = percent + '%';
+    progressText.textContent = (data.processed_rows || 0) + ' / ' + (data.total_rows || 0) + ' rows';
+  }
+  async function uploadAndValidate(event) {
+    event.preventDefault();
+    if (!fileInput.files.length) { setMessage('Choose a ZIP package first.', 'error'); return; }
+    setMessage('Uploading and validating package…');
+    confirmButton.disabled = true;
+    try {
+      const data = new FormData();
+      data.append('file', fileInput.files[0]);
+      data.append('import_status', document.getElementById('importStatus').value);
+      const uploaded = await request('/admin/bulk-import/upload', { method: 'POST', body: data });
+      const validated = await request('/admin/bulk-import/' + uploaded.id + '/validate', { method: 'POST', body: new FormData() });
+      renderPreview(validated);
+      setMessage(validated.error_count ? 'Review the errors before importing.' : 'Package validated. Review the preview before confirming.', validated.error_count ? 'error' : 'success');
+    } catch (error) { setMessage(error.message, 'error'); }
+  }
+  async function confirmImport() {
+    if (!currentJob) return;
+    confirmButton.disabled = true;
+    setMessage('Starting import…');
+    try {
+      const started = await request('/admin/bulk-import/' + currentJob.id + '/confirm', { method: 'POST', body: new FormData() });
+      renderPreview(started);
+      await processNext();
+    } catch (error) { setMessage(error.message, 'error'); }
+  }
+  async function processNext() {
+    if (!currentJob || processing) return;
+    processing = true;
+    try {
+      const data = new FormData();
+      data.append('limit', '10');
+      const result = await request('/admin/bulk-import/' + currentJob.id + '/process', { method: 'POST', body: data });
+      renderPreview(result);
+      updateProgress(result);
+      if (!result.finished && result.status === 'PROCESSING') {
+        setMessage('Importing products…');
+        window.setTimeout(processNext, 50);
+      } else {
+        setMessage(result.status === 'COMPLETED_WITH_ERRORS' ? 'Import completed with errors.' : 'Import completed.', result.status === 'COMPLETED_WITH_ERRORS' ? 'error' : 'success');
+        reportLink.href = '/admin/dashboard/products/import/' + result.id + '/report/';
+        reportLink.style.display = 'inline-flex';
+      }
+    } catch (error) { setMessage(error.message, 'error'); }
+    finally { processing = false; }
+  }
+  async function cancelImport() {
+    if (!currentJob) return;
+    try {
+      const data = await request('/admin/bulk-import/' + currentJob.id + '/cancel', { method: 'POST', body: new FormData() });
+      renderPreview(data);
+      setMessage('Import cancelled.', 'success');
+    } catch (error) { setMessage(error.message, 'error'); }
+  }
+  dropZone.addEventListener('click', function () { fileInput.click(); });
+  dropZone.addEventListener('dragover', function (event) { event.preventDefault(); dropZone.classList.add('drop-active'); });
+  dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('drop-active'); });
+  dropZone.addEventListener('drop', function (event) { event.preventDefault(); dropZone.classList.remove('drop-active'); fileInput.files = event.dataTransfer.files; });
+  fileInput.addEventListener('change', function () { if (fileInput.files.length) setMessage(fileInput.files[0].name + ' selected.'); });
+  form.addEventListener('submit', uploadAndValidate);
+  confirmButton.addEventListener('click', confirmImport);
+  cancelButton.addEventListener('click', cancelImport);
+  if (currentJob) { renderPreview(currentJob); setMessage(currentJob.error_count ? 'Review the errors before importing.' : 'Package validated. Review the preview before confirming.', currentJob.error_count ? 'error' : 'success'); }
+}());
+</script>
 {% endblock %}

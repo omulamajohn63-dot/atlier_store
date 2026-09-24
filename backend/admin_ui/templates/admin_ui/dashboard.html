@@ -837,7 +837,7 @@
         {% endif %}
         {% if request.user|can:'products.import' %}
         <a class="dashboard-action" href="/admin/dashboard/products/import/"><i class="ph ph-upload-simple"></i>
-          <span><span class="action-label">Bulk Import</span><span class="action-hint">Import products from file</span></span>
+          <span><span class="action-label">Bulk Import</span><span class="action-hint">Upload a validated ZIP package</span></span>
         </a>
         {% endif %}
         {% if request.user|can:'inventory.adjust' %}

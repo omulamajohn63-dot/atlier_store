@@ -35,8 +35,13 @@ from access_control.services import (
     permission_required,
     user_has_permission,
 )
-from catalog.models import Category, Product, ProductVariant
-from catalog.services import ProductGenerationService, import_products_from_file
+from catalog.bulk_import import BulkImportError, BulkProductImportService, job_data
+from catalog.models import Category, ImportJob, Product, ProductVariant
+from catalog.services import (
+    BulkImportTemplateService,
+    ProductGenerationService,
+    import_products_from_file,
+)
 from audit.services import AuditLogService
 from botique_backend.storage import object_key_from_url, supabase_storage_enabled
 from inventory.services import adjust_stock
@@ -504,43 +509,52 @@ class ProductImportPageView(View):
     template_name = 'admin_ui/product_import_page.html'
 
     def get(self, request):
-        return self.render_page(request, result=None)
+        return self.render_page(request)
 
     def post(self, request):
-        file = request.FILES.get('file')
-        image_files = request.FILES.getlist('image_files')
-        result = None
-
-        if not file:
-            messages.error(request, 'Please upload a CSV/XLSX file.')
-        else:
+        uploaded_file = request.FILES.get('file')
+        if uploaded_file is None:
+            messages.error(request, 'Please choose a ZIP package.')
+            return self.render_page(request)
+        if not str(uploaded_file.name).lower().endswith('.zip'):
             result = import_products_from_file(
-                file,
-                image_files,
-                created_by=request.user,
-            )
+                uploaded_file, created_by=request.user)
             AuditLogService.log(
-                'file_upload',
-                category='catalog',
-                object_type='file',
-                object_repr=file.name,
+                'file_upload', actor=request.user, category='catalog',
+                object_type='file', object_repr=uploaded_file.name,
                 metadata={'rows_success': result.rows_success,
                           'rows_failed': result.rows_failed},
-                description=f'Product import from {file.name}.',
+                description=f'Legacy product import from {uploaded_file.name}.',
             )
             messages.success(
                 request,
                 f'Import complete: {result.rows_success} rows succeeded, {result.rows_failed} failed.',
             )
+            return self.render_page(request, legacy_result=result)
+        try:
+            status = request.POST.get('import_status', Product.Status.DRAFT)
+            job = BulkProductImportService.create_job(
+                uploaded_file, request.user, import_status=status)
+            job = BulkProductImportService.validate(job, actor=request.user)
+        except BulkImportError as exc:
+            messages.error(request, str(exc))
+            return self.render_page(request)
+        except Exception:
+            logger.exception('Admin bulk import upload failed')
+            messages.error(request, 'The package could not be uploaded. Please try again.')
+            return self.render_page(request)
+        messages.success(request, 'Package validated. Review the preview before confirming.')
+        return self.render_page(request, job=job)
 
-        return self.render_page(request, result=result)
-
-    def render_page(self, request, result=None):
+    def render_page(self, request, job=None, legacy_result=None):
         return render(request, self.template_name, {
             'page_title': 'Bulk Product Import',
-            'page_subtitle': 'Upload products with an optional image set.',
-            'result': result,
+            'page_subtitle': 'Upload products, variants and images in one validated package.',
+            'job': job_data(job) if job else None,
+            'legacy_result': legacy_result,
             'download_template_url': '/admin/dashboard/products/import/download-template/',
+            'history_url': '/admin/dashboard/products/import/history/',
+            'admin_page': 'bulk-import',
         })
 
 
@@ -548,21 +562,51 @@ class ProductImportPageView(View):
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ProductImportTemplateDownloadView(View):
     def get(self, request):
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow([
-            'name', 'price', 'category', 'sku',
-            'stock_quantity', 'description', 'size', 'color', 'is_active',
-        ])
-        writer.writerow([
-            'Silk Wrap Dress', '2450', 'Dresses', 'SKU-DRESS-001',
-            '10', 'Soft silk wrap dress', 'M', 'Ivory', 'true',
-        ])
-        response = HttpResponse(output.getvalue(), content_type='text/csv')
+        response = HttpResponse(
+            BulkImportTemplateService.to_bytes(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
         response['Content-Disposition'] = (
-            'attachment; filename="product_import_template.csv"'
+            'attachment; filename="modeza_bulk_import_template.xlsx"'
         )
         return response
+
+
+@permission_required('products.import')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductImportHistoryPageView(View):
+    template_name = 'admin_ui/product_import_history.html'
+
+    def get(self, request):
+        jobs = ImportJob.objects.select_related('uploaded_by').all()
+        paginator = Paginator(jobs, 25)
+        page = paginator.get_page(request.GET.get('page'))
+        return render(request, self.template_name, {
+            'page_title': 'Bulk Import History',
+            'page_subtitle': 'Review previous product package imports and reports.',
+            'page': page,
+            'paginator': paginator,
+            'admin_page': 'bulk-import',
+        })
+
+
+@permission_required('products.import')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductImportReportPageView(View):
+    template_name = 'admin_ui/product_import_report.html'
+
+    def get(self, request, job_id):
+        job = ImportJob.objects.filter(pk=job_id).select_related('uploaded_by').first()
+        if job is None:
+            messages.error(request, 'Import job not found.')
+            return redirect('admin-product-import-history')
+        return render(request, self.template_name, {
+            'page_title': f'Import Report {job.pk}',
+            'page_subtitle': job.filename,
+            'job': job,
+            'report': job_data(job),
+            'admin_page': 'bulk-import',
+        })
 
 
 class AdminPageView(View):
@@ -1917,7 +1961,7 @@ class ProductDetailPageView(View):
 
     def get(self, request, product_id):
         product = Product.objects.select_related('category').prefetch_related(
-            'variants').filter(pk=product_id).first()
+            'product_images', 'variants__variant_images').filter(pk=product_id).first()
         if not product:
             messages.error(request, 'Product not found.')
             return redirect('admin-dashboard')

@@ -1,8 +1,9 @@
 import React from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from '../components/ProductCard';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/modeza/Button';
+import { Badge } from '../components/modeza/Badge';
+import { Card } from '../components/modeza/Card';
 import { useRouter } from '../router/RouterContext';
 import { Product } from '../types';
 import { Sparkles, ArrowRight, ShieldCheck, Feather, RefreshCw, Truck, Palette } from 'lucide-react';
@@ -30,14 +31,15 @@ const SectionHeader: React.FC<{
       </h2>
     </div>
     {actionLabel && onAction && (
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={onAction}
-        className="group text-xs uppercase tracking-widest font-semibold text-[#181716] hover:text-[#A2574F] transition-all flex items-center gap-2 self-start sm:self-auto text-balance"
+        className="gap-1.5 text-xs uppercase tracking-widest font-semibold self-start sm:self-auto"
       >
         <span>{actionLabel}</span>
         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-      </button>
+      </Button>
     )}
   </div>
 );
@@ -288,37 +290,43 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
           onAction={() => navigate('/shop')}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {CATEGORIES.filter((category) => category.slug !== 'all').map((category, index) => (
-            <motion.button
+            <motion.div
               key={category.id}
-              type="button"
-              onClick={() => navigate(`/shop/${category.slug}`)}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-50px' }}
               transition={{ duration: 0.4, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
-              className="group relative overflow-hidden rounded-[2rem] border border-[#E8E5DF] bg-[#FFFFFF] p-6 text-left shadow-xs transition-all hover:shadow-xl hover:border-[#D8D3CB] hover-lift"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F4ECE9] to-transparent opacity-70" />
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-b from-[#A2574F]/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-              <div className="relative flex items-center justify-between gap-4">
-                <div>
-                  <span className="text-[10px] uppercase tracking-[0.24em] text-[#A2574F] font-semibold">
-                    Collection
-                  </span>
-                  <h3 className="font-serif text-2xl text-[#181716] mt-3 text-balance">
-                    {category.name}
-                  </h3>
-                  <p className="text-xs leading-relaxed text-[#63605A] mt-2 line-clamp-2">
-                    {category.description}
-                  </p>
+              <Card
+                className="group relative overflow-hidden rounded-3xl p-6 text-left hover:shadow-xl hover:border-[#D8D3CB] hover-lift transition-all cursor-pointer"
+                onClick={() => navigate(`/shop/${category.slug}`)}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-[#F4ECE9] to-transparent opacity-70" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-b from-[#A2574F]/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                <div className="relative flex items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] uppercase tracking-[0.24em] text-[#A2574F] font-semibold">
+                      Collection
+                    </span>
+                    <h3 className="font-serif text-2xl text-[#181716] mt-3 text-balance">
+                      {category.name}
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#63605A] mt-2 line-clamp-2">
+                      {category.description}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="group-hover:bg-[#A2574F] group-hover:text-[#FAF9F6] group-hover:border-[#A2574F] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-md rounded-full border border-[#E8E5DF] p-3.5 text-[#181716]"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
                 </div>
-                <span className="rounded-full border border-[#E8E5DF] p-3.5 text-[#181716] group-hover:bg-[#A2574F] group-hover:text-[#FAF9F6] group-hover:border-[#A2574F] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-md">
-                  <ArrowRight className="w-4 h-4" />
-                </span>
-              </div>
-            </motion.button>
+              </Card>
+            </motion.div>
           ))}
         </div>
       </section>
@@ -382,11 +390,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               Quiet strength in fine wool, silk, and woven cotton — built for ease, movement, and intent.
             </p>
             <div className="mt-2 flex flex-wrap gap-4">
-              <Button variant="primary" size="lg" onClick={() => navigate('/shop')} className="gap-2 bg-[#FAF9F6] text-[#181716] hover:bg-white">
+              <Button
+                variant="modeza-sandstone"
+                size="lg"
+                onClick={() => navigate('/shop')}
+                className="gap-2"
+              >
                 <span>Shop the Capsule</span>
                 <ArrowRight className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="lg" onClick={() => navigate('/about')} className="border-white/60 text-white hover:bg-white/10 hover:border-white">
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => navigate('/about')}
+                className="border-white/60 text-white hover:bg-white/10 hover:border-white"
+              >
                 The MODEZA Story
               </Button>
             </div>

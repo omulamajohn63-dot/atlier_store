@@ -1189,6 +1189,11 @@
           <a class="nav-link {% if admin_page == 'variants' %}active{% endif %}" href="/admin/dashboard/variants/">
             <i class="ph ph-squares-four"></i><span>Variants</span>
           </a>
+          {% if request.user|can:'products.import' %}
+          <a class="nav-link {% if admin_page == 'bulk-import' %}active{% endif %}" href="/admin/dashboard/products/import/">
+            <i class="ph ph-upload-simple"></i><span>Bulk Import</span>
+          </a>
+          {% endif %}
         </div>
 
         <div class="sidebar-section">

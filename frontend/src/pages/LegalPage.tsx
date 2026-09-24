@@ -1,7 +1,7 @@
 import React from 'react';
-import { useRouter } from '../router/RouterContext';
-import { Button } from '../components/ui/Button';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { useRouter } from '../router/RouterContext';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Separator } from '../components/modeza';
 
 export type LegalSlug = 'privacy' | 'terms' | 'shipping' | 'returns' | 'cookies';
 
@@ -154,57 +154,135 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
 
 export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
   const { navigate } = useRouter();
-  const document = LEGAL_DOCUMENTS[slug];
+  const legalDocument = LEGAL_DOCUMENTS[slug];
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-      <button
-        type="button"
-        onClick={() => navigate('/')}
-        className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#63605A] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] rounded-sm"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to Storefront
-      </button>
+    <div className="bg-[#FAF9F6] pb-20">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/')}
+          className="-ml-3 text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716] focus-visible:ring-offset-[#FAF9F6]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to Storefront
+        </Button>
 
-      <header className="mt-10 border-b border-[#E8E5DF] pb-8">
-        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-          {document.eyebrow}
-        </p>
-        <h1 className="mt-3 font-serif text-4xl tracking-tight text-[#181716] sm:text-5xl">
-          {document.title}
-        </h1>
-        <p className="mt-3 text-xs text-[#827E77]">{document.updated}</p>
-        <p className="mt-5 text-sm leading-relaxed text-[#63605A]">{document.intro}</p>
-      </header>
+        <header className="mt-8">
+          <Card className="relative overflow-hidden rounded-[2rem] border-[#181716] bg-[#181716] p-0 text-[#FAF9F6] shadow-xl hover:shadow-xl">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+              <div className="absolute -right-28 -top-28 h-96 w-96 rounded-full bg-[#A2574F]/20 blur-3xl" />
+              <div className="absolute -bottom-40 left-1/3 h-80 w-80 rounded-full bg-[#E68057]/10 blur-3xl" />
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E68057]/60 to-transparent" />
+            </div>
+            <div className="relative px-6 py-10 sm:px-10 sm:py-12 lg:px-14 lg:py-14">
+              <Badge
+                variant="outline"
+                size="lg"
+                className="gap-2 border-white/20 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                {legalDocument.eyebrow}
+              </Badge>
+              <h1 className="mt-6 max-w-3xl font-serif text-5xl font-normal leading-[1.05] tracking-tight text-balance sm:text-6xl">
+                {legalDocument.title}
+              </h1>
+              <div className="mt-7 border-t border-white/10 pt-5">
+                <p className="text-xs text-white/50">{legalDocument.updated}</p>
+                <p className="mt-4 max-w-3xl text-base leading-8 text-white/70">{legalDocument.intro}</p>
+              </div>
+            </div>
+          </Card>
+        </header>
 
-      <div className="mt-10 space-y-8">
-        {document.sections.map((section) => (
-          <section key={section.heading}>
-            <h2 className="font-serif text-2xl tracking-tight text-[#181716]">{section.heading}</h2>
-            <p className="mt-3 text-sm leading-relaxed text-[#63605A]">{section.body}</p>
-            {section.bullets && (
-              <ul className="mt-4 space-y-2.5">
-                {section.bullets.map((bullet) => (
-                  <li key={bullet} className="flex items-start gap-2.5 text-sm leading-relaxed text-[#63605A]">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A2574F]" aria-hidden="true" />
-                    {bullet}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ))}
-      </div>
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-12">
+          <div className="order-2 min-w-0 lg:order-1">
+            <div className="space-y-5">
+              {legalDocument.sections.map((section, index) => {
+                const sectionId = `legal-section-${slug}-${index}`;
+                const headingId = `${sectionId}-heading`;
 
-      <div className="mt-12 rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-6 text-center">
-        <p className="text-sm text-[#63605A]">
-          Questions? Contact{' '}
-          <a href="mailto:concierge@modeza-boutique.com" className="font-medium text-[#A2574F] hover:text-[#83443D] transition-colors">
-            concierge@modeza-boutique.com
-          </a>
-        </p>
+                return (
+                  <Card
+                    key={section.heading}
+                    id={sectionId}
+                    className="scroll-mt-8 p-0 shadow-sm"
+                    aria-labelledby={headingId}
+                  >
+                    <CardHeader className="flex-row items-start gap-4 p-5 sm:p-7 sm:pb-5">
+                      <Badge variant="outline" size="sm" className="mt-1 shrink-0">
+                        {String(index + 1).padStart(2, '0')}
+                      </Badge>
+                      <CardTitle id={headingId} className="text-2xl font-normal tracking-tight sm:text-3xl">
+                        {section.heading}
+                      </CardTitle>
+                    </CardHeader>
+                    <Separator />
+                    <CardContent className="p-5 pt-6 sm:p-7 sm:pt-6">
+                      <p className="max-w-3xl text-[15px] leading-8 text-[#63605A]">{section.body}</p>
+                      {section.bullets && (
+                        <ul className="mt-6 space-y-3">
+                          {section.bullets.map((bullet) => (
+                            <li
+                              key={bullet}
+                              className="flex items-start gap-3 rounded-xl bg-[#FAF9F6] p-4 text-sm leading-7 text-[#63605A]"
+                            >
+                              <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A2574F]" aria-hidden="true" />
+                              <span>{bullet}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            <Card className="mt-6 border-[#E8E5DF] bg-[#F4ECE9] p-0 shadow-none">
+              <CardContent className="p-5 sm:p-6">
+                <p className="text-sm leading-6 text-[#63605A]">
+                  Questions? Contact{' '}
+                  <a
+                    href="mailto:concierge@modeza-boutique.com"
+                    className="rounded-sm font-medium text-[#A2574F] transition-colors hover:text-[#83443D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F4ECE9]"
+                  >
+                    concierge@modeza-boutique.com
+                  </a>
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <aside className="order-1 min-w-0 lg:order-2">
+            <Card className="p-0 shadow-sm lg:sticky lg:top-8">
+              <div className="border-b border-[#E8E5DF] px-5 py-4">
+                <p id="legal-sections-heading" className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
+                  In this document
+                </p>
+              </div>
+              <nav aria-labelledby="legal-sections-heading" className="p-3">
+                <ol className="space-y-1">
+                  {legalDocument.sections.map((section, index) => (
+                    <li key={section.heading}>
+                      <a
+                        href={`#legal-section-${slug}-${index}`}
+                        className="group flex items-start gap-3 rounded-xl px-3 py-3 text-sm font-medium leading-5 text-[#63605A] transition-colors hover:bg-[#F4ECE9] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
+                      >
+                        <span className="mt-0.5 text-[10px] font-semibold tracking-[0.14em] text-[#C6A77A]">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <span>{section.heading}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            </Card>
+          </aside>
+        </div>
       </div>
     </div>
   );

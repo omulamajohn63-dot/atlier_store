@@ -206,6 +206,7 @@
           <div class="product-kicker">{{ product.category.name }}</div>
           <div class="product-price">KES {{ product.price_display }}</div>
           <div class="product-meta-note">Catalog price · {{ product.variants.count }} variant{{ product.variants.count|pluralize }}</div>
+          {% if product.product_code %}<div class="product-meta-note">Product code: <strong>{{ product.product_code }}</strong></div>{% endif %}
         </div>
         <div style="display: flex; justify-content: flex-start;">
           <span class="status-badge status-{{ product.status|lower }}">{{ product.get_status_display }}</span>

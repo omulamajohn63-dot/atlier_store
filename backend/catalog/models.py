@@ -59,6 +59,8 @@ class Product(models.Model):
     is_new_arrival = models.BooleanField(default=False)
     is_best_seller = models.BooleanField(default=False)
     sku = models.CharField(max_length=80, unique=True, blank=True)
+    product_code = models.CharField(max_length=80, unique=True, blank=True, null=True, db_index=True,
+        help_text="Stable product identifier for bulk imports (e.g., LSD001)")
     size = models.CharField(max_length=80, blank=True)
     color = models.CharField(max_length=80, blank=True)
     stock_quantity = models.PositiveIntegerField(default=0)
@@ -97,15 +99,25 @@ class Product(models.Model):
 class ProductImage(models.Model):
     product = models.ForeignKey(
         Product, on_delete=models.CASCADE, related_name='product_images')
+    variant = models.ForeignKey(
+        'ProductVariant', on_delete=models.CASCADE, related_name='variant_images',
+        null=True, blank=True)
     image = models.ImageField(upload_to='products/', blank=True, null=True)
-    image_url = models.URLField(blank=True)
+    image_url = models.URLField(max_length=500, blank=True)
     is_primary = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ('product', 'order', 'id')
+        ordering = ('product', 'variant', 'order', 'id')
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.variant_id and self.product_id and self.variant.product_id != self.product_id:
+            raise ValidationError({'variant': 'Variant must belong to the selected product.'})
 
     def __str__(self):
+        if self.variant:
+            return f"{self.variant.sku} image #{self.order}"
         return f"{self.product.name} image #{self.order}"
 
 
@@ -124,6 +136,65 @@ class ProductImportLog(models.Model):
 
     def __str__(self):
         return f"Import log {self.filename} ({self.rows_success}/{self.rows_total})"
+
+
+class ImportJob(models.Model):
+    class Status(models.TextChoices):
+        UPLOADED = 'UPLOADED', 'Uploaded'
+        VALIDATING = 'VALIDATING', 'Validating'
+        READY = 'READY', 'Ready for Import'
+        PROCESSING = 'PROCESSING', 'Processing'
+        COMPLETED = 'COMPLETED', 'Completed'
+        COMPLETED_WITH_ERRORS = 'COMPLETED_WITH_ERRORS', 'Completed with Errors'
+        FAILED = 'FAILED', 'Failed'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    filename = models.CharField(max_length=255)
+    package_path = models.CharField(max_length=500, blank=True)
+    package_size = models.PositiveBigIntegerField(default=0)
+    package_sha256 = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.UPLOADED)
+
+    total_rows = models.PositiveIntegerField(default=0)
+    processed_rows = models.PositiveIntegerField(default=0)
+    successful_rows = models.PositiveIntegerField(default=0)
+    failed_rows = models.PositiveIntegerField(default=0)
+    created_products = models.PositiveIntegerField(default=0)
+    updated_products = models.PositiveIntegerField(default=0)
+    created_variants = models.PositiveIntegerField(default=0)
+    updated_variants = models.PositiveIntegerField(default=0)
+    uploaded_images = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+
+    import_status = models.CharField(
+        max_length=10, choices=Product.Status.choices, default=Product.Status.DRAFT)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    validation_completed_at = models.DateTimeField(null=True, blank=True)
+    processing_token = models.UUIDField(null=True, blank=True)
+    processing_lease_until = models.DateTimeField(null=True, blank=True)
+
+    validation_results = models.JSONField(default=dict, blank=True)
+    import_results = models.JSONField(default=dict, blank=True)
+    error_details = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        indexes = [
+            models.Index(fields=('status',)),
+            models.Index(fields=('uploaded_by', 'created_at')),
+        ]
+
+    def __str__(self):
+        return f"ImportJob {self.filename} ({self.status})"
 
 
 class ProductVariant(models.Model):

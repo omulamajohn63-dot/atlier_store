@@ -10,12 +10,33 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils.text import slugify
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 from .models import Category, Product, ProductImage, ProductImportLog
 
 
 REQUIRED_COLUMNS = {'name', 'price', 'category', 'sku', 'stock_quantity'}
+
+BULK_IMPORT_COLUMNS = [
+    'product_code',
+    'name',
+    'description',
+    'tagline',
+    'category',
+    'status',
+    'color',
+    'color_hex',
+    'size',
+    'sku',
+    'price',
+    'stock',
+    'image_1',
+    'image_2',
+    'image_3',
+    'image_4',
+]
 
 
 @dataclass
@@ -80,6 +101,243 @@ class ProductGenerationService:
             ),
             'slug': ProductGenerationService._next_unique_slug(product_name),
         }
+
+
+class BulkImportTemplateService:
+    """Generate multi-sheet XLSX template for bulk product import."""
+
+    DATA_COLUMNS = BULK_IMPORT_COLUMNS
+
+    INSTRUCTIONS = [
+        ('FIELD', 'REQUIRED', 'DESCRIPTION', 'ACCEPTED VALUES / NOTES'),
+        ('product_code', 'YES', 'Stable product identifier. All rows with the same product_code are grouped into one product with multiple variants.', 'Alphanumeric, hyphens. Example: LSD001'),
+        ('name', 'YES', 'Product name. Must be identical for all rows sharing the same product_code.', 'Text, max 200 chars'),
+        ('description', 'NO', 'Full product description.', 'Text'),
+        ('tagline', 'NO', 'Short marketing tagline.', 'Text, max 255 chars'),
+        ('category', 'YES', 'Category name. Must match an existing active category exactly (case-insensitive). Categories are not created by import.', 'Existing category name, e.g., "Dresses"'),
+        ('status', 'NO', 'Optional spreadsheet status. The status selected on the upload screen is applied to every product.', 'DRAFT, ACTIVE, ARCHIVED'),
+        ('color', 'YES', 'Variant color name.', 'Text, e.g., "Black", "Navy Blue"'),
+        ('color_hex', 'NO', 'Hex color code for swatches.', '#RRGGBB format, e.g., #000000'),
+        ('size', 'YES', 'Variant size.', 'Text, e.g., "S", "M", "L", "32", "One Size"'),
+        ('sku', 'YES', 'Unique variant SKU. Must be globally unique across all products.', 'Alphanumeric, hyphens. Example: LSD-BLK-S'),
+        ('price', 'YES', 'Price in major currency units (for example, 4500 stores as 450000 minor units and displays as KES 4500.00).', 'Positive number, 2 decimal places max'),
+        ('stock', 'YES', 'Available stock quantity. Cannot be negative.', 'Integer >= 0'),
+        ('image_1', 'NO', 'Primary image filename from images/ folder.', 'Filename only, e.g., luna-black-1.jpg'),
+        ('image_2', 'NO', 'Secondary image filename.', 'Filename only'),
+        ('image_3', 'NO', 'Third image filename.', 'Filename only'),
+        ('image_4', 'NO', 'Fourth image filename.', 'Filename only'),
+        ('package', 'YES', 'ZIP root must contain products.xlsx and an images/ directory. Only these paths are processed.', 'MODEZA_IMPORT.zip'),
+        ('image_naming', 'YES', 'Each image cell contains a filename only, without the images/ prefix.', 'Use the exact filename; JPG, JPEG, PNG and WEBP are supported'),
+        ('variant_grouping', 'YES', 'Each worksheet row is one variant. Rows sharing product_code become one parent product.', 'Do not create one product per row'),
+        ('stock', 'YES', 'Stock is the absolute quantity for the variant. Re-import updates stock through the existing inventory transaction flow.', 'Integer >= 0; zero is allowed and produces a warning'),
+        ('pricing', 'YES', 'Price is the customer-facing amount in major currency units and is converted to minor units by MODEZA.', 'Use values such as 4500 or 4500.00'),
+        ('confirmation', 'YES', 'Upload and validation never change the catalog. Review all errors and warnings, then confirm the import.', 'Errors block confirmation by default'),
+    ]
+
+    EXAMPLE_ROWS = [
+        {
+            'product_code': 'LSD001',
+            'name': 'Luna Silk Dress',
+            'description': 'Elegant silk dress perfect for evening occasions.',
+            'tagline': 'Timeless elegance in pure silk',
+            'category': 'Dresses',
+            'status': 'DRAFT',
+            'color': 'Black',
+            'color_hex': '#000000',
+            'size': 'S',
+            'sku': 'LSD-BLK-S',
+            'price': '4500',
+            'stock': '5',
+            'image_1': 'luna-black-1.jpg',
+            'image_2': 'luna-black-2.jpg',
+            'image_3': '',
+            'image_4': '',
+        },
+        {
+            'product_code': 'LSD001',
+            'name': 'Luna Silk Dress',
+            'description': 'Elegant silk dress perfect for evening occasions.',
+            'tagline': 'Timeless elegance in pure silk',
+            'category': 'Dresses',
+            'status': 'DRAFT',
+            'color': 'Black',
+            'color_hex': '#000000',
+            'size': 'M',
+            'sku': 'LSD-BLK-M',
+            'price': '4500',
+            'stock': '7',
+            'image_1': 'luna-black-1.jpg',
+            'image_2': 'luna-black-2.jpg',
+            'image_3': '',
+            'image_4': '',
+        },
+        {
+            'product_code': 'LSD001',
+            'name': 'Luna Silk Dress',
+            'description': 'Elegant silk dress perfect for evening occasions.',
+            'tagline': 'Timeless elegance in pure silk',
+            'category': 'Dresses',
+            'status': 'DRAFT',
+            'color': 'Black',
+            'color_hex': '#000000',
+            'size': 'L',
+            'sku': 'LSD-BLK-L',
+            'price': '4500',
+            'stock': '0',
+            'image_1': 'luna-black-1.jpg',
+            'image_2': 'luna-black-2.jpg',
+            'image_3': '',
+            'image_4': '',
+        },
+        {
+            'product_code': 'LSD001',
+            'name': 'Luna Silk Dress',
+            'description': 'Elegant silk dress perfect for evening occasions.',
+            'tagline': 'Timeless elegance in pure silk',
+            'category': 'Dresses',
+            'status': 'DRAFT',
+            'color': 'Red',
+            'color_hex': '#FF0000',
+            'size': 'S',
+            'sku': 'LSD-RED-S',
+            'price': '4600',
+            'stock': '3',
+            'image_1': 'luna-red-1.jpg',
+            'image_2': 'luna-red-2.jpg',
+            'image_3': '',
+            'image_4': '',
+        },
+        {
+            'product_code': 'LSD001',
+            'name': 'Luna Silk Dress',
+            'description': 'Elegant silk dress perfect for evening occasions.',
+            'tagline': 'Timeless elegance in pure silk',
+            'category': 'Dresses',
+            'status': 'DRAFT',
+            'color': 'Red',
+            'color_hex': '#FF0000',
+            'size': 'M',
+            'sku': 'LSD-RED-M',
+            'price': '4600',
+            'stock': '0',
+            'image_1': 'luna-red-1.jpg',
+            'image_2': 'luna-red-2.jpg',
+            'image_3': '',
+            'image_4': '',
+        },
+    ]
+
+    @classmethod
+    def generate_workbook(cls) -> Workbook:
+        """Generate the complete multi-sheet XLSX template."""
+        wb = Workbook()
+
+        ws_data = wb.active
+        ws_data.title = 'Products'
+        cls._write_data_sheet(ws_data)
+
+        ws_instructions = wb.create_sheet('Instructions')
+        cls._write_instructions_sheet(ws_instructions)
+
+        ws_example = wb.create_sheet('Example')
+        cls._write_example_sheet(ws_example)
+
+        ws_categories = wb.create_sheet('Categories')
+        cls._write_categories_sheet(ws_categories)
+
+        return wb
+
+    @classmethod
+    def _write_data_sheet(cls, ws):
+        """Write the main data entry sheet with headers and formatting."""
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+
+        for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            ws.column_dimensions[get_column_letter(col_idx)].width = max(15, len(col_name) + 5)
+
+        for col_idx in range(1, len(cls.DATA_COLUMNS) + 1):
+            ws.cell(row=2, column=col_idx, value='')
+
+        ws.freeze_panes = 'A2'
+
+    @classmethod
+    def _write_instructions_sheet(cls, ws):
+        """Write the instructions sheet."""
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+
+        for col_idx, header in enumerate(cls.INSTRUCTIONS[0], start=1):
+            cell = ws.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            ws.column_dimensions[get_column_letter(col_idx)].width = [25, 12, 60, 40][col_idx - 1]
+
+        for row_idx, row_data in enumerate(cls.INSTRUCTIONS[1:], start=2):
+            for col_idx, value in enumerate(row_data, start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+        ws.freeze_panes = 'A2'
+
+    @classmethod
+    def _write_example_sheet(cls, ws):
+        """Write the example sheet with sample data."""
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='27AE60', end_color='27AE60', fill_type='solid')
+        example_fill = PatternFill(start_color='E8F8F5', end_color='E8F8F5', fill_type='solid')
+
+        for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            ws.column_dimensions[get_column_letter(col_idx)].width = max(15, len(col_name) + 5)
+
+        for row_idx, row_data in enumerate(cls.EXAMPLE_ROWS, start=2):
+            for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=row_data.get(col_name, ''))
+                cell.fill = example_fill
+                cell.alignment = Alignment(wrap_text=True)
+
+        ws.freeze_panes = 'A2'
+
+    @classmethod
+    def _write_categories_sheet(cls, ws):
+        """Write the categories reference sheet (populated from database)."""
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+
+        headers = ['Category Name', 'Slug', 'Description', 'Active']
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            ws.column_dimensions[get_column_letter(col_idx)].width = [30, 30, 50, 10][col_idx - 1]
+
+        categories = Category.objects.filter(is_active=True).order_by('name')
+        for row_idx, cat in enumerate(categories, start=2):
+            ws.cell(row=row_idx, column=1, value=cat.name)
+            ws.cell(row=row_idx, column=2, value=cat.slug)
+            ws.cell(row=row_idx, column=3, value=cat.description)
+            ws.cell(row=row_idx, column=4, value='Yes' if cat.is_active else 'No')
+
+        ws.freeze_panes = 'A2'
+
+    @classmethod
+    def to_bytes(cls) -> bytes:
+        """Generate workbook and return as bytes."""
+        wb = cls.generate_workbook()
+        from io import BytesIO
+        buffer = BytesIO()
+        wb.save(buffer)
+        return buffer.getvalue()
 
 
 class ProductImportService:
@@ -187,6 +445,7 @@ class ProductImportService:
             image_url = default_storage.url(saved_path)
             ProductImage.objects.update_or_create(
                 product=product,
+                variant=None,
                 image=image_url,
                 defaults={
                     'is_primary': order == 1,

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @theme {
   --font-serif: "Playfair Display", Georgia, serif;
@@ -30,18 +31,36 @@
   --color-accent: #E68057;
   --color-accent-hover: #C9603F;
   --color-accent-soft: #FBEAE2;     /* soft warm-orange tint background */
-  --color-secondary: #BF7587;
-  --color-secondary-hover: #A45E72;
-  --color-secondary-soft: #F6EBEF;  /* soft rose background */
+  --color-secondary: #F3F1ED;
+  --color-secondary-foreground: #181716;
+  --color-muted: #F3F1ED;
+  --color-muted-foreground: #63605A;
+  --color-accent: #F4ECE9;
+  --color-accent-foreground: #181716;
+  --color-brand-secondary: #BF7587;
+  --color-brand-secondary-hover: #A45E72;
+  --color-brand-secondary-soft: #F6EBEF;
+  --color-brand-accent: #E68057;
+  --color-brand-accent-hover: #C9603F;
   --color-luxury: #993A8B;
   --color-luxury-hover: #7A2D6F;
   --color-luxury-soft: #F3EAF2;     /* soft purple background */
 
   --color-background: #FAF9F6;
+  --color-foreground: #181716;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #181716;
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: #181716;
+  --color-primary-foreground: #FAF9F6;
+  --color-destructive: #9E332B;
+  --color-destructive-foreground: #FAF9F6;
+  --color-input: #E8E5DF;
+  --color-ring: #A2574F;
   --color-surface: #FFFFFF;
   --color-surface-elevated: #FFFFFF;
   --color-text: #181716;
-  --color-muted: #63605A;
+  --color-muted-text: #63605A;
   --color-muted-light: #827E77;
   --color-faint: #A29E96;
   --color-border: #E8E5DF;

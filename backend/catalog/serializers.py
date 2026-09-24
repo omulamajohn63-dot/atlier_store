@@ -22,14 +22,22 @@ class ProductVariantSerializer(serializers.ModelSerializer):
     isAvailable = serializers.SerializerMethodField()
     isActive = serializers.BooleanField(source='is_active')
     price = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductVariant
         fields = ('id', 'sku', 'size', 'color', 'colorHex', 'price',
-                  'stockQuantity', 'isAvailable', 'isActive')
+                  'stockQuantity', 'isAvailable', 'isActive', 'images')
 
     def get_price(self, obj):
         return major_units(obj.price_minor if obj.price_minor is not None else obj.product.price_minor)
+
+    def get_images(self, obj):
+        request = self.context.get('request')
+        urls = [image.image_url for image in obj.variant_images.all() if image.image_url]
+        if request:
+            return [request.build_absolute_uri(url) if url.startswith('/') else url for url in urls]
+        return urls
 
     def get_isAvailable(self, obj):
         return obj.is_active and obj.stock_quantity > 0

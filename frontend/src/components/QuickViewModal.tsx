@@ -1,26 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, ArrowRight, Check, Truck, RotateCcw, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Check,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+} from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
-import { useStore } from '../context/StoreContext';
 import { useRouter } from '../router/RouterContext';
-import { Price } from './ui/Price';
-import { Button } from './ui/Button';
-import { QuantitySelector } from './ui/QuantitySelector';
-import { Badge } from './ui/Badge';
-import { ProductImage } from './ui/ProductImage';
-import { VariantSelector } from './variant/VariantSelector';
-import { formatPrice } from '../utils/currency';
+import { useStore } from '../context/StoreContext';
 import {
   getPriceSummary,
   getVariantFlow,
   getVisibleOptionGroups,
   isVariantPurchasable,
-  parseVariantSelections,
   LOW_STOCK_THRESHOLD,
-  VariantSelections,
+  parseVariantSelections,
+  type VariantSelections,
 } from '../utils/variants';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from './modeza';
+import { Price } from './ui/Price';
+import { ProductImage } from './ui/ProductImage';
+import { QuantitySelector } from './ui/QuantitySelector';
+import { VariantSelector } from './variant/VariantSelector';
 
 export interface QuickViewModalProps {
   product: Product | null;
@@ -28,39 +40,44 @@ export interface QuickViewModalProps {
   onClose: () => void;
 }
 
-export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initialProduct, isOpen, onClose }) => {
-  const { addToCart } = useCart();
+export const QuickViewModal: React.FC<QuickViewModalProps> = ({
+  product: initialProduct,
+  isOpen,
+  onClose,
+}) => {
+  const { addToCart, isLoading: isCartLoading } = useCart();
   const { getProductById, refreshCatalog } = useStore();
   const { navigate } = useRouter();
-
-  const product = initialProduct ? (getProductById(initialProduct.id) || initialProduct) : null;
+  const product = initialProduct ? getProductById(initialProduct.id) || initialProduct : null;
 
   const [selections, setSelections] = useState<VariantSelections>({});
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
     if (product) {
       setSelections(parseVariantSelections(product, ''));
       setQuantity(1);
       setActiveImageIndex(0);
       setAddedToCart(false);
+      setIsAdding(false);
       setErrorMessage(null);
     }
   }, [product?.id]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
+  useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
     }
-  }, [isOpen, onClose]);
+  }, []);
 
   if (!product) return null;
 
@@ -71,19 +88,26 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
   const resolvedVariant = flow.variant;
   const stillSelecting = flow.requiresSelection;
   const resolvedVariantPurchasable = isVariantPurchasable(resolvedVariant);
+  const activeImage = product.images[activeImageIndex] || product.images[0];
 
   const handleAddToCart = async () => {
-    if (!resolvedVariant || !resolvedVariantPurchasable) return;
+    if (!resolvedVariant || !resolvedVariantPurchasable || isAdding || isCartLoading) return;
     setErrorMessage(null);
-    const result = await addToCart(product, resolvedVariant, quantity);
-    if (result.success) {
-      setAddedToCart(true);
-      setTimeout(() => {
-        onClose();
-      }, 1200);
-    } else {
-      setErrorMessage(result.message || 'Unable to add piece to bag.');
-      void refreshCatalog();
+    setIsAdding(true);
+    try {
+      const result = await addToCart(product, resolvedVariant, quantity);
+      if (result.success) {
+        setAddedToCart(true);
+        closeTimerRef.current = window.setTimeout(() => {
+          onClose();
+          closeTimerRef.current = null;
+        }, 1200);
+      } else {
+        setErrorMessage(result.message || 'Unable to add piece to bag.');
+        void refreshCatalog();
+      }
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -103,252 +127,229 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product: initial
   const renderPrice = () => {
     if (resolvedVariant) {
       return (
-        <Price amount={resolvedVariant.price} compareAtAmount={product.compareAtPrice} size="lg" />
+        <Price
+          amount={resolvedVariant.price}
+          compareAtAmount={product.compareAtPrice}
+          size="lg"
+        />
       );
     }
-    const from = priceSummary && !priceSummary.same;
+
+    const showFrom = priceSummary && !priceSummary.same;
     return (
-      <div className="inline-flex items-baseline gap-1.5 mt-2">
-        {from && <span className="text-xs text-[#827E77] font-normal">From</span>}
+      <div className="mt-2 inline-flex items-baseline gap-1.5">
+        {showFrom && <span className="text-xs font-normal text-[#827E77]">From</span>}
         <Price amount={priceSummary ? priceSummary.min : product.price} size="lg" />
       </div>
     );
   };
 
   return (
-    <AnimatePresence>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       {isOpen && (
-        <div className="fixed inset-0 z-[500] overflow-y-auto p-4 sm:p-6 lg:p-10 flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-[#181716]/50 backdrop-blur-sm"
-            aria-hidden="true"
-          />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 15 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-3xl bg-[#FAF9F6] rounded-3xl shadow-2xl border border-[#E8E5DF] overflow-hidden z-10 my-auto"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="quickview-title"
-          >
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute top-4 right-4 z-20 p-2 rounded-full bg-[#FFFFFF]/90 backdrop-blur-sm hover:bg-[#FFFFFF] text-[#63605A] hover:text-[#181716] transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
-              aria-label="Close quick view"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="grid grid-cols-1 md:grid-cols-2">
-              {/* Image Preview Column */}
-              <div className="p-6 bg-[#FFFFFF] border-b md:border-b-0 md:border-r border-[#E8E5DF] flex flex-col justify-between">
-                <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-[#F4ECE9] border border-[#E8E5DF] group">
-                  <ProductImage
-                    src={product.images[activeImageIndex] || product.images[0]}
-                    alt={`${product.name} view ${activeImageIndex + 1}`}
-                    className="h-full w-full"
-                    imgClassName="transition-transform duration-500 group-hover:scale-105"
-                  />
-                  {product.compareAtPrice && product.compareAtPrice > product.price && (
-                    <span className="absolute top-4 left-4 px-3 py-1 bg-[#E68057] text-[#181716] text-[10px] uppercase font-semibold tracking-widest rounded-full">
-                      Archive Sale
-                    </span>
-                  )}
-                  {product.isNewArrival && (
-                    <Badge variant="new" className="absolute top-4 right-4">New</Badge>
-                  )}
-                </div>
-
-                {product.images.length > 1 && (
-                  <div className="flex gap-2 mt-4 justify-center overflow-x-auto pb-2">
-                    {product.images.map((img, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setActiveImageIndex(idx)}
-                        className={`w-14 h-18 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-                          activeImageIndex === idx
-                            ? 'border-[#A2574F] shadow-sm scale-105'
-                            : 'border-transparent opacity-60 hover:opacity-100'
-                        }`}
-                        aria-label={`View image ${idx + 1}`}
-                        aria-current={activeImageIndex === idx}
-                      >
-                        <ProductImage
-                          src={img}
-                          alt=""
-                          className="h-full w-full"
-                        />
-                      </button>
-                    ))}
-                  </div>
+        <DialogContent className="block max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-none overflow-y-auto overscroll-contain rounded-2xl border border-[#E8E5DF] bg-[#FAF9F6] p-0 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:max-w-3xl sm:rounded-3xl">
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            <div className="flex flex-col justify-between border-b border-[#E8E5DF] bg-white p-4 sm:p-6 md:border-b-0 md:border-r">
+              <div className="group relative aspect-[3/4] overflow-hidden rounded-2xl border border-[#E8E5DF] bg-[#F4ECE9]">
+                <ProductImage
+                  src={activeImage}
+                  alt={`${product.name} view ${activeImageIndex + 1}`}
+                  className="h-full w-full"
+                  imgClassName="transition-transform duration-500 group-hover:scale-105"
+                />
+                {product.compareAtPrice && product.compareAtPrice > product.price && (
+                  <Badge variant="warning" size="lg" className="absolute left-4 top-4 shadow-sm">
+                    Archive Sale
+                  </Badge>
                 )}
               </div>
 
-              {/* Product Info Column */}
-              <div className="p-6 sm:p-8 flex flex-col justify-between space-y-6">
-                <div className="space-y-5">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] uppercase tracking-widest text-[#A2574F] font-semibold">
-                        {product.categorySlug}
-                      </span>
-                      {product.isNewArrival && <Badge variant="new" size="sm">New</Badge>}
-                      {product.isBestSeller && <Badge variant="outline" size="sm">Best Seller</Badge>}
-                    </div>
-                    <h3 id="quickview-title" className="font-serif text-xl sm:text-2xl text-[#181716] font-normal leading-snug">
-                      {product.name}
-                    </h3>
-                    <p className="text-xs text-[#63605A] italic mt-1 line-clamp-2">{product.tagline}</p>
-                    {renderPrice()}
-                  </div>
-
-                  <p className="text-xs text-[#63605A] leading-relaxed line-clamp-3">
-                    {product.description}
-                  </p>
-
-                  {/* Variant Selection */}
-                  {visibleGroups.length > 0 && (
-                    <VariantSelector
-                      product={product}
-                      selections={selections}
-                      onChange={(next) => {
-                        setSelections(next);
-                        setQuantity(1);
-                        setErrorMessage(null);
-                      }}
-                      size="sm"
-                    />
-                  )}
-
-                  {/* Availability status */}
-                  <div>
-                    {!hasAnyVariants ? (
-                      <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#9E332B] bg-[#FDF2F2] border border-[#F8B4B4]">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Currently unavailable online
-                      </p>
-                    ) : stillSelecting ? (
-                        <p className="text-xs text-[#827E77] bg-[#FAF9F6] border border-dashed border-[#E8E5DF] rounded-lg px-3 py-2.5">
-                          {visibleGroups.length === 1
-                            ? `Choose ${visibleGroups[0].label.toLowerCase()} to check availability`
-                            : 'Choose your options to check availability'}
-                        </p>
-                      ) : !resolvedVariantPurchasable ? (
-                        <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#9E332B] bg-[#FDF2F2] border border-[#F8B4B4]">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          Out of stock
-                        </p>
-                      ) : resolvedVariant!.stockQuantity <= LOW_STOCK_THRESHOLD ? (
-                        <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#8A6024] bg-[#FFF8F0] border border-[#ECD9BD]">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          Small-batch rarity: Only {resolvedVariant!.stockQuantity} pieces remaining
-                        </p>
-                      ) : (
-                        <p className="text-xs flex items-center gap-1.5 font-medium rounded-lg px-3 py-2.5 text-[#2E5A44] bg-[#E8EFEA] border border-[#C8D8CA]">
-                          <Check className="w-3.5 h-3.5" />
-                          In Stock &bull; Ready for MODEZA Dispatch
-                        </p>
-                      )}
-                  </div>
-
-                  {/* Quantity */}
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-xs text-[#63605A]">Quantity</span>
-                    <QuantitySelector
-                      quantity={quantity}
-                      max={resolvedVariant?.stockQuantity || 1}
-                      disabled={cta.disabled}
-                      onChange={setQuantity}
-                      size="sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Value Props */}
-                <div className="grid grid-cols-3 gap-3 py-4 border-y border-[#E8E5DF] text-[10px] text-[#63605A]">
-                  <div className="flex flex-col items-center text-center gap-1">
-                    <Truck className="w-4 h-4 text-[#A2574F]" />
-                    <span className="text-center">Complimentary over KSh 15k</span>
-                  </div>
-                  <div className="flex flex-col items-center text-center gap-1">
-                    <RotateCcw className="w-4 h-4 text-[#A2574F]" />
-                    <span className="text-center">30-Day Returns</span>
-                  </div>
-                  <div className="flex flex-col items-center text-center gap-1">
-                    <ShieldCheck className="w-4 h-4 text-[#A2574F]" />
-                    <span className="text-center">Secure Checkout</span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="space-y-3 pt-2 border-t border-[#E8E5DF]">
-                  {addedToCart ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="w-full py-3 px-4 rounded-xl bg-[#E8EFEA] border border-[#2E5A44]/20 text-xs text-[#2E5A44] flex items-center justify-between"
+              {product.images.length > 1 && (
+                <div className="mt-4 flex justify-center gap-2 overflow-x-auto pb-2" aria-label="Product images">
+                  {product.images.map((image, index) => (
+                    <button
+                      key={`${image}-${index}`}
+                      type="button"
+                      onClick={() => setActiveImageIndex(index)}
+                      className={`h-20 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 ${
+                        activeImageIndex === index
+                          ? 'scale-105 border-[#A2574F] shadow-sm'
+                          : 'border-transparent opacity-60 hover:opacity-100'
+                      }`}
+                      aria-label={`View image ${index + 1} of ${product.images.length}`}
+                      aria-pressed={activeImageIndex === index}
                     >
-                      <span className="flex items-center gap-2">
-                        <Check className="w-3.5 h-3.5" />
-                        Added to cart!
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/cart')}
-                        className="font-semibold underline text-sm"
-                      >
-                        View Cart
-                      </button>
-                    </motion.div>
-                  ) : (
-                    <>
-                      <Button
-                        variant="primary"
-                        size="lg"
-                        disabled={cta.disabled}
-                        onClick={handleAddToCart}
-                        className="w-full text-xs uppercase tracking-wider"
-                      >
-                        {cta.label}
-                      </Button>
-                      {errorMessage && (
-                        <p
-                          role="alert"
-                          className="w-full text-xs text-[#9B1C1C] bg-[#FDF2F2] border border-[#F8B4B4] rounded-xl px-3 py-2.5 flex items-center gap-2"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                          {errorMessage}
-                        </p>
-                      )}
-                    </>
-                  )}
+                      <ProductImage src={image} alt="" className="h-full w-full" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      navigate(`/product/${product.slug}`);
+            <div className="flex flex-col justify-between space-y-6 p-5 sm:p-8">
+              <div className="space-y-5" aria-busy={isAdding}>
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[#A2574F]">
+                      {product.categorySlug}
+                    </span>
+                    {product.isNewArrival && <Badge variant="new" size="sm">New</Badge>}
+                    {product.isBestSeller && <Badge variant="outline" size="sm">Best Seller</Badge>}
+                  </div>
+                  <DialogTitle className="font-serif text-xl font-normal leading-snug text-[#181716] sm:text-2xl">
+                    {product.name}
+                  </DialogTitle>
+                  {product.tagline && (
+                    <p className="mt-1 line-clamp-2 text-xs italic text-[#63605A]">{product.tagline}</p>
+                  )}
+                  {renderPrice()}
+                </div>
+
+                <DialogDescription className="line-clamp-4 text-xs leading-relaxed text-[#63605A]">
+                  {product.description}
+                </DialogDescription>
+
+                {visibleGroups.length > 0 && (
+                  <VariantSelector
+                    product={product}
+                    selections={selections}
+                    onChange={(next) => {
+                      setSelections(next);
+                      setQuantity(1);
+                      setErrorMessage(null);
                     }}
-                    className="w-full py-2.5 text-xs text-[#63605A] hover:text-[#181716] font-medium flex items-center justify-center gap-1.5 transition-colors hover:bg-[#F3F1ED] rounded-xl"
-                  >
-                    <span>View Full Piece Specifications</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                    size="sm"
+                  />
+                )}
+
+                <div>
+                  {!hasAnyVariants ? (
+                    <Badge variant="destructive" size="lg" className="w-full justify-start gap-1.5 rounded-lg px-3 py-2.5 text-xs normal-case tracking-normal">
+                      <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                      Currently unavailable online
+                    </Badge>
+                  ) : stillSelecting ? (
+                    <Badge size="lg" className="w-full justify-start rounded-lg border-dashed px-3 py-2.5 text-xs font-normal normal-case tracking-normal text-[#827E77]">
+                      {visibleGroups.length === 1
+                        ? `Choose ${visibleGroups[0].label.toLowerCase()} to check availability`
+                        : 'Choose your options to check availability'}
+                    </Badge>
+                  ) : !resolvedVariantPurchasable ? (
+                    <Badge variant="destructive" size="lg" className="w-full justify-start gap-1.5 rounded-lg px-3 py-2.5 text-xs normal-case tracking-normal">
+                      <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                      Out of stock
+                    </Badge>
+                  ) : resolvedVariant.stockQuantity <= LOW_STOCK_THRESHOLD ? (
+                    <Badge variant="warning" size="lg" className="w-full justify-start gap-1.5 rounded-lg px-3 py-2.5 text-xs normal-case tracking-normal">
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                      Small-batch rarity: only {resolvedVariant.stockQuantity} pieces remaining
+                    </Badge>
+                  ) : (
+                    <Badge variant="success" size="lg" className="w-full justify-start gap-1.5 rounded-lg px-3 py-2.5 text-xs normal-case tracking-normal">
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      In stock &bull; ready for MODEZA dispatch
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <span className="text-xs font-medium text-[#63605A]">Quantity</span>
+                  <QuantitySelector
+                    quantity={quantity}
+                    max={resolvedVariant?.stockQuantity || 1}
+                    disabled={cta.disabled || isAdding}
+                    onChange={setQuantity}
+                    size="sm"
+                  />
                 </div>
               </div>
+
+              <div className="grid grid-cols-3 gap-2 border-y border-[#E8E5DF] py-4 text-[10px] text-[#63605A] sm:gap-3">
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <Truck className="h-4 w-4 text-[#A2574F]" aria-hidden="true" />
+                  <span>Complimentary over KSh 15k</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <RotateCcw className="h-4 w-4 text-[#A2574F]" aria-hidden="true" />
+                  <span>30-Day Returns</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <ShieldCheck className="h-4 w-4 text-[#A2574F]" aria-hidden="true" />
+                  <span>Secure Checkout</span>
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-[#E8E5DF] pt-2">
+                {addedToCart ? (
+                  <div
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#2E5A44]/20 bg-[#E8EFEA] px-4 py-3 text-xs text-[#2E5A44]"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      Added to cart
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        navigate('/cart');
+                      }}
+                      className="rounded-sm text-sm font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+                    >
+                      View Cart
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      disabled={cta.disabled || isAdding || isCartLoading}
+                      isLoading={isAdding || isCartLoading}
+                      onClick={handleAddToCart}
+                      className="text-xs uppercase tracking-wider"
+                    >
+                      {cta.label}
+                    </Button>
+                    {errorMessage && (
+                      <p
+                        role="alert"
+                        className="flex w-full items-start gap-2 rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-3 py-2.5 text-xs text-[#9B1C1C]"
+                      >
+                        <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        {errorMessage}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  fullWidth
+                  onClick={() => {
+                    onClose();
+                    navigate(`/product/${product.slug}`);
+                  }}
+                  className="w-full rounded-xl py-2.5 text-xs font-medium normal-case tracking-normal text-[#63605A] hover:text-[#181716]"
+                >
+                  View Full Piece Specifications
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              </div>
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </DialogContent>
       )}
-    </AnimatePresence>
+    </Dialog>
   );
 };

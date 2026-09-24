@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Product } from '../types';
 import { useRouter } from '../router/RouterContext';
 import { useCart } from '../context/CartContext';
 import { Price } from '../components/ui/Price';
-import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/modeza/Button';
+import { Badge } from '../components/modeza/Badge';
+import { Card } from '../components/modeza/Card';
 import { QuantitySelector } from '../components/ui/QuantitySelector';
 import { ProductCard } from '../components/ProductCard';
 import { VariantSelector } from '../components/variant/VariantSelector';
@@ -48,6 +49,11 @@ export interface ProductDetailPageProps {
   onQuickView: (product: Product) => void;
 }
 
+type LocalFeedback = {
+  tone: 'success' | 'error';
+  message: string;
+};
+
 /**
  * Reconcile a previously-selected set of options against fresh product data.
  * Options that no longer exist structurally are dropped so the page never
@@ -76,12 +82,16 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selections, setSelections] = useState<VariantSelections>({});
   const [quantity, setQuantity] = useState(1);
-  const [addedToast, setAddedToast] = useState(false);
+  const [addFeedback, setAddFeedback] = useState<LocalFeedback | null>(null);
+  const [shareFeedback, setShareFeedback] = useState<LocalFeedback | null>(null);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [openAccordion, setOpenAccordion] = useState<string | null>('composition');
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifyState, setNotifyState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [notifyMessage, setNotifyMessage] = useState('');
+  const addToCartInFlight = useRef(false);
+  const addToCartRequestId = useRef(0);
 
   const hasAnyVariants = (product?.variants?.length ?? 0) > 0;
   const priceSummary = product ? getPriceSummary(product) : null;
@@ -98,6 +108,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     }
     setQuantity(1);
     setStockError(null);
+    setAddFeedback(null);
+    setShareFeedback(null);
+    addToCartRequestId.current += 1;
+    addToCartInFlight.current = false;
+    setIsAddingToCart(false);
   }, [slug, product?.id]);
 
   // Reconcile selections whenever refreshed product data arrives so the page
@@ -116,25 +131,94 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     }
   }, [product?.id]);
 
+  useEffect(() => {
+    if (!addFeedback) return;
+    const timer = window.setTimeout(() => setAddFeedback(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [addFeedback]);
+
+  useEffect(() => {
+    if (!shareFeedback) return;
+    const timer = window.setTimeout(() => setShareFeedback(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [shareFeedback]);
+
+  useEffect(() => {
+    return () => {
+      addToCartRequestId.current += 1;
+      addToCartInFlight.current = false;
+    };
+  }, []);
+
   const handleVariantChange = (next: VariantSelections) => {
     setSelections(next);
     setQuantity(1);
     setStockError(null);
+    setAddFeedback(null);
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', `${window.location.pathname}${selectionsToQuery(next)}`);
     }
   };
 
   const handleAddToCart = async () => {
+    if (addToCartInFlight.current) return;
     if (!product || !resolvedVariant || !resolvedVariantPurchasable) return;
+    if (quantity > resolvedVariant.stockQuantity) {
+      setStockError(`Only ${resolvedVariant.stockQuantity} piece${resolvedVariant.stockQuantity === 1 ? '' : 's'} available.`);
+      return;
+    }
+    const requestId = addToCartRequestId.current + 1;
+    addToCartRequestId.current = requestId;
+    addToCartInFlight.current = true;
+    setIsAddingToCart(true);
     setStockError(null);
-    const result = await addToCart(product, resolvedVariant, quantity);
-    if (result.success) {
-      setAddedToast(true);
-      window.setTimeout(() => setAddedToast(false), 2500);
-    } else {
-      setStockError(result.message || 'Unable to add piece to bag.');
-      void refreshCatalog();
+    setAddFeedback(null);
+    try {
+      const result = await addToCart(product, resolvedVariant, quantity);
+      if (addToCartRequestId.current !== requestId) return;
+      if (result.success) {
+        setAddFeedback({
+          tone: 'success',
+          message: 'Added to cart! View in drawer or cart page.',
+        });
+      } else {
+        setStockError(result.message || 'Unable to add piece to bag.');
+        void refreshCatalog();
+      }
+    } catch (err: unknown) {
+      if (addToCartRequestId.current === requestId) {
+        const message = err instanceof Error && err.message
+          ? err.message
+          : 'Unable to add piece to bag.';
+        setStockError(message);
+        void refreshCatalog();
+      }
+    } finally {
+      if (addToCartRequestId.current === requestId) {
+        addToCartInFlight.current = false;
+        setIsAddingToCart(false);
+      }
+    }
+  };
+
+  const handleShare = async () => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+    const url = window.location.href;
+    if (!navigator.clipboard?.writeText) {
+      setShareFeedback({
+        tone: 'error',
+        message: 'Copy the product link from your address bar to share this piece.',
+      });
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareFeedback({ tone: 'success', message: 'Product link copied to clipboard.' });
+    } catch {
+      setShareFeedback({
+        tone: 'error',
+        message: 'Could not copy the link. Copy it from your address bar to share this piece.',
+      });
     }
   };
 
@@ -165,18 +249,20 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
 
   if (!product) {
     return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-5">
-        <h1 className="font-serif text-3xl text-[#181716]">
-          {products.length === 0 ? 'Loading this piece...' : 'Piece no longer available'}
-        </h1>
-        <p className="text-sm text-[#63605A]">
-          {products.length === 0
-            ? 'We are refreshing the collection from the modeza catalogue.'
-            : 'This product may have been archived or removed, but the rest of the collection is still available.'}
-        </p>
-        <Button variant="primary" size="md" onClick={() => navigate('/shop')}>
-          Return to collection
-        </Button>
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <Card className="mx-auto max-w-2xl rounded-3xl p-8 text-center shadow-sm sm:p-12">
+          <h1 className="font-serif text-3xl text-[#181716]">
+            {products.length === 0 ? 'Loading this piece...' : 'Piece no longer available'}
+          </h1>
+          <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-[#63605A]">
+            {products.length === 0
+              ? 'We are refreshing the collection from the modeza catalogue.'
+              : 'This product may have been archived or removed, but the rest of the collection is still available.'}
+          </p>
+          <Button variant="primary" size="md" className="mt-7" onClick={() => navigate('/shop')}>
+            Return to collection
+          </Button>
+        </Card>
       </div>
     );
   }
@@ -247,6 +333,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     };
   })();
 
+  const addButtonDisabled = cta.disabled || isAddingToCart;
+  const addButtonLabel = isAddingToCart ? 'Adding…' : cta.label;
+
   const isLowStockForBadge = !!resolvedVariantPurchasable && !!resolvedVariant && resolvedVariant.stockQuantity <= LOW_STOCK_THRESHOLD;
 
   // Related products from same category or featured
@@ -307,10 +396,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
 
             {/* Sale badge */}
             {product.compareAtPrice && product.compareAtPrice > product.price && (
-              <span className="absolute top-4 left-4 px-3.5 py-1.5 bg-[#E68057] text-[#181716] text-[10px] uppercase font-semibold tracking-widest rounded-full shadow-md flex items-center gap-1">
+              <Badge
+                variant="default"
+                className="absolute left-4 top-4 border-0 bg-[#E68057] text-[#181716] shadow-md hover:bg-[#E68057]"
+              >
                 <Sparkles className="w-3 h-3" />
                 Archive Sale
-              </span>
+              </Badge>
             )}
 
             {/* Bottom gradient overlay for image caption */}
@@ -356,9 +448,10 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="lg:col-span-5 space-y-6 lg:sticky lg:top-24"
+          className="lg:col-span-5 lg:sticky lg:top-24"
         >
-          <div className="space-y-3 border-b border-[#E8E5DF] pb-6">
+          <Card className="space-y-6 overflow-hidden rounded-3xl border-[#E8E5DF] p-5 shadow-xl sm:p-7">
+            <div className="space-y-3 border-b border-[#E8E5DF] pb-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs uppercase tracking-widest font-semibold text-[#A2574F]">
@@ -366,19 +459,41 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <button
+                <Button
                   type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(window.location.href);
-                    alert('Product link copied to clipboard.');
-                  }}
-                  className="text-[#827E77] hover:text-[#181716] p-1.5 rounded-full hover:bg-[#F3F1ED] transition-all"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => void handleShare()}
+                  className="text-[#827E77] hover:text-[#181716]"
                   title="Share piece"
+                  aria-label="Copy product link"
                 >
                   <Share2 className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             </div>
+
+            {shareFeedback && (
+              <motion.p
+                key={shareFeedback.message}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mt-3 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs ${
+                  shareFeedback.tone === 'success'
+                    ? 'border-[#C8D8CA] bg-[#E8EFEA] text-[#2E5A44]'
+                    : 'border-[#F8B4B4] bg-[#FDF2F2] text-[#9E332B]'
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                {shareFeedback.tone === 'success' ? (
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                )}
+                {shareFeedback.message}
+              </motion.p>
+            )}
 
             <div className="flex items-center gap-2 flex-wrap">
               {product.isNewArrival && <Badge variant="new" size="sm">New Arrival</Badge>}
@@ -444,23 +559,24 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                 quantity={quantity}
                 max={resolvedVariant?.stockQuantity || 1}
                 onChange={setQuantity}
-                disabled={cta.disabled}
+                disabled={addButtonDisabled}
                 size="md"
               />
               <Button
                 variant="primary"
                 size="lg"
-                disabled={cta.disabled}
+                disabled={addButtonDisabled}
+                isLoading={isAddingToCart}
                 onClick={handleAddToCart}
-                aria-label={cta.label}
+                aria-label={addButtonLabel}
                 className="flex-1 text-sm tracking-wider uppercase shadow-md hover:shadow-lg"
               >
-                {cta.label}
+                {addButtonLabel}
               </Button>
             </div>
 
             {cta.disabled && resolvedVariant && !resolvedVariantPurchasable && !stillSelecting && (
-              <div className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] p-4 space-y-3">
+              <Card className="space-y-3 rounded-2xl border-[#E8E5DF] bg-[#FAF9F6] p-4 shadow-none">
                 <p className="text-xs text-[#63605A] flex items-center gap-2">
                   <Bell className="w-4 h-4 shrink-0" />
                   Sold out — leave your email and we will notify you when it is back.
@@ -498,26 +614,38 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                     {notifyMessage}
                   </p>
                 )}
-              </div>
+              </Card>
             )}
 
-            {addedToast && (
+            {addFeedback && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3.5 bg-[#E8EFEA] border border-[#2E5A44]/20 rounded-xl text-xs text-[#2E5A44] flex items-center justify-between"
+                className={`flex items-center justify-between gap-3 rounded-2xl border p-3.5 text-xs ${
+                  addFeedback.tone === 'success'
+                    ? 'border-[#C8D8CA] bg-[#E8EFEA] text-[#2E5A44]'
+                    : 'border-[#F8B4B4] bg-[#FDF2F2] text-[#9E332B]'
+                }`}
+                role="status"
+                aria-live="polite"
               >
                 <span className="flex items-center gap-2">
-                  <Check className="w-4 h-4" />
-                  Added to cart! View in drawer or cart page.
+                  {addFeedback.tone === 'success' ? (
+                    <Check className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                  )}
+                  {addFeedback.message}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => navigate('/cart')}
-                  className="font-semibold underline text-sm"
+                  className="shrink-0 px-2 text-xs underline"
                 >
                   Go to Cart
-                </button>
+                </Button>
               </motion.div>
             )}
 
@@ -659,6 +787,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
               )}
             </div>
           </div>
+          </Card>
         </motion.div>
       </div>
 
@@ -687,17 +816,19 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
             quantity={quantity}
             max={resolvedVariant?.stockQuantity || 1}
             onChange={setQuantity}
-            disabled={cta.disabled}
+            disabled={addButtonDisabled}
             size="sm"
           />
           <Button
             variant="primary"
             size="md"
-            disabled={cta.disabled}
+            disabled={addButtonDisabled}
+            isLoading={isAddingToCart}
             onClick={handleAddToCart}
             className="shrink-0 text-xs uppercase tracking-wider max-w-[9.5rem]"
+            aria-label={addButtonLabel}
           >
-            {cta.label.replace(/ •.*/, '')}
+            {addButtonLabel.replace(/ •.*/, '')}
           </Button>
         </div>
       </motion.div>

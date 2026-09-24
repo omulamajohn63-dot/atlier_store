@@ -1,14 +1,38 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ShoppingBag, Search, Menu, X, Heart, User, ChevronDown, ArrowRight, Bell, CheckCheck, Sparkles, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  ArrowRight,
+  Bell,
+  CheckCheck,
+  ChevronDown,
+  Heart,
+  LoaderCircle,
+  LogOut,
+  Menu,
+  Search,
+  ShoppingBag,
+  Sparkles,
+  User,
+  X,
+} from 'lucide-react';
+import { motion } from 'motion/react';
 import { CategorySlug } from '../types';
-import { useRouter } from '../router/RouterContext';
+import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { useStore } from '../context/StoreContext';
 import { useWishlist } from '../context/WishlistContext';
-import { useNotifications } from '../context/NotificationsContext';
-import { useAuth } from '../context/AuthContext';
-import { Badge } from './ui/Badge';
-import { motion, AnimatePresence } from 'motion/react';
+import { useRouter } from '../router/RouterContext';
+import {
+  Badge,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  ScrollArea,
+} from './modeza';
 
 const backendBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const modezaLogoUrl = `${backendBaseUrl}/static/images/logo.png`;
@@ -25,96 +49,71 @@ interface NavigationItem {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
   const { navigate, route } = useRouter();
-  const { cartCount, openCartDrawer } = useCart();
+  const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
   const { categories: storeCategories } = useStore();
-
-  // State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Derived data
   const categories: NavigationItem[] = storeCategories.map((category) => ({
     label: category.name,
     slug: category.slug as CategorySlug,
     path: category.slug === 'all' ? '/shop' : `/shop/${category.slug}`,
   }));
-
-  const productCategories = categories.filter((cat) => cat.slug !== 'all');
+  const productCategories = categories.filter((category) => category.slug !== 'all');
   const currentCategory = route.path === '/shop' ? route.category || 'all' : undefined;
+  const isHomeActive = route.path === '/';
+  const isNewArrivalsActive = route.path === '/shop' && route.collection === 'new-arrivals';
+  const isSaleActive = route.path === '/shop' && route.sale === true;
+  const isCollectionsActive = route.path === '/shop'
+    && !route.category
+    && !route.collection
+    && !route.occasion
+    && !route.query
+    && !route.sale;
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsCategoriesOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Navigation helpers
   const navigateFromShopMenu = (path: string) => {
     navigate(path);
     setIsCategoriesOpen(false);
   };
 
-  const closeMobileMenu = () => setIsMobileMenuOpen(false);
-
   const navigateAndCloseMobile = (path: string) => {
     navigate(path);
-    closeMobileMenu();
+    setIsMobileMenuOpen(false);
   };
 
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setIsCategoriesOpen(false);
-      setIsMobileMenuOpen(false);
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
-
   return (
-    <header className="sticky top-0 z-[200]">
-      {/* Announcement Bar */}
+    <header className="sticky top-0 z-40">
       <AnnouncementBar />
 
-      {/* Main Navigation */}
       <motion.div
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="glass sticky top-0 z-[200] border-b border-[#E8E5DF]/60"
+        className="glass relative border-b border-[#E8E5DF]/60"
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative flex h-16 items-center justify-between sm:h-20">
-            {/* Left Section */}
             <LeftNavigation
               isMobileMenuOpen={isMobileMenuOpen}
-              onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onToggleMobileMenu={() => setIsMobileMenuOpen((open) => !open)}
               isCategoriesOpen={isCategoriesOpen}
-              onToggleCategories={() => setIsCategoriesOpen(!isCategoriesOpen)}
+              onCategoriesOpenChange={setIsCategoriesOpen}
               currentCategory={currentCategory}
+              isHomeActive={isHomeActive}
+              isNewArrivalsActive={isNewArrivalsActive}
+              isCollectionsActive={isCollectionsActive}
+              isSaleActive={isSaleActive}
               onNavigate={navigate}
-              dropdownRef={dropdownRef}
               categories={productCategories}
               onNavigateFromShop={navigateFromShopMenu}
             />
 
-            {/* Center Logo */}
             <CenterLogo onNavigate={navigate} />
 
-            {/* Right Actions */}
             <RightActions
               onNavigate={navigate}
               onOpenSearch={onOpenSearch}
-              onOpenCart={openCartDrawer}
               cartCount={cartCount}
               wishlistCount={wishlistCount}
             />
@@ -122,34 +121,32 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
         </div>
       </motion.div>
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <MobileMenu
-            isOpen={isMobileMenuOpen}
-            onClose={closeMobileMenu}
-            onNavigate={navigateAndCloseMobile}
-            categories={categories}
-            productCategories={productCategories}
-            currentCategory={currentCategory}
-            cartCount={cartCount}
-            wishlistCount={wishlistCount}
-          />
-        )}
-      </AnimatePresence>
+      <Dialog
+        open={isMobileMenuOpen}
+        onOpenChange={setIsMobileMenuOpen}
+      >
+        <MobileMenu
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
+          onNavigate={navigateAndCloseMobile}
+          categories={categories}
+          productCategories={productCategories}
+          currentCategory={currentCategory}
+          cartCount={cartCount}
+          wishlistCount={wishlistCount}
+        />
+      </Dialog>
     </header>
   );
 };
 
-// Sub-components for better organization
-
 const AnnouncementBar: React.FC = () => (
-  <div className="bg-[#181716] px-4 py-2 relative overflow-hidden">
-    <div className="absolute inset-0 bg-gradient-to-r from-[#181716] via-[#A2574F]/25 to-[#181716]" />
-    <p className="relative text-[10px] uppercase tracking-[0.2em] text-[#FAF9F6] text-center font-medium">
-      <Sparkles className="w-3 h-3 inline-block mr-1.5 text-[#E6C8CD]" />
+  <div className="relative overflow-hidden bg-[#181716] px-4 py-2">
+    <div className="absolute inset-0 bg-gradient-to-r from-[#181716] via-[#A2574F]/25 to-[#181716]" aria-hidden="true" />
+    <p className="relative text-center text-[9px] font-medium uppercase tracking-[0.18em] text-[#FAF9F6] sm:text-[10px] sm:tracking-[0.2em]">
+      <Sparkles className="mr-1.5 inline-block h-3 w-3 text-[#E6C8CD]" aria-hidden="true" />
       Free shipping on orders over KES 5,000
-      <Sparkles className="w-3 h-3 inline-block ml-1.5 text-[#E6C8CD]" />
+      <Sparkles className="ml-1.5 inline-block h-3 w-3 text-[#E6C8CD]" aria-hidden="true" />
     </p>
   </div>
 );
@@ -158,10 +155,13 @@ interface LeftNavigationProps {
   isMobileMenuOpen: boolean;
   onToggleMobileMenu: () => void;
   isCategoriesOpen: boolean;
-  onToggleCategories: () => void;
+  onCategoriesOpenChange: (open: boolean) => void;
   currentCategory?: string;
+  isHomeActive: boolean;
+  isNewArrivalsActive: boolean;
+  isCollectionsActive: boolean;
+  isSaleActive: boolean;
   onNavigate: (path: string) => void;
-  dropdownRef: React.RefObject<HTMLDivElement | null>;
   categories: NavigationItem[];
   onNavigateFromShop: (path: string) => void;
 }
@@ -170,73 +170,59 @@ const LeftNavigation: React.FC<LeftNavigationProps> = ({
   isMobileMenuOpen,
   onToggleMobileMenu,
   isCategoriesOpen,
-  onToggleCategories,
+  onCategoriesOpenChange,
   currentCategory,
+  isHomeActive,
+  isNewArrivalsActive,
+  isCollectionsActive,
+  isSaleActive,
   onNavigate,
-  dropdownRef,
   categories,
   onNavigateFromShop,
 }) => (
   <div className="flex shrink-0 items-center gap-4 sm:gap-6 lg:pl-[188px]">
-    {/* Mobile Menu Button */}
     <button
       type="button"
       onClick={onToggleMobileMenu}
-      className="lg:hidden flex items-center gap-2 text-[#181716] hover:text-[#A2574F] transition-colors p-2 rounded-full hover:bg-[#F3F1ED]"
-      aria-label="Toggle menu"
+      className="flex items-center gap-2 rounded-full p-2 text-[#181716] transition-colors hover:bg-[#F3F1ED] hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 lg:hidden"
+      aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
       aria-expanded={isMobileMenuOpen}
     >
-      {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      {isMobileMenuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
     </button>
 
-    {/* Desktop Navigation */}
     <nav className="hidden items-center gap-7 lg:flex xl:gap-8" aria-label="Primary navigation">
       <NavButton label="Home" onClick={() => onNavigate('/')} />
-      <NavButton
-        label="New Arrivals"
-        onClick={() => onNavigate('/shop?collection=new-arrivals')}
-      />
+      <NavButton label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
 
-      <div className="relative" ref={dropdownRef}>
-        <button
-          type="button"
-          onClick={onToggleCategories}
-          className={`flex items-center gap-1.5 text-[10px] uppercase tracking-[0.18em] font-semibold transition-colors px-2 py-1.5 rounded-full ${
-            currentCategory
-              ? 'text-[#A2574F] bg-[#F4ECE9]'
-              : 'text-[#63605A] hover:text-[#181716] hover:bg-[#F3F1ED]'
-          }`}
-          aria-haspopup="menu"
-          aria-expanded={isCategoriesOpen}
+      <Popover open={isCategoriesOpen} onOpenChange={onCategoriesOpenChange}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={`flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 ${
+              currentCategory
+                ? 'bg-[#F4ECE9] text-[#A2574F]'
+                : 'text-[#63605A] hover:bg-[#F3F1ED] hover:text-[#181716]'
+            }`}
+            aria-label="Shop categories"
+          >
+            Categories
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform duration-200 ${isCategoriesOpen ? 'rotate-180' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={10}
+          className="w-[min(90vw,36rem)] rounded-2xl border border-[#E8E5DF] bg-white p-5 shadow-2xl sm:p-6"
         >
-          Categories
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isCategoriesOpen ? 'rotate-180' : ''}`} />
-        </button>
+          <ShopDropdown categories={categories} onNavigate={onNavigateFromShop} />
+        </PopoverContent>
+      </Popover>
 
-        {isCategoriesOpen && (
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute left-0 top-full z-[300] mt-2 w-[36rem] rounded-2xl border border-[#E8E5DF] bg-white p-6 shadow-2xl glass"
-              role="menu"
-            >
-              <ShopDropdown
-                categories={categories}
-                onNavigate={onNavigateFromShop}
-                onClose={() => onToggleCategories()}
-              />
-            </motion.div>
-          </AnimatePresence>
-        )}
-      </div>
-
-      <NavButton
-        label="Collections"
-        onClick={() => onNavigate('/shop')}
-      />
+      <NavButton label="Collections" onClick={() => onNavigate('/shop')} />
       <NavButton label="Sale" onClick={() => onNavigate('/shop?sale=true')} />
     </nav>
   </div>
@@ -246,7 +232,7 @@ const NavButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
   <button
     type="button"
     onClick={onClick}
-    className="relative text-[10px] uppercase tracking-[0.18em] font-semibold text-[#63605A] hover:text-[#181716] transition-colors py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-4 after:absolute after:bottom-0 after:left-1/2 after:w-0 after:h-[2px] after:bg-[#A2574F] after:transition-all after:duration-200 hover:after:w-full hover:after:left-0"
+    className="relative py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#63605A] transition-colors after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-[#A2574F] after:transition-all after:duration-200 hover:text-[#181716] hover:after:left-0 hover:after:w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-4"
   >
     {label}
   </button>
@@ -255,54 +241,49 @@ const NavButton: React.FC<{ label: string; onClick: () => void }> = ({ label, on
 const ShopDropdown: React.FC<{
   categories: NavigationItem[];
   onNavigate: (path: string) => void;
-  onClose: () => void;
-}> = ({ categories, onNavigate, onClose }) => (
-  <>
-  <div className="grid grid-cols-3 gap-6">
-    {/* Shop Links */}
-    <DropdownColumn title="Shop">
-      <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} icon={<Sparkles className="w-3.5 h-3.5" />} />
-      <DropdownLink label="Best Sellers" onClick={() => onNavigate('/shop?collection=best-sellers')} />
-      <DropdownLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
-    </DropdownColumn>
+}> = ({ categories, onNavigate }) => (
+  <div>
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
+      <DropdownColumn title="Shop">
+        <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} icon={<Sparkles className="h-3.5 w-3.5" />} />
+        <DropdownLink label="Best Sellers" onClick={() => onNavigate('/shop?collection=best-sellers')} />
+        <DropdownLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
+      </DropdownColumn>
 
-    {/* Categories - use dynamic categories only to avoid duplicates */}
-    <DropdownColumn title="Shop by Category">
-      <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} />
-      {categories.map((cat) => (
-        <DropdownLink
-          key={cat.slug}
-          label={cat.label}
-          onClick={() => onNavigate(cat.path)}
-        />
-      ))}
-    </DropdownColumn>
+      <DropdownColumn title="Shop by Category">
+        <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} />
+        {categories.map((category) => (
+          <DropdownLink
+            key={category.slug}
+            label={category.label}
+            onClick={() => onNavigate(category.path)}
+          />
+        ))}
+      </DropdownColumn>
 
-    {/* Occasions */}
-    <DropdownColumn title="Shop by Occasion">
-      <DropdownLink label="Everyday" onClick={() => onNavigate('/shop?occasion=everyday')} />
-      <DropdownLink label="Evening" onClick={() => onNavigate('/shop?occasion=evening')} />
-      <DropdownLink label="Special Occasions" onClick={() => onNavigate('/shop?occasion=special-occasions')} />
-    </DropdownColumn>
+      <DropdownColumn title="Shop by Occasion">
+        <DropdownLink label="Everyday" onClick={() => onNavigate('/shop?occasion=everyday')} />
+        <DropdownLink label="Evening" onClick={() => onNavigate('/shop?occasion=evening')} />
+        <DropdownLink label="Special Occasions" onClick={() => onNavigate('/shop?occasion=special-occasions')} />
+      </DropdownColumn>
+    </div>
+
+    <div className="mt-6 border-t border-[#E8E5DF] pt-4">
+      <button
+        type="button"
+        onClick={() => onNavigate('/shop?collection=new-arrivals')}
+        className="group flex w-full items-center justify-between rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-3 py-2.5 transition-colors hover:bg-[#F4ECE9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+      >
+        <span className="text-xs font-medium text-[#181716]">Explore New Collection</span>
+        <ArrowRight className="h-4 w-4 text-[#A2574F] transition-transform group-hover:translate-x-1" aria-hidden="true" />
+      </button>
+    </div>
   </div>
-
-    {/* Featured CTA */}
-  <div className="mt-6 pt-4 border-t border-[#E8E5DF]">
-    <button
-      type="button"
-      onClick={() => onNavigate('/shop?collection=new-arrivals')}
-      className="group flex items-center justify-between w-full px-3 py-2.5 rounded-xl bg-[#FAF9F6] hover:bg-[#F4ECE9] transition-colors border border-[#E8E5DF]"
-    >
-      <span className="text-xs font-medium text-[#181716]">Explore New Collection</span>
-      <ArrowRight className="w-4 h-4 text-[#A2574F] group-hover:translate-x-1 transition-transform" />
-    </button>
-  </div>
-  </>
 );
 
 const DropdownColumn: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div>
-    <p className="px-2 pb-3 text-[10px] uppercase tracking-[0.2em] text-[#827E77] font-semibold">
+    <p className="px-2 pb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
       {title}
     </p>
     <div className="space-y-1">{children}</div>
@@ -318,9 +299,8 @@ interface DropdownLinkProps {
 const DropdownLink: React.FC<DropdownLinkProps> = ({ label, onClick, icon }) => (
   <button
     type="button"
-    role="menuitem"
     onClick={onClick}
-    className="w-full rounded-xl px-3 py-2.5 text-left text-xs text-[#63605A] hover:bg-[#FAF9F6] hover:text-[#181716] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] flex items-center gap-2"
+    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs text-[#63605A] transition-colors hover:bg-[#FAF9F6] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
   >
     {icon}
     {label}
@@ -332,13 +312,13 @@ const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNaviga
     <button
       type="button"
       onClick={() => onNavigate('/')}
-      className="group block text-center"
+      className="group block rounded-sm text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-4"
       aria-label="MODEZA Home"
     >
       <img
         src={modezaLogoUrl}
         alt="MODEZA Haute Prêt-à-Porter"
-        className="mx-auto h-9 max-w-full w-auto object-contain transition-opacity group-hover:opacity-75 sm:h-12"
+        className="mx-auto h-9 w-auto max-w-full object-contain transition-opacity group-hover:opacity-75 sm:h-12"
       />
     </button>
   </div>
@@ -347,19 +327,19 @@ const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNaviga
 const RightActions: React.FC<{
   onNavigate: (path: string) => void;
   onOpenSearch?: () => void;
-  onOpenCart: () => void;
   cartCount: number;
   wishlistCount: number;
-}> = ({ onNavigate, onOpenSearch, onOpenCart, cartCount, wishlistCount }) => {
+}> = ({ onNavigate, onOpenSearch, cartCount, wishlistCount }) => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
 
   return (
-    <div className="relative flex shrink-0 items-center gap-1.5 border-l border-[#E8E5DF] pl-4 sm:gap-3 sm:pl-5 lg:gap-4 lg:pl-6">
+    <div className="relative flex shrink-0 items-center gap-1.5 border-l border-[#E8E5DF] pl-3 sm:gap-2 sm:pl-4 lg:gap-3 lg:pl-5">
       <button
         type="button"
         onClick={() => onNavigate('/about')}
-        className="hidden lg:block text-[10px] uppercase tracking-[0.18em] font-semibold text-[#63605A] hover:text-[#181716] transition-colors py-1.5 px-2 rounded-full hover:bg-[#F3F1ED]"
+        className="hidden rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#63605A] transition-colors hover:bg-[#F3F1ED] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] lg:block"
       >
         About
       </button>
@@ -369,53 +349,67 @@ const RightActions: React.FC<{
         ariaLabel="Search catalog"
         title="Search collection"
       >
-        <Search className="w-5 h-5 stroke-[1.5]" />
+        <Search className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
       </IconButton>
 
       <div className="relative hidden lg:block">
-        <button
-          type="button"
-          onClick={() => setIsNotificationsOpen((current) => !current)}
-          className="relative p-2.5 text-[#181716] hover:text-[#A2574F] transition-colors rounded-full hover:bg-[#F3F1ED]"
-          aria-label={`Notifications, ${unreadCount} unread`}
-          title="Notifications"
-        >
-          <Bell className="w-5 h-5 stroke-[1.5]" />
-          {unreadCount > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#A2574F] px-1 text-[9px] text-[#FAF9F6] font-semibold">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
-
-        {isNotificationsOpen && (
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.98 }}
-              className="absolute right-0 top-full z-[300] mt-2 w-80 rounded-2xl border border-[#E8E5DF] bg-white p-3 shadow-2xl glass"
+        <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="relative rounded-full p-2.5 text-[#181716] transition-colors hover:bg-[#F3F1ED] hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
+              aria-label={`Notifications, ${unreadCount} unread`}
+              title="Notifications"
             >
-              <div className="mb-2 flex items-center justify-between px-2 pb-2 border-b border-[#E8E5DF]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-[#827E77]">Notifications</span>
-                  {unreadCount > 0 && <span className="rounded-full bg-[#FFF0E3] px-2 py-0.5 text-[10px] font-semibold text-[#8A5A2B]">{unreadCount} unread</span>}
-                </div>
+              <Bell className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
+              {unreadCount > 0 && (
+                <Badge className="absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[9px]">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Badge>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={10}
+            className="w-[min(90vw,22rem)] rounded-2xl border border-[#E8E5DF] bg-white p-3 shadow-2xl"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3 border-b border-[#E8E5DF] px-2 pb-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">
+                  Notifications
+                </span>
                 {unreadCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => void markAllAsRead()}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#A2574F] hover:text-[#181716] transition-colors"
-                  >
-                    <CheckCheck className="h-3 w-3" />
-                    Mark all read
-                  </button>
+                  <Badge variant="warning" size="sm">{unreadCount} unread</Badge>
                 )}
               </div>
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  disabled={isMarkingAll}
+                  onClick={() => {
+                    if (isMarkingAll) return;
+                    setIsMarkingAll(true);
+                    void markAllAsRead().finally(() => setIsMarkingAll(false));
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-sm text-[10px] font-semibold uppercase tracking-[0.12em] text-[#A2574F] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:cursor-wait disabled:opacity-50"
+                >
+                  {isMarkingAll ? (
+                    <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                  )}
+                  {isMarkingAll ? 'Saving' : 'Mark all read'}
+                </button>
+              )}
+            </div>
 
-              <div className="max-h-72 space-y-2 overflow-y-auto">
+            <ScrollArea className="h-72">
+              <div className="space-y-2 pr-2">
                 {notifications.length === 0 ? (
-                  <div className="px-2 py-4 text-sm text-[#63605A]">No notifications yet.</div>
+                  <div className="px-2 py-6 text-center text-sm text-[#63605A]">
+                    No notifications yet.
+                  </div>
                 ) : (
                   notifications.slice(0, 6).map((notification) => (
                     <button
@@ -428,92 +422,85 @@ const RightActions: React.FC<{
                         void markAsRead(notification.id);
                         setIsNotificationsOpen(false);
                       }}
-                      className={`w-full rounded-xl border p-3 text-left transition ${
+                      className={`w-full rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
                         notification.isRead
-                          ? 'border-[#E8E5DF] bg-[#FAF9F6]'
-                          : 'border-[#E7D8B3] bg-[#FFFDF8]'
+                          ? 'border-[#E8E5DF] bg-[#FAF9F6] hover:border-[#D8D3CB]'
+                          : 'border-[#E7D8B3] bg-[#FFFDF8] hover:border-[#D8C99E]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.14em] text-[#827E77]">{notification.category}</div>
+                        <div className="min-w-0">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-[#827E77]">
+                            {notification.category}
+                          </div>
                           <div className="mt-1 text-sm font-medium text-[#181716]">{notification.title}</div>
                         </div>
-                        {!notification.isRead && <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#A2574F]" />}
+                        {!notification.isRead && (
+                          <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#A2574F]" aria-label="Unread" />
+                        )}
                       </div>
                       <p className="mt-2 text-xs leading-5 text-[#63605A]">{notification.message}</p>
                     </button>
                   ))
                 )}
               </div>
+            </ScrollArea>
 
-              {notifications.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onNavigate('/account/notifications');
-                    setIsNotificationsOpen(false);
-                  }}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#E8E5DF] py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] hover:bg-[#FAF9F6] transition-colors"
-                >
-                  <Bell className="h-3.5 w-3.5" />
-                  View all notifications
-                </button>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        )}
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('/account/notifications');
+                  setIsNotificationsOpen(false);
+                }}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#E8E5DF] py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+              >
+                <Bell className="h-3.5 w-3.5" aria-hidden="true" />
+                View all notifications
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
       </div>
 
       <IconButton
-        className="hidden sm:block"
         onClick={() => onNavigate('/account')}
         ariaLabel="Customer account"
         title="Customer account"
       >
-        <User className="w-5 h-5 stroke-[1.5]" />
+        <User className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
       </IconButton>
 
       <IconButton
-        className="hidden sm:block"
         onClick={() => onNavigate('/wishlist')}
         ariaLabel={`Wishlist with ${wishlistCount} saved items`}
         title="Wishlist"
       >
         <span className="relative block">
-          <Heart className="w-5 h-5 stroke-[1.5]" />
+          <Heart className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
           {wishlistCount > 0 && (
-            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#A2574F] px-1 text-[9px] text-[#FAF9F6] font-semibold">
-              {wishlistCount}
-            </span>
+            <Badge className="absolute -right-2.5 -top-2.5 h-4 min-w-4 justify-center px-1 text-[9px]">
+              {wishlistCount > 99 ? '99+' : wishlistCount}
+            </Badge>
           )}
         </span>
-      </IconButton>
-
-      <IconButton
-        className="lg:hidden"
-        onClick={() => onNavigate('/account')}
-        ariaLabel="Customer account"
-        title="Customer account"
-      >
-        <User className="w-5 h-5 stroke-[1.5]" />
       </IconButton>
 
       <button
         type="button"
         onClick={() => onNavigate('/cart')}
-        className="relative flex items-center gap-2 p-2.5 text-[#181716] hover:text-[#A2574F] transition-colors rounded-full hover:bg-[#F3F1ED]"
+        className="relative flex items-center gap-2 rounded-full p-2.5 text-[#181716] transition-colors hover:bg-[#F3F1ED] hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
         aria-label={`View shopping cart with ${cartCount} items`}
         title="View Cart"
       >
-        <ShoppingBag className="w-5 h-5 stroke-[1.5]" />
-        <span className="hidden sm:inline text-[10px] uppercase tracking-[0.16em] font-semibold">
+        <ShoppingBag className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
+        <span className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] sm:inline">
           Cart ({cartCount})
         </span>
         {cartCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#A2574F] text-[#FAF9F6] text-[9px] rounded-full flex items-center justify-center font-semibold">
+          <Badge className="absolute -right-0.5 -top-0.5 h-4 min-w-4 justify-center px-1 text-[9px]">
             {cartCount}
-          </span>
+          </Badge>
         )}
       </button>
     </div>
@@ -524,13 +511,13 @@ const IconButton: React.FC<{
   onClick?: () => void;
   ariaLabel: string;
   title: string;
-  className?: string;
   children: React.ReactNode;
-}> = ({ onClick, ariaLabel, title, className = '', children }) => (
+}> = ({ onClick, ariaLabel, title, children }) => (
   <button
     type="button"
     onClick={onClick}
-    className={`p-2.5 text-[#181716] transition-colors rounded-full hover:bg-[#F3F1ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 hover:text-[#A2574F] ${className}`}
+    disabled={!onClick}
+    className="rounded-full p-2.5 text-[#181716] transition-colors hover:bg-[#F3F1ED] hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
     aria-label={ariaLabel}
     title={title}
   >
@@ -547,126 +534,110 @@ const MobileMenu: React.FC<{
   currentCategory?: string;
   cartCount: number;
   wishlistCount: number;
-}> = ({ isOpen, onClose, onNavigate, categories, productCategories, currentCategory, cartCount, wishlistCount }) => {
+}> = ({
+  isOpen,
+  onClose,
+  onNavigate,
+  categories,
+  productCategories,
+  currentCategory,
+  cartCount,
+  wishlistCount,
+}) => {
   const { user, signOut } = useAuth();
   if (!isOpen) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[400] lg:hidden"
-    >
-      {/* Overlay */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-[#181716]/30 backdrop-blur-[2px]"
-        aria-hidden="true"
-      />
+    <DialogContent className="left-auto right-0 top-0 flex h-dvh max-h-dvh w-[min(90vw,24rem)] max-w-[calc(100%-1rem)] translate-x-0 translate-y-0 flex-col overflow-hidden rounded-l-3xl rounded-r-none border-y-0 border-r-0 p-0 shadow-2xl lg:hidden">
+      <div className="flex items-center justify-between border-b border-[#E8E5DF] px-6 py-5 pr-16">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">MODEZA</p>
+          <DialogTitle className="mt-1 font-serif text-2xl font-normal text-[#181716]">Menu</DialogTitle>
+        </div>
+      </div>
+      <DialogDescription className="sr-only">
+        Browse the boutique, manage your account, and review your wishlist and cart.
+      </DialogDescription>
 
-      {/* Drawer */}
-      <motion.aside
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="relative flex h-full w-[min(88vw,380px)] flex-col bg-[#FAF9F6] shadow-2xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E8E5DF] px-6 py-5">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">MODEZA</p>
-            <h2 className="mt-1 font-serif text-2xl text-[#181716]">Menu</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716] transition-colors"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
+      <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-7">
+        <MobileSection title="Browse">
+          <MobileLink label="Home" onClick={() => onNavigate('/')} />
+          <MobileLink label="About" onClick={() => onNavigate('/about')} />
+          <MobileLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
+          <MobileLink label="Sale" onClick={() => onNavigate('/shop?sale=true')} />
+        </MobileSection>
+
+        <MobileSection title="Categories">
+          {productCategories.map((category) => (
+            <MobileLink
+              key={category.slug}
+              label={category.label}
+              onClick={() => onNavigate(category.path)}
+              isActive={currentCategory === category.slug}
+            />
+          ))}
+        </MobileSection>
+
+        <MobileSection title="Shop">
+          <MobileLink label="All Products" onClick={() => onNavigate('/shop')} />
+          <MobileLink label="Best Sellers" onClick={() => onNavigate('/shop?collection=best-sellers')} />
+          <MobileLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
+        </MobileSection>
+
+        <MobileSection title="Shop by Category">
+          {productCategories.map((category) => (
+            <MobileLink
+              key={category.slug}
+              label={category.label}
+              onClick={() => onNavigate(category.path)}
+              isActive={currentCategory === category.slug}
+            />
+          ))}
+        </MobileSection>
+
+        <MobileSection title="Shop by Occasion">
+          <MobileLink label="Everyday" onClick={() => onNavigate('/shop?occasion=everyday')} />
+          <MobileLink label="Evening" onClick={() => onNavigate('/shop?occasion=evening')} />
+          <MobileLink label="Special Occasions" onClick={() => onNavigate('/shop?occasion=special-occasions')} />
+        </MobileSection>
+
+        <div className="mt-8 space-y-2 border-t border-[#E8E5DF] pt-6">
+          <MobileLink label="My Account" onClick={() => onNavigate('/account')} />
+          {user && (
+            <button
+              type="button"
+              onClick={() => {
+                void signOut();
+                onClose();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-[#9E332B] transition-colors hover:bg-[#FDF2F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Sign Out
+            </button>
+          )}
+          <MobileLink label={`Wishlist (${wishlistCount})`} onClick={() => onNavigate('/wishlist')} />
+          <MobileLink label="Track Order" onClick={() => onNavigate('/track')} />
+          <MobileLink label={`Cart (${cartCount})`} onClick={() => onNavigate('/cart')} />
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-7">
-          <MobileSection title="Browse">
-            <MobileLink label="Home" onClick={() => onNavigate('/')} />
-            <MobileLink label="About" onClick={() => onNavigate('/about')} />
-            <MobileLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
-            <MobileLink label="Sale" onClick={() => onNavigate('/shop?sale=true')} />
-          </MobileSection>
-
-          <MobileSection title="Categories">
-            {productCategories.map((cat) => (
-              <MobileLink
-                key={cat.slug}
-                label={cat.label}
-                onClick={() => onNavigate(cat.path)}
-                isActive={currentCategory === cat.slug}
-              />
-            ))}
-          </MobileSection>
-
-          <MobileSection title="Shop">
-            <MobileLink label="All Products" onClick={() => onNavigate('/shop')} />
-            <MobileLink label="Best Sellers" onClick={() => onNavigate('/shop?collection=best-sellers')} />
-            <MobileLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
-          </MobileSection>
-
-          <MobileSection title="Shop by Category">
-            {productCategories.map((cat) => (
-              <MobileLink
-                key={cat.slug}
-                label={cat.label}
-                onClick={() => onNavigate(cat.path)}
-                isActive={currentCategory === cat.slug}
-              />
-            ))}
-          </MobileSection>
-
-          <MobileSection title="Shop by Occasion">
-            <MobileLink label="Everyday" onClick={() => onNavigate('/shop?occasion=everyday')} />
-            <MobileLink label="Evening" onClick={() => onNavigate('/shop?occasion=evening')} />
-            <MobileLink label="Special Occasions" onClick={() => onNavigate('/shop?occasion=special-occasions')} />
-          </MobileSection>
-
-          <div className="mt-8 space-y-2 border-t border-[#E8E5DF] pt-6">
-            <MobileLink label="My Account" onClick={() => onNavigate('/account')} />
-            {user && (
-              <button
-                type="button"
-                onClick={() => {
-                  void signOut();
-                  onClose();
-                }}
-                className="w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] text-[#9E332B] hover:bg-[#FDF2F2] flex items-center gap-3"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </button>
-            )}
-            <MobileLink label={`Wishlist (${wishlistCount})`} onClick={() => onNavigate('/wishlist')} />
-            <MobileLink label="Track Order" onClick={() => onNavigate('/track')} />
-            <MobileLink label={`Cart (${cartCount})`} onClick={() => onNavigate('/cart')} />
-          </div>
+        <div className="mt-8 border-t border-[#E8E5DF] pt-6">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
+            {categories.length} collection{categories.length === 1 ? '' : 's'} available
+          </p>
         </div>
-      </motion.aside>
-    </motion.div>
+      </div>
+    </DialogContent>
   );
 };
 
 const MobileSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div className="mb-8">
-    <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
+  <section className="mb-8">
+    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
       {title}
-    </p>
+    </h3>
     <div className="space-y-1">{children}</div>
-  </div>
+  </section>
 );
 
 const MobileLink: React.FC<{
@@ -679,9 +650,10 @@ const MobileLink: React.FC<{
     onClick={onClick}
     className={`w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
       isActive
-        ? 'bg-[#A2574F] text-[#FAF9F6] font-medium shadow-sm'
+        ? 'bg-[#A2574F] font-medium text-[#FAF9F6] shadow-sm'
         : 'text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716]'
     }`}
+    aria-current={isActive ? 'page' : undefined}
   >
     {label}
   </button>

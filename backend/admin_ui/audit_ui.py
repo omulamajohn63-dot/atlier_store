@@ -83,6 +83,12 @@ ACTION_META = {
     'support_message_submitted': {'label': 'Support Message',   'icon': 'ph-chat-circle'},
     'file_upload':         {'label': 'File Uploaded',           'icon': 'ph-upload-simple'},
     'file_delete':         {'label': 'File Deleted',            'icon': 'ph-file-x'},
+    'bulk_import_started': {'label': 'Bulk Import Started',     'icon': 'ph-upload-simple'},
+    'bulk_import_validated': {'label': 'Bulk Import Validated',  'icon': 'ph-check-circle'},
+    'bulk_import_confirmed': {'label': 'Bulk Import Confirmed',  'icon': 'ph-check'},
+    'bulk_import_completed': {'label': 'Bulk Import Completed',  'icon': 'ph-check-circle'},
+    'bulk_import_failed':  {'label': 'Bulk Import Failed',      'icon': 'ph-warning-circle'},
+    'bulk_import_cancelled': {'label': 'Bulk Import Cancelled',  'icon': 'ph-x-circle'},
     'rate_limit_exceeded': {'label': 'Rate Limited',            'icon': 'ph-gauge'},
     'server_error':        {'label': 'Server Error',            'icon': 'ph-warning-octagon'},
     'unexpected_server_error': {'label': 'Server Error',        'icon': 'ph-warning-octagon'},
@@ -120,7 +126,9 @@ SECURITY_ACTIONS = {
 }
 ADMIN_ACTIONS = {
     'create', 'update', 'delete', 'status_change',
-    'file_upload', 'file_delete', 'refund',
+    'file_upload', 'file_delete', 'refund', 'bulk_import_started',
+    'bulk_import_validated', 'bulk_import_confirmed', 'bulk_import_completed',
+    'bulk_import_failed', 'bulk_import_cancelled',
 }
 ERROR_ACTIONS = {
     'server_error', 'unexpected_server_error', 'payment_failed',
@@ -128,7 +136,7 @@ ERROR_ACTIONS = {
     'checkout_failed', 'order_creation_failed', 'cart_add_failed',
     'cart_update_failed', 'login_failed', 'registration_failed',
     'rate_limit_exceeded', 'permission_denied', 'access_denied',
-    'receipt_generation_failed', 'receipt_email_failed',
+    'receipt_generation_failed', 'receipt_email_failed', 'bulk_import_failed',
 }
 SUCCESS_ACTIONS = {
     'create', 'payment_success', 'payment_initiated', 'login', 'signup',
@@ -136,7 +144,7 @@ SUCCESS_ACTIONS = {
     'order_confirmed', 'order_received', 'cart_item_added', 'review_submitted',
     'support_message_submitted', 'profile_updated', 'password_updated',
     'wishlist_item_added', 'receipt_generated', 'receipt_regenerated',
-    'receipt_email_sent',
+    'receipt_email_sent', 'bulk_import_completed',
 }
 
 RESOURCE_TYPE_LABELS = {
@@ -145,7 +153,7 @@ RESOURCE_TYPE_LABELS = {
     'payment': 'Payment', 'payment_intent': 'Payment',
     'inventory': 'Inventory', 'category': 'Category', 'cart': 'Cart',
     'file': 'File', 'review': 'Review', 'wishlist': 'Wishlist',
-    'product_variant': 'Product Variant',
+    'product_variant': 'Product Variant', 'import_job': 'Bulk Import Job',
 }
 
 RANGE_CHOICES = (

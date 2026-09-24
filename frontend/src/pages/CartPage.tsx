@@ -6,21 +6,31 @@ import { useRouter } from '../router/RouterContext';
 import { setPostAuthDestination } from '../utils/postAuthRedirect';
 import { QuantitySelector } from '../components/ui/QuantitySelector';
 import { Price } from '../components/ui/Price';
-import { Button } from '../components/ui/Button';
 import { ProductImage } from '../components/ui/ProductImage';
-import { ShoppingBag, Trash2, ArrowRight, ShieldCheck, Truck, ArrowLeft, Tag, Lock, X } from 'lucide-react';
-import { EmptyState } from '../components/ui/EmptyState';
+import { Badge } from '../components/modeza/Badge';
+import { Button } from '../components/modeza/Button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/modeza/Card';
+import { Input } from '../components/modeza/Input';
+import { Progress } from '../components/modeza/Progress';
 import {
-  formatPrice,
-  FREE_SHIPPING_THRESHOLD,
-  STANDARD_SHIPPING_COST,
-  VAT_RATE,
-} from '../utils/currency';
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Lock,
+  ShieldCheck,
+  ShoppingBag,
+  Tag,
+  Trash2,
+  Truck,
+  X,
+} from 'lucide-react';
+import { formatPrice, FREE_SHIPPING_THRESHOLD } from '../utils/currency';
 import { motion } from 'motion/react';
 
 export const CartPage: React.FC = () => {
   const {
     cart,
+    isLoading,
     updateQuantity,
     removeFromCart,
     clearCart,
@@ -37,6 +47,9 @@ export const CartPage: React.FC = () => {
   const { navigate } = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
   const { getProductById } = useStore();
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [promoMsg, setPromoMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [orderNote, setOrderNote] = useState('');
 
   const goToProduct = (productId: string) => {
     const product = getProductById(productId);
@@ -53,345 +66,374 @@ export const CartPage: React.FC = () => {
     navigate('/checkout');
   };
 
-  const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [promoMsg, setPromoMsg] = useState<{ text: string; isError: boolean } | null>(null);
-  const [orderNote, setOrderNote] = useState('');
-
   const handleApplyPromo = (e: React.FormEvent) => {
     e.preventDefault();
     setPromoMsg(null);
     if (!promoCodeInput.trim()) return;
 
-    const res = applyPromoCode(promoCodeInput.trim());
-    if (res.success) {
-      setPromoMsg({ text: res.message, isError: false });
+    const result = applyPromoCode(promoCodeInput.trim());
+    if (result.success) {
+      setPromoMsg({ text: result.message, isError: false });
       setPromoCodeInput('');
     } else {
-      setPromoMsg({ text: res.message, isError: true });
+      setPromoMsg({ text: result.message, isError: true });
     }
   };
 
   const isFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
-  const progressPercent = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const progressPercent = Math.min(100, Math.max(0, (subtotal / FREE_SHIPPING_THRESHOLD) * 100));
+  const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+  const checkoutDisabled = isLoading || isAuthLoading;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 pb-28 lg:pb-0 2xl:max-w-[88rem]">
-      {/* Header */}
-      <div className="border-b border-[#E8E5DF] pb-6">
-        <nav className="text-xs text-[#827E77] flex items-center gap-2 mb-3" aria-label="Breadcrumb">
-          <button onClick={() => navigate('/')} className="hover:text-[#181716] transition-colors">
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 pb-28 sm:px-6 sm:py-12 lg:px-8 lg:pb-0 2xl:max-w-[88rem]">
+      <header className="border-b border-[#E8E5DF] pb-6">
+        <nav className="mb-3 flex items-center gap-2 text-xs text-[#827E77]" aria-label="Breadcrumb">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="rounded transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+          >
             Home
           </button>
-          <span>/</span>
-          <span className="text-[#181716] font-medium">Cart</span>
-        </nav>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="font-serif text-3xl sm:text-4xl text-[#181716] font-normal tracking-tight">
-            Your Cart
-          </h1>
-          <span className="flex items-center gap-2 text-xs text-[#827E77] uppercase tracking-wider font-semibold bg-[#FAF9F6] border border-[#E8E5DF] px-3 py-1.5 rounded-full">
-            <ShoppingBag className="w-3.5 h-3.5 text-[#A2574F]" />
-            {cartCount} {cartCount === 1 ? 'Piece' : 'Pieces'}
+          <span aria-hidden="true">/</span>
+          <span className="font-medium text-[#181716]" aria-current="page">
+            Cart
           </span>
+        </nav>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
+              Your selection
+            </p>
+            <h1 className="font-serif text-3xl font-normal tracking-tight text-[#181716] sm:text-4xl">
+              Your cart
+            </h1>
+          </div>
+          <Badge variant="outline" size="lg" className="gap-2">
+            <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>
+              {cartCount} {cartCount === 1 ? 'piece' : 'pieces'}
+            </span>
+          </Badge>
         </div>
-      </div>
+      </header>
 
-      {cart.length === 0 ? (
-        /* Empty Cart State */
+      {isLoading && cart.length === 0 ? (
+        <Card className="mx-auto max-w-2xl border-[#E8E5DF] p-8 text-center shadow-sm sm:p-12" aria-busy="true">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E5DF] bg-[#FAF9F6] text-[#A2574F]">
+            <ShoppingBag className="h-7 w-7 animate-pulse" strokeWidth={1.5} aria-hidden="true" />
+          </div>
+          <p className="mb-2 font-serif text-2xl text-[#181716]">Updating your selection</p>
+          <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-[#63605A]">
+            We are syncing your bag with the latest availability and pricing.
+          </p>
+          <Progress value={55} className="mx-auto max-w-xs" aria-label="Loading your cart" />
+        </Card>
+      ) : cart.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          className="py-20 text-center bg-[#FFFFFF] border border-[#E8E5DF] rounded-3xl p-10 max-w-2xl mx-auto shadow-sm"
         >
-          <div className="w-16 h-16 rounded-full bg-[#FAF9F6] border border-[#E8E5DF] flex items-center justify-center mx-auto text-[#A2574F] mb-5">
-            <ShoppingBag className="w-7 h-7 stroke-[1.5]" />
-          </div>
-          <h2 className="font-serif text-2xl text-[#181716] mb-2">Your cart is empty</h2>
-          <p className="text-sm text-[#63605A] max-w-md mx-auto leading-relaxed mb-6">
-            Take your time browsing our trans-seasonal collection of organic silk, tailoring, and
-            artisanal accessories.
-          </p>
-          <Button variant="primary" size="lg" onClick={() => navigate('/shop')} className="gap-2">
-            <span>Discover The Collection</span>
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+          <Card className="mx-auto max-w-2xl border-[#E8E5DF] p-8 text-center shadow-sm sm:p-12">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E5DF] bg-[#FAF9F6] text-[#A2574F]">
+              <ShoppingBag className="h-7 w-7" strokeWidth={1.5} aria-hidden="true" />
+            </div>
+            <Badge variant="default" size="sm" className="mb-4">Nothing here yet</Badge>
+            <h2 className="mb-2 font-serif text-2xl text-[#181716]">Your cart is empty</h2>
+            <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-[#63605A]">
+              Take your time browsing our trans-seasonal collection of organic silk, tailoring, and artisanal accessories.
+            </p>
+            <Button type="button" variant="primary" size="lg" onClick={() => navigate('/shop')} className="gap-2">
+              <span>Discover the collection</span>
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </Card>
         </motion.div>
       ) : (
         <>
-          {/* Populated Cart Layout (Grid: Items Table + Summary Sidebar) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          {/* Cart Items List (Col 8) */}
-          <div className="lg:col-span-8 space-y-4">
-            {/* Free shipping banner with progress bar */}
-            <div className="p-5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-2xl text-xs shadow-sm">
-              <div className="flex items-center justify-between gap-4 mb-3">
-                <div className="flex items-center gap-2.5 text-[#63605A]">
-                  <div className="w-9 h-9 rounded-xl bg-white border border-[#E8E5DF] flex items-center justify-center text-[#A2574F] flex-shrink-0">
-                    <Truck className="w-4.5 h-4.5" strokeWidth={1.5} />
-                  </div>
-                  {isFreeShipping ? (
-                    <span className="text-[#2E5A44] font-medium">
-                      Complimentary express dispatch applied to your order.
-                    </span>
-                  ) : (
-                    <span className="text-pretty">
-                      Add <strong className="text-[#181716]">{formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)}</strong> more for complimentary delivery.
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={clearCart}
-                  className="text-[11px] text-[#827E77] hover:text-[#9E332B] transition-colors underline flex items-center gap-1 flex-shrink-0"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Clear Cart
-                </button>
-              </div>
-              {/* Progress bar */}
-              <div className="h-1.5 bg-[#E8E5DF] rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPercent}%` }}
-                  transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                  className={`h-full rounded-full ${
-                    isFreeShipping
-                      ? 'bg-gradient-to-r from-[#2E5A44] to-[#2E5A44]/60'
-                      : 'bg-gradient-to-r from-[#E68057] to-[#A2574F]'
-                  }`}
-                />
-              </div>
-              {!isFreeShipping && (
-                <p className="text-[10px] text-[#827E77] mt-2">
-                  Free shipping at {formatPrice(FREE_SHIPPING_THRESHOLD)} &bull; {Math.round(progressPercent)}% there
-                </p>
-              )}
-            </div>
-
-            {/* List of items */}
-            <div className="bg-[#FFFFFF] border border-[#E8E5DF] rounded-2xl overflow-hidden divide-y divide-[#F3F1ED] shadow-sm">
-              {cart.map((item) => (
-                <motion.div
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between hover:bg-[#FAF9F6] transition-colors group"
-                >
-                  {/* Item Image + Details */}
-                  <div className="flex gap-4 items-start sm:items-center flex-1 min-w-0">
-                    <div
-                      className="w-20 h-26 rounded-xl overflow-hidden bg-[#F4ECE9] shrink-0 cursor-pointer shadow-sm group-hover:shadow-md transition-shadow"
-                      onClick={() => goToProduct(item.productId)}
-                    >
-                      <ProductImage
-                        src={item.image}
-                        alt={item.name}
-                        className="h-full w-full"
-                        imgClassName="transition-transform duration-300 group-hover:scale-105"
-                      />
+          <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-10">
+            <section className="space-y-4 lg:col-span-8" aria-labelledby="cart-items-heading">
+              <Card className="overflow-hidden border-[#E8E5DF] bg-[#FAF9F6] shadow-sm">
+                <CardHeader className="flex-row items-center justify-between gap-4 p-5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#E8E5DF] bg-white text-[#A2574F]">
+                      <Truck className="h-4.5 w-4.5" strokeWidth={1.5} aria-hidden="true" />
                     </div>
-                    <div className="space-y-1.5 min-w-0">
-                      <h3
-                        className="font-serif text-base text-[#181716] font-medium cursor-pointer hover:text-[#A2574F] transition-colors truncate"
-                        onClick={() => goToProduct(item.productId)}
-                      >
-                        {item.name}
-                      </h3>
-                      <p className="text-xs text-[#827E77] tracking-wider uppercase">
-                        {item.color} &bull; Size {item.size}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#181716]">
+                        {isFreeShipping ? 'Complimentary delivery unlocked' : `${formatPrice(remainingForFreeShipping)} away from complimentary delivery`}
                       </p>
-                      <div className="sm:hidden pt-1">
-                        <Price amount={item.price} size="sm" />
-                      </div>
+                      <p className="mt-0.5 text-xs text-[#827E77]">
+                        {isFreeShipping ? 'Your order qualifies for complimentary delivery.' : `Complimentary delivery starts at ${formatPrice(FREE_SHIPPING_THRESHOLD)}.`}
+                      </p>
                     </div>
                   </div>
-
-                  {/* Quantity and Line Total */}
-                  <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-[#F3F1ED]">
-                    <QuantitySelector
-                      quantity={item.quantity}
-                      max={item.maxStock}
-                      size="sm"
-                      onChange={(q) => updateQuantity(item.id, q)}
-                    />
-
-                    <div className="text-right min-w-[90px]">
-                      <Price amount={item.price * item.quantity} size="md" />
-                      {item.quantity > 1 && (
-                        <p className="text-[10px] text-[#827E77] mt-0.5">
-                          {formatPrice(item.price)} each
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.id)}
-                      className="p-2 text-[#A29E96] hover:text-[#9E332B] transition-all hover:bg-[#FDF2F2] rounded-full"
-                      title="Remove piece"
-                      aria-label={`Remove ${item.name}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                    onClick={() => void clearCart()}
+                    className="shrink-0 gap-1.5 text-[#827E77] hover:text-[#9E332B]"
+                    aria-label="Clear all items from cart"
+                  >
+                    {!isLoading && <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {!isLoading && <span>Clear cart</span>}
+                  </Button>
+                </CardHeader>
+                <CardContent className="px-5 pb-5 pt-0 sm:px-6 sm:pb-6">
+                  <Progress value={progressPercent} className="h-1.5" aria-label="Progress toward complimentary delivery" />
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-[#827E77]">
+                    <span>{isFreeShipping ? 'Delivery benefit applied' : 'Free delivery threshold'}</span>
+                    <span className="font-semibold text-[#63605A]">{isFreeShipping ? 'Complete' : `${Math.round(progressPercent)}%`}</span>
                   </div>
-                </motion.div>
-              ))}
-            </div>
+                </CardContent>
+              </Card>
 
-            {/* Order notes & Continued shopping */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => navigate('/shop')}
-                className="text-xs font-semibold text-[#181716] hover:text-[#A2574F] flex items-center gap-2 transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Continue Shopping</span>
-              </button>
+              <Card className="overflow-hidden" aria-labelledby="cart-items-heading">
+                <CardHeader className="flex-row items-center justify-between gap-3 p-5 sm:p-6">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">Your edit</p>
+                    <CardTitle id="cart-items-heading" className="mt-1 text-lg">Selected pieces</CardTitle>
+                  </div>
+                  <Badge variant="secondary" size="sm">{cartCount} total</Badge>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-[#F3F1ED]">
+                    {cart.map((item) => (
+                      <motion.div
+                        key={item.id}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                        className="group flex flex-col gap-4 p-4 transition-colors hover:bg-[#FAF9F6] sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                      >
+                        <div className="flex min-w-0 flex-1 items-start gap-4 sm:items-center">
+                          <button
+                            type="button"
+                            onClick={() => goToProduct(item.productId)}
+                            className="h-24 w-20 shrink-0 overflow-hidden rounded-xl bg-[#F4ECE9] shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
+                            aria-label={`View ${item.name}`}
+                          >
+                            <ProductImage
+                              src={item.image}
+                              alt={item.name}
+                              className="h-full w-full"
+                              imgClassName="transition-transform duration-300 group-hover:scale-105"
+                            />
+                          </button>
+                          <div className="min-w-0 space-y-1.5">
+                            <h3 className="min-w-0 truncate font-serif text-base font-medium text-[#181716]">
+                              <button
+                                type="button"
+                                onClick={() => goToProduct(item.productId)}
+                                className="text-left transition-colors hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
+                              >
+                                {item.name}
+                              </button>
+                            </h3>
+                            <p className="text-xs uppercase tracking-wider text-[#827E77]">
+                              {item.color} <span aria-hidden="true">•</span> Size {item.size}
+                            </p>
+                            <div className="pt-1 sm:hidden">
+                              <Price amount={item.price} size="sm" />
+                            </div>
+                          </div>
+                        </div>
 
-              <div className="w-full sm:w-80">
-                <label htmlFor="order-note" className="sr-only">Order note</label>
-                <input
-                  id="order-note"
-                  type="text"
-                  placeholder="MODEZA packaging / gift note instructions..."
-                  value={orderNote}
-                  onChange={(e) => setOrderNote(e.target.value)}
-                  className="w-full text-xs px-4 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
-                />
+                        <div className="flex w-full items-center justify-between gap-4 border-t border-[#F3F1ED] pt-3 sm:w-auto sm:justify-end sm:border-t-0 sm:pt-0">
+                          <QuantitySelector
+                            quantity={item.quantity}
+                            max={item.maxStock}
+                            size="sm"
+                            disabled={isLoading}
+                            onChange={(quantity) => void updateQuantity(item.id, quantity)}
+                          />
+                          <div className="min-w-[90px] text-right">
+                            <Price amount={item.price * item.quantity} size="md" />
+                            {item.quantity > 1 && (
+                              <p className="mt-0.5 text-[10px] text-[#827E77]">{formatPrice(item.price)} each</p>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={isLoading}
+                            onClick={() => void removeFromCart(item.id)}
+                            className="h-8 w-8 shrink-0 text-[#A29E96] hover:bg-[#FDF2F2] hover:text-[#9E332B]"
+                            title="Remove piece"
+                            aria-label={`Remove ${item.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex flex-col items-start gap-4 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/shop')} className="gap-2 px-0 text-[#181716] hover:bg-transparent hover:text-[#A2574F]">
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Continue shopping</span>
+                </Button>
+                <div className="w-full sm:max-w-sm">
+                  <Input
+                    id="order-note"
+                    name="order-note"
+                    label="Order note (optional)"
+                    placeholder="MODEZA packaging / gift note instructions..."
+                    value={orderNote}
+                    onChange={(event) => setOrderNote(event.target.value)}
+                    className="text-xs"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
+            </section>
 
-          {/* Order Summary Box (Col 4) */}
-          <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-            <div className="bg-[#FFFFFF] border border-[#E8E5DF] rounded-3xl p-6 sm:p-7 space-y-6 shadow-xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/20 to-transparent" />
-              <h3 className="font-serif text-lg text-[#181716] font-medium border-b border-[#F3F1ED] pb-4 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#A2574F]" />
-                Order Summary
-              </h3>
-
-              {/* Promo code form */}
-              <form onSubmit={handleApplyPromo} className="space-y-3">
-                <label className="text-xs text-[#63605A] block" htmlFor="promo-code">
-                  Promotional Voucher
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Tag className="w-3.5 h-3.5 text-[#827E77] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
+            <aside className="space-y-4 lg:col-span-4 lg:sticky lg:top-24" aria-labelledby="cart-summary-heading">
+              <Card className="relative overflow-hidden rounded-3xl shadow-xl">
+                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#A2574F]/25 to-transparent" />
+                <CardHeader className="flex-row items-start justify-between gap-3 p-5 pb-5 sm:p-7 sm:pb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F7ECEA] text-[#A2574F]">
+                      <Lock className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">Almost there</p>
+                      <CardTitle id="cart-summary-heading" className="mt-1 text-lg">Order summary</CardTitle>
+                    </div>
+                  </div>
+                  <Badge variant="success" size="sm" className="gap-1">
+                    <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                    Secure
+                  </Badge>
+                </CardHeader>
+                <CardContent className="space-y-6 p-5 pt-0 sm:p-7 sm:pt-0">
+                  <form onSubmit={handleApplyPromo} className="space-y-3" aria-label="Promotional voucher">
+                    <Input
                       id="promo-code"
-                      type="text"
+                      name="promo-code"
+                      label="Promo code"
                       placeholder="e.g. MODEZA10, KARIBU500"
                       value={promoCodeInput}
-                      onChange={(e) => setPromoCodeInput(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2.5 bg-[#FAF9F6] border border-[#E8E5DF] rounded-xl text-xs uppercase text-[#181716] placeholder-[#A29E96] focus:outline-none focus:border-[#A2574F] focus:ring-2 focus:ring-[#A2574F]/20 transition-all"
+                      onChange={(event) => setPromoCodeInput(event.target.value)}
+                      icon={<Tag className="h-3.5 w-3.5" aria-hidden="true" />}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="pl-10 text-xs uppercase"
                     />
-                  </div>
-                  <Button variant="secondary" size="sm" type="submit">
-                    Apply
+                    <Button type="submit" variant="secondary" size="sm" disabled={!promoCodeInput.trim()} className="w-full sm:w-auto">
+                      Apply code
+                    </Button>
+                    {promoMsg && (
+                      <Badge
+                        variant={promoMsg.isError ? 'destructive' : 'success'}
+                        size="sm"
+                        role={promoMsg.isError ? 'alert' : 'status'}
+                        className="w-full justify-start gap-1.5 normal-case tracking-normal"
+                      >
+                        {promoMsg.isError ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                        <span className="truncate">{promoMsg.text}</span>
+                      </Badge>
+                    )}
+                    {appliedPromo && !promoMsg && (
+                      <div className="flex items-center justify-between gap-2 rounded-xl bg-[#E8EFEA] px-3 py-2 text-xs font-medium text-[#2E5A44]">
+                        <Badge variant="success" size="sm" className="gap-1.5">
+                          <Tag className="h-3 w-3" aria-hidden="true" />
+                          {appliedPromo.code} applied
+                        </Badge>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={removePromoCode}
+                          className="h-6 w-6 shrink-0 text-[#9E332B] hover:bg-[#FDF2F2]"
+                          aria-label={`Remove promo code ${appliedPromo.code}`}
+                        >
+                          <X className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    )}
+                  </form>
+
+                  <dl className="space-y-3 border-t border-[#F3F1ED] pt-4 text-xs text-[#63605A]">
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Cart subtotal</dt>
+                      <dd className="font-medium text-[#181716]">{formatPrice(subtotal)}</dd>
+                    </div>
+                    {appliedPromo && (
+                      <div className="flex items-center justify-between gap-4 text-[#2E5A44]">
+                        <dt>Privilege ({appliedPromo.code})</dt>
+                        <dd className="font-medium">-{formatPrice(discountAmount)}</dd>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Estimated shipping</dt>
+                      <dd className="font-medium text-[#181716]">
+                        {estimatedShipping === 0 ? 'Complimentary' : formatPrice(estimatedShipping)}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <dt>Estimated VAT (16%)</dt>
+                      <dd className="font-medium text-[#181716]">{formatPrice(estimatedTax)}</dd>
+                    </div>
+                    <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-[#F3F1ED] pt-3 text-base font-medium text-[#181716]">
+                      <dt className="font-serif">Estimated total</dt>
+                      <dd className="font-serif text-xl">{formatPrice(estimatedTotal)}</dd>
+                    </div>
+                  </dl>
+                </CardContent>
+                <CardFooter className="block space-y-3 border-t border-[#F3F1ED] p-5 pt-5 sm:p-7 sm:pt-5">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="lg"
+                    fullWidth
+                    disabled={checkoutDisabled}
+                    isLoading={isAuthLoading}
+                    onClick={goToCheckout}
+                    className="gap-2"
+                    aria-busy={isAuthLoading || isLoading}
+                  >
+                    {!isAuthLoading && <span>Proceed to checkout</span>}
+                    {!isAuthLoading && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
                   </Button>
-                </div>
-
-                {promoMsg && (
-                  <p className={`text-[11px] font-medium flex items-center gap-1.5 px-3 py-2 rounded-lg ${promoMsg.isError ? 'text-[#9B1C1C] bg-[#FDF2F2]' : 'text-[#2E5A44] bg-[#E8EFEA]'}`}>
-                    <span>{promoMsg.isError ? '✕' : '✓'}</span> 
-                    <span className="truncate">{promoMsg.text}</span>
-                  </p>
-                )}
-
-                {appliedPromo && !promoMsg && (
-                  <div className="flex items-center justify-between text-[11px] text-[#2E5A44] font-medium bg-[#E8EFEA] px-3 py-2 rounded-lg">
-                    <span className="flex items-center gap-1.5">
-                      <Tag className="w-3 h-3" />
-                      {appliedPromo.code} applied
-                    </span>
-                    <button
-                      type="button"
-                      onClick={removePromoCode}
-                      className="text-[#9B1C1C] hover:underline ml-2 p-1 rounded-full hover:bg-[#FDF2F2] transition-colors"
-                      aria-label="Remove promo code"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="flex items-center justify-center gap-2 pt-1 text-[11px] text-[#827E77]">
+                    <ShieldCheck className="h-3.5 w-3.5 text-[#A2574F]" aria-hidden="true" />
+                    <span>256-bit SSL encrypted transaction</span>
                   </div>
-                )}
-              </form>
+                </CardFooter>
+              </Card>
+            </aside>
+          </div>
 
-              {/* Price Calculations */}
-              <div className="space-y-3 text-xs text-[#63605A] border-t border-[#F3F1ED] pt-4">
-                <div className="flex justify-between">
-                  <span>Cart Subtotal</span>
-                  <span className="text-[#181716] font-medium">{formatPrice(subtotal)}</span>
-                </div>
-
-                {appliedPromo && (
-                  <div className="flex justify-between text-[#2E5A44]">
-                    <span>Privilege ({appliedPromo.code})</span>
-                    <span className="font-medium">-{formatPrice(discountAmount)}</span>
-                  </div>
-                )}
-
-                <div className="flex justify-between">
-                  <span>Estimated Shipping</span>
-                  <span className="text-[#181716] font-medium">
-                    {estimatedShipping === 0 ? 'Complimentary' : formatPrice(estimatedShipping)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Estimated VAT (16%)</span>
-                  <span className="text-[#181716] font-medium">{formatPrice(estimatedTax)}</span>
-                </div>
-
-                <div className="flex justify-between items-baseline text-base text-[#181716] font-serif font-medium border-t border-[#F3F1ED] pt-3.5 mt-3">
-                  <span>Estimated Total</span>
-                  <span className="text-xl">{formatPrice(estimatedTotal)}</span>
-                </div>
+          <div className="fixed inset-x-0 bottom-0 z-[300] border-t border-[#E8E5DF] bg-white/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_20px_rgb(24_23_22/0.06)] backdrop-blur lg:hidden" role="region" aria-label="Mobile order total">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 shrink-0">
+                <p className="text-[10px] uppercase tracking-wider text-[#827E77]">Estimated total</p>
+                <p className="font-serif text-lg leading-tight text-[#181716]">{formatPrice(estimatedTotal)}</p>
               </div>
-
-              {/* Checkout CTA */}
-              <div className="space-y-3 pt-2">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  onClick={() => goToCheckout()}
-                  className="w-full gap-2 uppercase tracking-wider text-xs shadow-md hover:shadow-lg"
-                >
-                  <span>Proceed to Checkout</span>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-
-                <div className="flex items-center justify-center gap-2 text-[11px] text-[#827E77] pt-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#A2574F]" />
-                  <span>256-Bit SSL Encrypted Transaction</span>
-                </div>
-              </div>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={checkoutDisabled}
+                isLoading={isAuthLoading}
+                onClick={goToCheckout}
+                className="min-w-0 flex-1 gap-1.5 text-xs"
+                aria-busy={isAuthLoading || isLoading}
+              >
+                {!isAuthLoading && <span>Proceed to checkout</span>}
+                {!isAuthLoading && <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />}
+              </Button>
             </div>
           </div>
-        </div>
-
-        {/* Mobile sticky checkout bar (lg:hidden) */}
-        <div className="lg:hidden fixed inset-x-0 bottom-0 z-[300] border-t border-[#E8E5DF] bg-white/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur shadow-[0_-4px_20px_rgb(24_23_22/0.06)]">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 shrink-0">
-              <p className="text-[10px] uppercase tracking-wider text-[#827E77]">Estimated Total</p>
-              <p className="font-serif text-lg text-[#181716] leading-tight">{formatPrice(estimatedTotal)}</p>
-            </div>
-            <Button
-              variant="primary"
-              onClick={() => goToCheckout()}
-              className="flex-1 uppercase tracking-wider text-xs gap-1.5"
-            >
-              <span>Proceed to Checkout</span>
-              <ArrowRight className="w-4 h-4 shrink-0" />
-            </Button>
-          </div>
-        </div>
         </>
       )}
     </div>

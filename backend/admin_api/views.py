@@ -1,18 +1,24 @@
+import logging
+
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsStaffOrAdmin
 from access_control.drf_permissions import AdminPermission
 from admin_ui.models import AdminNotification
 from audit.services import AuditLogService
-from catalog.models import Category, Product, ProductVariant
+from catalog.bulk_import import BulkImportError, BulkProductImportService, job_data
+from catalog.models import Category, ImportJob, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
+from catalog.services import BulkImportTemplateService
 from inventory.services import adjust_stock, expire_reservations
 
 from .serializers import CategoryWriteSerializer, ProductWriteSerializer, StockAdjustmentSerializer
 from .services import create_product, update_product
+
+logger = logging.getLogger('admin_api.views')
 
 
 def _notification_data(notification):
@@ -247,3 +253,208 @@ def product_to_input(product):
         'status': product.status, 'isFeatured': product.is_featured, 'isNewArrival': product.is_new_arrival,
         'isBestSeller': product.is_best_seller,
     }
+
+
+def _bulk_error(message, code='BULK_IMPORT_ERROR', status=400):
+    return Response({'error': {'code': code, 'message': str(message)}}, status=status)
+
+
+def _import_status(value):
+    normalized = str(value or '').strip().upper()
+    if normalized in ('PUBLISHED', 'ACTIVE'):
+        return Product.Status.ACTIVE
+    if normalized in ('', 'DRAFT'):
+        return Product.Status.DRAFT
+    raise BulkImportError('Choose Draft or Published for the import status.')
+
+
+class BulkImportUploadView(AdminAPIView):
+    required_permissions = ['products.import']
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        uploaded_file = request.FILES.get('file') or request.FILES.get('package')
+        if uploaded_file is None:
+            return _bulk_error('Choose a ZIP package to upload.')
+        try:
+            status = _import_status(request.data.get('status') or request.data.get('import_status'))
+            job = BulkProductImportService.create_job(
+                uploaded_file, request.user, import_status=status)
+        except BulkImportError as exc:
+            return _bulk_error(exc)
+        except Exception:
+            logger.exception('Bulk import upload failed')
+            return _bulk_error('The package could not be uploaded. Please try again.', 'BULK_IMPORT_UPLOAD_FAILED', 500)
+        return Response(job_data(job), 201)
+
+
+class BulkImportValidateView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def post(self, request, job_id):
+        job = get_object_or_404(ImportJob, pk=job_id)
+        try:
+            job = BulkProductImportService.validate(job, actor=request.user)
+        except BulkImportError as exc:
+            return _bulk_error(exc)
+        except Exception:
+            logger.exception('Bulk import validation failed for job %s', job_id)
+            return _bulk_error('The package could not be validated. Please try again.', 'BULK_IMPORT_VALIDATION_FAILED', 500)
+        return Response(job_data(job))
+
+
+class BulkImportPreviewView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def get(self, request, job_id):
+        job = get_object_or_404(ImportJob, pk=job_id)
+        return Response({
+            'job': job_data(job),
+            'preview': job.validation_results,
+        })
+
+
+class BulkImportConfirmView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def post(self, request, job_id):
+        job = get_object_or_404(ImportJob, pk=job_id)
+        try:
+            requested_status = request.data.get('import_status') or request.data.get('status')
+            if requested_status:
+                job.import_status = _import_status(requested_status)
+                job.save(update_fields=['import_status', 'updated_at'])
+            job = BulkProductImportService.confirm(job, actor=request.user)
+        except BulkImportError as exc:
+            return _bulk_error(exc)
+        except Exception:
+            logger.exception('Bulk import confirmation failed for job %s', job_id)
+            return _bulk_error('The import could not be started. Please try again.', 'BULK_IMPORT_CONFIRM_FAILED', 500)
+        return Response(job_data(job), 202)
+
+
+class BulkImportProcessView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def post(self, request, job_id):
+        job = get_object_or_404(ImportJob, pk=job_id)
+        try:
+            job, finished = BulkProductImportService.process_chunk(
+                job, limit=request.data.get('limit', 10), actor=request.user)
+        except BulkImportError as exc:
+            return _bulk_error(exc)
+        except Exception:
+            logger.exception('Bulk import processing failed for job %s', job_id)
+            return _bulk_error('The import could not continue. Please retry the job.', 'BULK_IMPORT_PROCESS_FAILED', 500)
+        payload = job_data(job)
+        payload['finished'] = finished
+        return Response(payload)
+
+
+class BulkImportStatusView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def get(self, request, job_id):
+        return Response(job_data(get_object_or_404(ImportJob, pk=job_id)))
+
+
+class BulkImportCancelView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def post(self, request, job_id):
+        job = get_object_or_404(ImportJob, pk=job_id)
+        try:
+            job = BulkProductImportService.cancel(job, actor=request.user)
+        except BulkImportError as exc:
+            return _bulk_error(exc)
+        return Response(job_data(job))
+
+
+class BulkImportTemplateView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def get(self, request):
+        from django.http import HttpResponse
+        xlsx_bytes = BulkImportTemplateService.to_bytes()
+        response = HttpResponse(
+            xlsx_bytes,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="modeza_bulk_import_template.xlsx"'
+        return response
+
+
+class BulkImportHistoryView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def get(self, request):
+        from django.core.paginator import Paginator
+        try:
+            page = max(int(request.GET.get('page', 1)), 1)
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            page_size = min(max(int(request.GET.get('page_size', 20)), 1), 100)
+        except (TypeError, ValueError):
+            page_size = 20
+
+        jobs = ImportJob.objects.select_related('uploaded_by').all()
+
+        paginator = Paginator(jobs, page_size)
+        page_obj = paginator.get_page(page)
+
+        results = []
+        for job in page_obj:
+            results.append({
+                'id': str(job.id),
+                'filename': job.filename,
+                'status': job.status,
+                'uploaded_by': job.uploaded_by.email if job.uploaded_by else 'Unknown',
+                'created_at': job.created_at.isoformat(),
+                'started_at': job.started_at.isoformat() if job.started_at else None,
+                'completed_at': job.completed_at.isoformat() if job.completed_at else None,
+                'products_created': job.created_products,
+                'products_updated': job.updated_products,
+                'variants_created': job.created_variants,
+                'variants_updated': job.updated_variants,
+                'images_uploaded': job.uploaded_images,
+                'error_count': job.error_count,
+                'warning_count': job.warning_count,
+            })
+
+        return Response({
+            'count': paginator.count,
+            'num_pages': paginator.num_pages,
+            'current_page': page_obj.number,
+            'results': results,
+        })
+
+
+class BulkImportReportView(AdminAPIView):
+    required_permissions = ['products.import']
+
+    def get(self, request, job_id):
+        job = get_object_or_404(ImportJob, pk=job_id)
+
+        return Response({
+            'id': str(job.id),
+            'filename': job.filename,
+            'status': job.status,
+            'uploaded_by': job.uploaded_by.email if job.uploaded_by else 'Unknown',
+            'import_status': job.import_status,
+            'created_at': job.created_at.isoformat(),
+            'started_at': job.started_at.isoformat() if job.started_at else None,
+            'completed_at': job.completed_at.isoformat() if job.completed_at else None,
+            'summary': {
+                'products_created': job.created_products,
+                'products_updated': job.updated_products,
+                'variants_created': job.created_variants,
+                'variants_updated': job.updated_variants,
+                'images_uploaded': job.uploaded_images,
+                'error_count': job.error_count,
+                'warning_count': job.warning_count,
+            },
+            'validation_results': job.validation_results,
+            'import_results': job.import_results,
+            'error_details': job.error_details,
+        })
