@@ -8,11 +8,13 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Menu,
   Package,
   Phone,
   ShieldCheck,
   Truck,
   UserRound,
+  X,
 } from 'lucide-react';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +27,7 @@ import { AccountNotificationsPage } from './AccountNotificationsPage';
 import { AccountProfilePage } from './AccountProfilePage';
 import { AccountAddressesPage } from './AccountAddressesPage';
 import { AccountSecurityPage } from './AccountSecurityPage';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface NavigationItem {
   label: string;
@@ -71,6 +74,7 @@ export const AccountPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -249,37 +253,32 @@ export const AccountPage: React.FC = () => {
   const userEmail = user.email || user.user_metadata?.email || '';
   const initials = (firstName.charAt(0) + (user.user_metadata?.full_name?.split(' ')[1]?.charAt(0) || '')).toUpperCase() || userEmail.charAt(0).toUpperCase();
 
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  const navigateAndCloseMobile = (path: string) => {
+    navigate(path);
+    closeMobileMenu();
+  };
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8">
-        {/* Sidebar */}
-        <aside className="self-start lg:sticky lg:top-24 lg:col-span-1">
-          {/* Mobile nav */}
-          <div className="lg:hidden">
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar" role="tablist" aria-label="Account sections">
-              {FLAT_NAV.map(({ label, href, icon }) => {
-                const active = route.path === href;
-                return (
-                  <button
-                    key={href}
-                    type="button"
-                    onClick={() => navigate(href)}
-                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] transition min-w-[120px] justify-center ${
-                      active
-                        ? 'border-[#A2574F] bg-[#A2574F] text-[#FAF9F6]'
-                        : 'border-[#E8E5DF] bg-white text-[#63605A] hover:text-[#181716]'
-                    }`}
-                  >
-                    <span className={active ? 'text-[#FAF9F6]' : 'text-[#A2574F]'}>{icon}</span>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      {/* Mobile navigation button - only visible on mobile */}
+      <div className="lg:hidden mb-4">
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#E8E5DF] bg-white px-4 py-3 text-left text-sm transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#63605A]">Account Menu</span>
+          <Menu className="h-5 w-5 text-[#A2574F]" />
+        </button>
+      </div>
 
-          {/* Desktop card */}
-          <div className="hidden overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white shadow-xs lg:block">
+      {/* Desktop layout - grid only on lg+ */}
+      <div className="hidden lg:grid lg:gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
+        {/* Desktop Sidebar */}
+        <aside className="self-start lg:sticky lg:top-24 lg:col-span-1">
+          <div className="overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white shadow-xs">
             <div className="flex items-center gap-3.5 border-b border-[#F3F1ED] bg-[#FAF9F6] px-6 py-5">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#A2574F] font-serif text-base tracking-wide text-[#FAF9F6]">
                 {initials}
@@ -346,6 +345,121 @@ export const AccountPage: React.FC = () => {
           {route.path === '/account' && <AccountOverviewPage />}
         </main>
       </div>
+
+      {/* Mobile layout - single column, content first */}
+      <div className="lg:hidden">
+        <main className="min-w-0">
+          {route.path === '/account/orders' && <AccountOrdersPage />}
+          {route.path === '/account/notifications' && <AccountNotificationsPage />}
+          {route.path === '/account/profile' && <AccountProfilePage />}
+          {route.path === '/account/addresses' && <AccountAddressesPage />}
+          {route.path === '/account/security' && <AccountSecurityPage />}
+          {route.path === '/account' && <AccountOverviewPage />}
+        </main>
+      </div>
+
+      {/* Mobile Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] lg:hidden"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeMobileMenu}
+              className="absolute inset-0 bg-[#181716]/30 backdrop-blur-[2px]"
+              aria-hidden="true"
+            />
+            <motion.aside
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative flex h-full w-[min(88vw,380px)] flex-col bg-[#FAF9F6] shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-[#E8E5DF] px-6 py-5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">MODEZA</p>
+                  <h2 className="mt-1 font-serif text-2xl text-[#181716]">Account</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeMobileMenu}
+                  className="rounded-full p-2 text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716] transition-colors"
+                  aria-label="Close menu"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-7">
+                <div className="mb-6">
+                  <div className="flex items-center gap-3.5 border-b border-[#F3F1ED] bg-white px-4 py-4 rounded-xl">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#A2574F] font-serif text-base tracking-wide text-[#FAF9F6]">
+                      {initials}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-serif text-lg leading-tight text-[#181716]">
+                        {user.user_metadata?.full_name || 'MODEZA Client'}
+                      </p>
+                      <p className="truncate text-xs text-[#827E77]">{userEmail}</p>
+                    </div>
+                  </div>
+                </div>
+                <nav className="space-y-6" aria-label="Account navigation">
+                  {NAV_GROUPS.map((group) => (
+                    <div key={group.label}>
+                      <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
+                        {group.label}
+                      </p>
+                      <div className="space-y-1">
+                        {group.items.map(({ label, href, icon }) => {
+                          const active = route.path === href;
+                          return (
+                            <button
+                              key={href}
+                              type="button"
+                              onClick={() => navigateAndCloseMobile(href)}
+                              aria-current={active ? 'page' : undefined}
+                              className={`w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
+                                active
+                                  ? 'bg-[#A2574F] text-[#FAF9F6] font-medium shadow-sm'
+                                  : 'text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716]'
+                              }`}
+                            >
+                              <span className="flex items-center gap-3">
+                                <span className={active ? 'text-[#FAF9F6]' : 'text-[#A2574F]'}>{icon}</span>
+                                {label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </nav>
+                <div className="mt-8 pt-6 border-t border-[#E8E5DF]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void signOut();
+                      closeMobileMenu();
+                    }}
+                    className="w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] text-[#9E332B] hover:bg-[#FDF2F2] flex items-center gap-3"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            </motion.aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

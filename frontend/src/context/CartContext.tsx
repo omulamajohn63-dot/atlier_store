@@ -169,7 +169,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       const updatedServerCart = await api.addCartItem(variant.id, quantity);
       applyServerCart(updatedServerCart);
-      setIsCartDrawerOpen(true);
       return { success: true };
     } catch (err: unknown) {
       const errorObj = err as Error & { code?: string; details?: Record<string, string> };

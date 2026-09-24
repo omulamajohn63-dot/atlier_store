@@ -490,12 +490,21 @@ const RightActions: React.FC<{
         </span>
       </IconButton>
 
+      <IconButton
+        className="lg:hidden"
+        onClick={() => onNavigate('/account')}
+        ariaLabel="Customer account"
+        title="Customer account"
+      >
+        <User className="w-5 h-5 stroke-[1.5]" />
+      </IconButton>
+
       <button
         type="button"
-        onClick={onOpenCart}
+        onClick={() => onNavigate('/cart')}
         className="relative flex items-center gap-2 p-2.5 text-[#181716] hover:text-[#A2574F] transition-colors rounded-full hover:bg-[#F3F1ED]"
         aria-label={`View shopping cart with ${cartCount} items`}
-        title="Open Cart"
+        title="View Cart"
       >
         <ShoppingBag className="w-5 h-5 stroke-[1.5]" />
         <span className="hidden sm:inline text-[10px] uppercase tracking-[0.16em] font-semibold">
