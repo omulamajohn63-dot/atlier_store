@@ -25,6 +25,7 @@ export type AppRoute =
   | { path: '/account/profile' }
   | { path: '/account/addresses' }
   | { path: '/account/security' }
+  | { path: '/account/complete-profile' }
   | { path: '/about' }
   | { path: '/wishlist' }
   | { path: '/recently-viewed' }
@@ -107,6 +108,10 @@ function parsePathToRoute(path: string): AppRoute {
 
   if (cleanPath === '/account/security') {
     return { path: '/account/security' };
+  }
+
+  if (cleanPath === '/account/complete-profile') {
+    return { path: '/account/complete-profile' };
   }
 
   if (cleanPath === '/about') {

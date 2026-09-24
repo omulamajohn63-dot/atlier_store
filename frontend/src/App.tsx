@@ -18,6 +18,7 @@ import { OrderSuccessPage } from './pages/OrderSuccessPage';
 import { OrderTrackingPage } from './pages/OrderTrackingPage';
 import { CustomerOrderDetailPage } from './pages/CustomerOrderDetailPage';
 import { AccountPage } from './pages/AccountPage';
+import { ProfileCompletionPage } from './pages/ProfileCompletionPage';
 import { AboutPage } from './pages/AboutPage';
 import { WishlistPage } from './pages/WishlistPage';
 import { RecentlyViewedPage } from './pages/RecentlyViewedPage';
@@ -71,6 +72,7 @@ function AppContent() {
             {route.path === '/account/orders/:orderNumber' && (
               <CustomerOrderDetailPage orderNumber={route.orderNumber} />
             )}
+            {route.path === '/account/complete-profile' && <ProfileCompletionPage />}
             {route.path !== '/account/orders/:orderNumber' && (route.path === '/account' || route.path.startsWith('/account/')) && <AccountPage />}
             {route.path === '/about' && <AboutPage />}
             {route.path === '/checkout' && <CheckoutPage />}

@@ -9,6 +9,7 @@ interface AuthContextValue {
   isConfigured: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string; needsVerification?: boolean }>;
   signUp: (email: string, password: string, profile: { fullName: string; phone: string }) => Promise<{ error?: string; needsVerification?: boolean }>;
+  signInWithGoogle: () => Promise<{ error?: string }>;
   updateProfile: (profile: { fullName: string; phone: string }) => Promise<{ error?: string }>;
   updatePassword: (currentPassword: string, newPassword: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
@@ -73,6 +74,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { needsVerification: !data.session };
   };
 
+  const signInWithGoogle = async () => {
+    if (!supabase) return { error: 'Account access is not configured yet.' };
+    const redirectTo = typeof window !== 'undefined'
+      ? `${window.location.origin}/account/complete-profile`
+      : undefined;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+    if (error) {
+      void audit('login_failed', 'Storefront Google sign-in failed.', {}, { reason: error.message });
+      return { error: error.message };
+    }
+    void audit('login', 'Storefront Google sign-in initiated.', { provider: 'google' });
+    return {};
+  };
+
   const signOut = async () => {
     await supabase?.auth.signOut();
     void audit('logout', 'Storefront sign-out.');
@@ -114,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isConfigured: Boolean(supabase), signIn, signUp, updateProfile, updatePassword, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, isConfigured: Boolean(supabase), signIn, signUp, signInWithGoogle, updateProfile, updatePassword, signOut }}>
       {children}
     </AuthContext.Provider>
   );
