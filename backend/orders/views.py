@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from audit.services import AuditLogService
 
 from .models import Order
-from .serializers import OrderSerializer
+from .serializers import OrderSerializer, OrderCreateSerializer
 from .services import cancel_order, create_order, mark_received_paid, receive_order, request_refund
 
 
@@ -34,10 +34,10 @@ class OrdersView(APIView):
     def post(self, request):
         if not cart_key(request):
             return Response({'error': {'code': 'CART_REQUIRED', 'message': 'x-cart-id is required.', 'details': {}}}, status=400)
-        required = request.data.get('customer')
-        if not isinstance(required, dict):
-            return Response({'error': {'code': 'VALIDATION_ERROR', 'message': 'Customer details are required.', 'details': {}}}, status=400)
-        order = create_order(cart_key(request), request.data,
+        serializer = OrderCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'error': {'code': 'VALIDATION_ERROR', 'message': 'Request validation failed.', 'details': serializer.errors}}, status=400)
+        order = create_order(cart_key(request), serializer.validated_data,
                              request.user if request.user.is_authenticated else None)
         return Response(OrderSerializer(order, context={'request': request}).data, status=status.HTTP_201_CREATED)
 

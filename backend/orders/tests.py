@@ -43,6 +43,61 @@ class OrderApiTests(TestCase):
         self.assertEqual(Cart.objects.get(
             cart_key='deactivated-checkout-cart').items.count(), 1)
 
+    def test_order_creation_validates_customer_fields(self):
+        client = APIClient()
+        category = Category.objects.create(name='Bags', slug='bags')
+        product = Product.objects.create(
+            category=category, name='Leather Bag', slug='leather-bag',
+            description='A structured leather bag for daily use.',
+            price_minor=30000, status=Product.Status.ACTIVE)
+        variant = ProductVariant.objects.create(
+            product=product, sku='BAG-VAL', stock_quantity=5)
+        client.post('/api/cart/items', {'variantId': str(variant.id),
+                     'quantity': 1}, format='json',
+                    HTTP_X_CART_ID='validation-test-cart')
+
+        # Missing required field: email
+        created = client.post('/api/orders', {'customer': {
+            'fullName': 'Ada Lovelace',
+            'phone': '0712345678',
+            'addressLine1': '1 Market Street',
+            'city': 'Nairobi', 'county': 'Nairobi'}},
+            format='json', HTTP_X_CART_ID='validation-test-cart')
+        self.assertEqual(created.status_code, 400)
+        self.assertIn('customer', created.json()['error']['details'])
+
+        # Invalid email format
+        created = client.post('/api/orders', {'customer': {
+            'fullName': 'Ada Lovelace',
+            'email': 'not-an-email',
+            'phone': '0712345678',
+            'addressLine1': '1 Market Street',
+            'city': 'Nairobi', 'county': 'Nairobi'}},
+            format='json', HTTP_X_CART_ID='validation-test-cart')
+        self.assertEqual(created.status_code, 400)
+        self.assertIn('customer', created.json()['error']['details'])
+
+        # Phone too short
+        created = client.post('/api/orders', {'customer': {
+            'fullName': 'Ada Lovelace',
+            'email': 'ada@example.com',
+            'phone': '123',
+            'addressLine1': '1 Market Street',
+            'city': 'Nairobi', 'county': 'Nairobi'}},
+            format='json', HTTP_X_CART_ID='validation-test-cart')
+        self.assertEqual(created.status_code, 400)
+        self.assertIn('customer', created.json()['error']['details'])
+
+        # Valid data should succeed
+        created = client.post('/api/orders', {'customer': {
+            'fullName': 'Ada Lovelace',
+            'email': 'ada@example.com',
+            'phone': '0712345678',
+            'addressLine1': '1 Market Street',
+            'city': 'Nairobi', 'county': 'Nairobi'}},
+            format='json', HTTP_X_CART_ID='validation-test-cart')
+        self.assertEqual(created.status_code, 201)
+
     def test_reserve_variant_refuses_to_oversell_stock(self):
         from inventory.services import reserve_variant
         from rest_framework.exceptions import ValidationError

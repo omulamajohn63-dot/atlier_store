@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 
 from audit.models import AuditLog
@@ -29,6 +30,28 @@ TIMELINE_LABELS = {
     'order_cancelled': ('cancelled', 'Order Cancelled',
                         'Your order was cancelled and any reserved stock was returned.'),
 }
+
+
+class CustomerSerializer(serializers.Serializer):
+    fullName = serializers.CharField(min_length=2, max_length=100)
+    email = serializers.EmailField()
+    phone = serializers.RegexField(regex=r'^[\d\s\+\-\(\)]{9,20}$')
+    addressLine1 = serializers.CharField(min_length=3, max_length=200)
+    addressLine2 = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    city = serializers.CharField(min_length=2, max_length=100)
+    county = serializers.CharField(min_length=2, max_length=100)
+    postalCode = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    deliveryInstructions = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class OrderCreateSerializer(serializers.Serializer):
+    customer = CustomerSerializer()
+    shippingMethod = serializers.ChoiceField(choices=['standard', 'express'], default='standard')
+    paymentMethod = serializers.ChoiceField(
+        choices=['mpesa', 'card', 'cash_on_delivery', 'pay_on_delivery'],
+        default='mpesa'
+    )
+    notes = serializers.CharField(max_length=500, required=False, allow_blank=True)
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
