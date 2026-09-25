@@ -1,0 +1,334 @@
+{% extends "admin_ui/base_admin.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li><a href="/admin/dashboard/products/">Products</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{{ import_url }}">Bulk Import</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Progress</li>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 960px; margin: 0 auto;">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">{{ page_title }}</h2>
+      <p class="page-subtitle">{{ page_subtitle }}</p>
+    </div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      <a class="btn btn-secondary" href="{{ history_url }}"><i class="ph ph-clock-counter-clockwise"></i> Import History</a>
+      <a class="btn btn-secondary" href="{{ import_url }}"><i class="ph ph-upload-simple"></i> New Import</a>
+    </div>
+  </div>
+
+  <form hidden>{% csrf_token %}</form>
+
+  <div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+      <div>
+        <h3 class="card-title" id="progressTitle">Import in progress</h3>
+        <div class="form-text" id="jobName">{{ job.filename }}</div>
+      </div>
+      <span id="jobStatus" class="status-badge {{ status_class }}">{{ job.status }}</span>
+    </div>
+    <div class="card-body">
+      <div id="errorBanner" class="alert alert-error" role="alert" style="display: none; margin-bottom: 16px;"></div>
+
+      <div id="progressWrap" style="margin: 4px 0 20px;">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px;">
+          <span id="progressText">{{ job.processed_rows }} / {{ job.total_rows }} rows</span>
+          <strong id="progressPercent">{{ job.progress }}%</strong>
+        </div>
+        <div class="progress-track"><div id="progressBar" class="progress-bar" style="width: {{ job.progress }}%;"></div></div>
+        <div id="progressNote" class="form-text" style="margin-top: 8px;">
+          <span id="liveDot" class="live-dot" aria-hidden="true"></span><span id="progressNoteText">Waiting…</span>
+        </div>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-item"><span>Products created</span><strong id="cCreatedProducts">{{ job.created_products }}</strong></div>
+        <div class="summary-item"><span>Products updated</span><strong id="cUpdatedProducts">{{ job.updated_products }}</strong></div>
+        <div class="summary-item"><span>Variants created</span><strong id="cCreatedVariants">{{ job.created_variants }}</strong></div>
+        <div class="summary-item"><span>Variants updated</span><strong id="cUpdatedVariants">{{ job.updated_variants }}</strong></div>
+        <div class="summary-item"><span>Images uploaded</span><strong id="cImages">{{ job.uploaded_images }}</strong></div>
+        <div class="summary-item"><span>Rows failed</span><strong id="cFailedRows">{{ job.failed_rows }}</strong></div>
+        <div class="summary-item"><span>Errors</span><strong id="cErrors">{{ job.error_count }}</strong></div>
+        <div class="summary-item"><span>Warnings</span><strong id="cWarnings">{{ job.warning_count }}</strong></div>
+      </div>
+
+      <div id="errorList" style="margin-top: 18px;"></div>
+
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px;">
+        <button id="startButton" class="btn btn-primary" type="button" style="display: {% if can_start %}inline-flex{% else %}none{% endif %};">
+          <i class="ph ph-check"></i> Start Import
+        </button>
+        <button id="retryButton" class="btn btn-primary" type="button" style="display: none;">
+          <i class="ph ph-arrows-clockwise"></i> Retry
+        </button>
+        <a id="reportLink" class="btn btn-secondary" href="{{ report_url }}" style="display: {% if is_terminal %}inline-flex{% else %}none{% endif %};">
+          <i class="ph ph-file-text"></i> View Report
+        </a>
+        <a id="backLink" class="btn btn-secondary" href="{{ import_url }}" style="display: {% if is_terminal %}none{% else %}inline-flex{% endif %};">
+          <i class="ph ph-arrow-left"></i> Back to Import
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ job|json_script:"initial-job" }}
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .summary-item { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; }
+  .summary-item span { display: block; color: var(--text-secondary); font-size: 12px; }
+  .summary-item strong { display: block; font-size: 22px; margin-top: 4px; }
+  .progress-track { height: 10px; background: var(--border-light); border-radius: 999px; overflow: hidden; }
+  .progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
+  .alert-warning { background: var(--status-warning-bg); color: var(--status-warning); border: 1px solid #F5D9A8; }
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 7px; animation: livePulse 1.2s ease-in-out infinite; vertical-align: middle; }
+  .live-dot.is-done { animation: none; background: var(--status-success); }
+  .live-dot.is-error { animation: none; background: var(--status-danger); }
+  @keyframes livePulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+</style>
+<script>
+(function () {
+  const csrfInput = document.querySelector('[name="csrfmiddlewaretoken"]');
+  const csrfToken = csrfInput ? csrfInput.value : '';
+  const initial = document.getElementById('initial-job');
+  let job = initial ? JSON.parse(initial.textContent) : null;
+  let running = false;
+  let pendingTimer = null;
+  let noProgressRetries = 0;
+  let errorRetries = 0;
+
+  const jobStatus = document.getElementById('jobStatus');
+  const jobName = document.getElementById('jobName');
+  const progressTitle = document.getElementById('progressTitle');
+  const progressText = document.getElementById('progressText');
+  const progressPercent = document.getElementById('progressPercent');
+  const progressBar = document.getElementById('progressBar');
+  const progressNoteText = document.getElementById('progressNoteText');
+  const liveDot = document.getElementById('liveDot');
+  const errorBanner = document.getElementById('errorBanner');
+  const errorList = document.getElementById('errorList');
+  const startButton = document.getElementById('startButton');
+  const retryButton = document.getElementById('retryButton');
+  const reportLink = document.getElementById('reportLink');
+  const backLink = document.getElementById('backLink');
+
+  const counters = {
+    cCreatedProducts: 'created_products',
+    cUpdatedProducts: 'updated_products',
+    cCreatedVariants: 'created_variants',
+    cUpdatedVariants: 'updated_variants',
+    cImages: 'uploaded_images',
+    cFailedRows: 'failed_rows',
+    cErrors: 'error_count',
+    cWarnings: 'warning_count'
+  };
+
+  function apiUrl(path) { return '/api' + path; }
+  async function request(path, options) {
+    const config = Object.assign({ credentials: 'same-origin', headers: { 'X-CSRFToken': csrfToken } }, options || {});
+    config.headers = Object.assign({}, config.headers, { 'Accept': 'application/json' });
+    const response = await fetch(apiUrl(path), config);
+    let data = null;
+    try { data = await response.json(); } catch (error) { data = {}; }
+    if (!response.ok) {
+      throw new Error((data.error && data.error.message) || data.detail || 'The request could not be completed.');
+    }
+    return data;
+  }
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function statusClass(status) {
+    if (status === 'COMPLETED') return 'status-success';
+    if (status === 'COMPLETED_WITH_ERRORS' || status === 'FAILED') return 'status-danger';
+    if (status === 'PROCESSING' || status === 'VALIDATING') return 'status-warning';
+    return 'status-neutral';
+  }
+  function isTerminal(status) {
+    return ['COMPLETED', 'COMPLETED_WITH_ERRORS', 'FAILED'].indexOf(status) >= 0;
+  }
+  function showBanner(text, kind) {
+    errorBanner.textContent = text || '';
+    errorBanner.className = kind === 'warning' ? 'alert alert-warning' : 'alert alert-error';
+    errorBanner.style.display = text ? 'block' : 'none';
+  }
+  function setNote(text, tone) {
+    progressNoteText.textContent = text || '';
+    liveDot.className = 'live-dot' + (tone === 'done' ? ' is-done' : tone === 'error' ? ' is-error' : '');
+    liveDot.style.display = text ? 'inline-block' : 'none';
+  }
+  function renderCounters(data) {
+    Object.keys(counters).forEach(function (elementId) {
+      const element = document.getElementById(elementId);
+      if (element) element.textContent = data[counters[elementId]] || 0;
+    });
+  }
+  function renderErrors(data) {
+    const errors = (data.import_results && data.import_results.errors) || [];
+    if (!errors.length) { errorList.innerHTML = ''; return; }
+    let html = '<h4 style="margin-bottom: 8px;">Import errors (' + errors.length + ')</h4>'
+      + '<table class="table"><thead><tr><th>Product</th><th>Message</th></tr></thead><tbody>';
+    errors.forEach(function (item) {
+      html += '<tr><td>' + escapeHtml(item.product_code) + '</td><td>' + escapeHtml(item.message) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    errorList.innerHTML = html;
+  }
+  function renderFinal(data) {
+    progressTitle.textContent = data.status === 'COMPLETED' ? 'Import completed'
+      : data.status === 'COMPLETED_WITH_ERRORS' ? 'Import completed with errors' : 'Import failed';
+    if (data.status === 'COMPLETED') setNote('All products were imported.', 'done');
+    else if (data.status === 'COMPLETED_WITH_ERRORS') setNote('Import finished. Review the errors below.', 'error');
+    else setNote('The import failed. Review the errors below.', 'error');
+    startButton.style.display = 'none';
+    retryButton.style.display = 'none';
+    backLink.style.display = 'none';
+    if (data.id) {
+      reportLink.href = '/admin/dashboard/products/import/' + data.id + '/report/';
+      reportLink.style.display = 'inline-flex';
+    }
+    showBanner('', '');
+    if (typeof showToast === 'function') {
+      showToast(
+        data.status === 'COMPLETED' ? 'Import completed' : 'Import finished',
+        data.status === 'COMPLETED_WITH_ERRORS'
+          ? 'The import finished with errors. Open the report for details.'
+          : data.status === 'FAILED'
+            ? 'The import failed. Open the report for details.'
+            : 'All products in the package were imported.'
+      );
+    }
+  }
+  function renderProgress(data) {
+    job = data;
+    jobName.textContent = data.filename || '';
+    jobStatus.textContent = data.status || '';
+    jobStatus.className = 'status-badge ' + statusClass(data.status);
+    const percent = Number(data.progress || 0);
+    progressBar.style.width = percent + '%';
+    progressPercent.textContent = percent + '%';
+    progressText.textContent = (data.processed_rows || 0) + ' / ' + (data.total_rows || 0) + ' rows';
+    renderCounters(data);
+    renderErrors(data);
+    if (isTerminal(data.status)) { renderFinal(data); return; }
+    if (data.status === 'PROCESSING') {
+      progressTitle.textContent = 'Import in progress';
+      startButton.style.display = 'none';
+      retryButton.style.display = 'none';
+      backLink.style.display = 'inline-flex';
+      reportLink.style.display = 'none';
+      setNote('Importing products…', '');
+    } else if (data.status === 'READY') {
+      progressTitle.textContent = 'Ready to import';
+      startButton.style.display = 'inline-flex';
+      setNote('Review the totals, then start the import.', '');
+    } else if (data.status === 'UPLOADED' || data.status === 'VALIDATING') {
+      progressTitle.textContent = 'Import not confirmed';
+      setNote('This package still needs validation. Open the import page to continue.', 'error');
+    } else if (data.status === 'CANCELLED') {
+      progressTitle.textContent = 'Import cancelled';
+      setNote('This import was cancelled.', 'error');
+    }
+  }
+  function schedule(delay) {
+    if (pendingTimer) window.clearTimeout(pendingTimer);
+    pendingTimer = window.setTimeout(function () { pendingTimer = null; void processNext(); }, delay);
+  }
+  function kick() {
+    if (pendingTimer) { window.clearTimeout(pendingTimer); pendingTimer = null; }
+    void processNext();
+  }
+  async function startImport() {
+    if (!job) return;
+    startButton.disabled = true;
+    showBanner('', '');
+    setNote('Starting import…', '');
+    try {
+      const started = await request('/admin/bulk-import/' + job.id + '/confirm', { method: 'POST', body: new FormData() });
+      renderProgress(started);
+      kick();
+    } catch (error) {
+      showBanner(error.message, 'error');
+      setNote('The import could not be started.', 'error');
+    } finally {
+      startButton.disabled = false;
+    }
+  }
+  async function processNext() {
+    if (!job || running) return;
+    if (isTerminal(job.status) || job.status !== 'PROCESSING') return;
+    running = true;
+    showBanner('', '');
+    try {
+      const body = new FormData();
+      body.append('limit', '25');
+      const result = await request('/admin/bulk-import/' + job.id + '/process', { method: 'POST', body: body });
+      errorRetries = 0;
+      const progressed = result.processed_rows !== job.processed_rows
+        || result.created_products !== job.created_products
+        || result.updated_products !== job.updated_products
+        || result.status !== job.status;
+      renderProgress(result);
+      if (result.finished || result.status !== 'PROCESSING') {
+        running = false;
+        return;
+      }
+      let delay = 250;
+      if (progressed) {
+        noProgressRetries = 0;
+      } else {
+        // Another session holds the processing lease — wait and try again.
+        noProgressRetries += 1;
+        if (noProgressRetries >= 3) delay = 3000;
+      }
+      running = false;
+      schedule(delay);
+    } catch (error) {
+      errorRetries += 1;
+      running = false;
+      try {
+        const snapshot = await request('/admin/bulk-import/' + job.id + '/status');
+        if (snapshot.processed_rows !== job.processed_rows || snapshot.status !== job.status) {
+          renderProgress(snapshot);
+        }
+        if (isTerminal(snapshot.status)) return;
+      } catch (statusError) { /* keep the original error visible */ }
+      if (errorRetries >= 5) {
+        showBanner(error.message + ' The import is paused. Use Retry to continue.', 'error');
+        setNote('Import paused.', 'error');
+        retryButton.style.display = 'inline-flex';
+        return;
+      }
+      showBanner(error.message + ' Retrying shortly…', 'warning');
+      schedule(5000);
+    }
+  }
+
+  startButton.addEventListener('click', startImport);
+  retryButton.addEventListener('click', function () {
+    errorRetries = 0;
+    retryButton.style.display = 'none';
+    showBanner('', '');
+    setNote('Importing products…', '');
+    kick();
+  });
+
+  if (job) {
+    renderProgress(job);
+    if (job.status === 'PROCESSING') kick();
+  }
+}());
+</script>
+{% endblock %}

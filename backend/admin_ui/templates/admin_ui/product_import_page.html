@@ -59,10 +59,6 @@
     </div>
     <div class="card-body">
       <div id="summary" class="summary-grid"></div>
-      <div id="progressWrap" style="display: none; margin: 20px 0;">
-        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px;"><span id="progressText"></span><strong id="progressPercent"></strong></div>
-        <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
-      </div>
       <div id="issueSummary" style="display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0;"></div>
       <div id="previewTable"></div>
       <div id="rowDetails" style="margin-top: 18px;"></div>
@@ -84,8 +80,6 @@
   .summary-item { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; }
   .summary-item span { display: block; color: var(--text-secondary); font-size: 12px; }
   .summary-item strong { display: block; font-size: 22px; margin-top: 4px; }
-  .progress-track { height: 10px; background: var(--border-light); border-radius: 999px; overflow: hidden; }
-  .progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
   .issue-link { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 8px 12px; border-radius: var(--radius-sm); font-weight: 600; }
   .issue-link:hover { background: var(--border-light); }
   .issue-error { color: var(--status-danger); background: var(--status-danger-bg); }
@@ -109,13 +103,8 @@
   const confirmButton = document.getElementById('confirmButton');
   const cancelButton = document.getElementById('cancelButton');
   const reportLink = document.getElementById('reportLink');
-  const progressWrap = document.getElementById('progressWrap');
-  const progressText = document.getElementById('progressText');
-  const progressPercent = document.getElementById('progressPercent');
-  const progressBar = document.getElementById('progressBar');
   const csrf = form.querySelector('[name=csrfmiddlewaretoken]').value;
   let currentJob = null;
-  let processing = false;
 
   const initial = document.getElementById('initial-job');
   if (initial) currentJob = JSON.parse(initial.textContent);
@@ -206,13 +195,6 @@
     if (data.status === 'COMPLETED' || data.status === 'COMPLETED_WITH_ERRORS' || data.status === 'FAILED') reportLink.href = '/admin/dashboard/products/import/' + data.id + '/report/';
     else reportLink.removeAttribute('href');
   }
-  function updateProgress(data) {
-    const percent = Number(data.progress || 0);
-    progressWrap.style.display = 'block';
-    progressBar.style.width = percent + '%';
-    progressPercent.textContent = percent + '%';
-    progressText.textContent = (data.processed_rows || 0) + ' / ' + (data.total_rows || 0) + ' rows';
-  }
   async function uploadAndValidate(event) {
     event.preventDefault();
     if (!fileInput.files.length) { setMessage('Choose a ZIP package first.', 'error'); return; }
@@ -234,29 +216,12 @@
     setMessage('Starting import…');
     try {
       const started = await request('/admin/bulk-import/' + currentJob.id + '/confirm', { method: 'POST', body: new FormData() });
-      renderPreview(started);
-      await processNext();
-    } catch (error) { setMessage(error.message, 'error'); }
-  }
-  async function processNext() {
-    if (!currentJob || processing) return;
-    processing = true;
-    try {
-      const data = new FormData();
-      data.append('limit', '10');
-      const result = await request('/admin/bulk-import/' + currentJob.id + '/process', { method: 'POST', body: data });
-      renderPreview(result);
-      updateProgress(result);
-      if (!result.finished && result.status === 'PROCESSING') {
-        setMessage('Importing products…');
-        window.setTimeout(processNext, 50);
-      } else {
-        setMessage(result.status === 'COMPLETED_WITH_ERRORS' ? 'Import completed with errors.' : 'Import completed.', result.status === 'COMPLETED_WITH_ERRORS' ? 'error' : 'success');
-        reportLink.href = '/admin/dashboard/products/import/' + result.id + '/report/';
-        reportLink.style.display = 'inline-flex';
-      }
-    } catch (error) { setMessage(error.message, 'error'); }
-    finally { processing = false; }
+      // Jump straight to the progress page, which drives the import chunks.
+      window.location.href = '/admin/dashboard/products/import/' + started.id + '/progress/';
+    } catch (error) {
+      setMessage(error.message, 'error');
+      confirmButton.disabled = false;
+    }
   }
   async function cancelImport() {
     if (!currentJob) return;

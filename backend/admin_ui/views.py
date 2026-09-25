@@ -658,6 +658,46 @@ class ProductImportReportPageView(View):
         })
 
 
+@permission_required('products.import')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class ProductImportProgressPageView(View):
+    template_name = 'admin_ui/product_import_progress.html'
+    terminal_statuses = (
+        ImportJob.Status.COMPLETED,
+        ImportJob.Status.COMPLETED_WITH_ERRORS,
+        ImportJob.Status.FAILED,
+    )
+
+    def get(self, request, job_id):
+        job = ImportJob.objects.filter(pk=job_id).select_related('uploaded_by').first()
+        if job is None:
+            messages.error(request, 'Import job not found.')
+            return redirect('admin-product-import-history')
+        data = job_data(job)
+        status_class = 'status-neutral'
+        if job.status == ImportJob.Status.COMPLETED:
+            status_class = 'status-success'
+        elif job.status in (ImportJob.Status.COMPLETED_WITH_ERRORS, ImportJob.Status.FAILED):
+            status_class = 'status-danger'
+        elif job.status in (ImportJob.Status.PROCESSING, ImportJob.Status.VALIDATING):
+            status_class = 'status-warning'
+        return render(request, self.template_name, {
+            'page_title': 'Import Progress',
+            'page_subtitle': job.filename,
+            'job': data,
+            'status_class': status_class,
+            'is_terminal': job.status in self.terminal_statuses,
+            'can_start': job.status == ImportJob.Status.READY,
+            'import_url': '/admin/dashboard/products/import/',
+            'history_url': '/admin/dashboard/products/import/history/',
+            'report_url': (
+                f'/admin/dashboard/products/import/{job.pk}/report/'
+                if job.status in self.terminal_statuses else ''
+            ),
+            'admin_page': 'bulk-import',
+        })
+
+
 class AdminPageView(View):
     template_name = 'admin_ui/admin_page.html'
 

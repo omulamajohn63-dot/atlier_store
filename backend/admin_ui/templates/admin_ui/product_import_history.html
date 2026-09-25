@@ -28,7 +28,15 @@
             <td>{{ job.created_variants }} created<br>{{ job.updated_variants }} updated</td>
             <td>{{ job.uploaded_images }}</td>
             <td><span class="status-badge {% if job.status == 'COMPLETED' %}status-success{% elif job.status == 'COMPLETED_WITH_ERRORS' or job.status == 'FAILED' %}status-danger{% elif job.status == 'PROCESSING' %}status-warning{% else %}status-neutral{% endif %}">{{ job.get_status_display }}</span></td>
-            <td><a class="btn btn-secondary" href="{% url 'admin-product-import-report' job.id %}">Report</a></td>
+            <td>
+              {% if job.status == 'PROCESSING' %}
+                <a class="btn btn-primary" href="{% url 'admin-product-import-progress' job.id %}"><i class="ph ph-play"></i> Resume</a>
+              {% elif job.status == 'READY' %}
+                <a class="btn btn-primary" href="{% url 'admin-product-import-progress' job.id %}"><i class="ph ph-check"></i> Start</a>
+              {% else %}
+                <a class="btn btn-secondary" href="{% url 'admin-product-import-report' job.id %}">Report</a>
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr><td colspan="8">No bulk imports have been uploaded.</td></tr>
