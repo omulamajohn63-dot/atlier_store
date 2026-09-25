@@ -20,7 +20,7 @@
       </p>
 
       <div style="display: flex; gap: 12px; justify-content: flex-end;">
-        {% if confirm_post.action == 'delete-product' or confirm_post.action == 'delete-selected-products' or confirm_post.action == 'archive-product' or confirm_post.action == 'update-product' %}
+        {% if confirm_post.action == 'delete-product' or confirm_post.action == 'delete-selected-products' or confirm_post.action == 'archive-product' or confirm_post.action == 'publish-product' or confirm_post.action == 'publish-selected-products' or confirm_post.action == 'update-product' %}
           <a href="/admin/dashboard/products/" class="btn btn-secondary">Cancel</a>
         {% else %}
           <a href="/admin/dashboard/" class="btn btn-secondary">Cancel</a>

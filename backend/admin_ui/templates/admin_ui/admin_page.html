@@ -16,7 +16,16 @@
   </div>
   <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
     {% if page_data.page == 'products' %}
-    <form id="bulk-delete-products-form" method="get" action="/admin/dashboard/confirm/" style="display: inline-flex; margin: 0;">
+    <form id="bulk-publish-products-form" class="bulk-products-form" method="get" action="/admin/dashboard/confirm/"
+      data-empty-message="Select at least one product to publish." style="display: inline-flex; margin: 0;">
+      <input type="hidden" name="action" value="publish-selected-products">
+      <input type="hidden" name="product_ids" value="">
+      <button type="submit" class="btn btn-secondary" id="bulk-publish-products-btn">
+        <i class="ph ph-rocket"></i> Publish selected
+      </button>
+    </form>
+    <form id="bulk-delete-products-form" class="bulk-products-form" method="get" action="/admin/dashboard/confirm/"
+      data-empty-message="Select at least one product to delete." style="display: inline-flex; margin: 0;">
       <input type="hidden" name="action" value="delete-selected-products">
       <input type="hidden" name="product_ids" value="">
       <button type="submit" class="btn btn-danger" id="bulk-delete-products-btn">
@@ -34,23 +43,25 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    const bulkForm = document.getElementById('bulk-delete-products-form');
-    if (bulkForm) {
-      bulkForm.addEventListener('submit', function (event) {
-        const selected = Array.from(document.querySelectorAll('.admin-row-check:checked'))
-          .map(function (checkbox) { return checkbox.value; })
-          .filter(Boolean);
+    const selectedProductIds = function () {
+      return Array.from(document.querySelectorAll('.admin-row-check:checked'))
+        .map(function (checkbox) { return checkbox.value; })
+        .filter(Boolean);
+    };
 
+    document.querySelectorAll('.bulk-products-form').forEach(function (bulkForm) {
+      bulkForm.addEventListener('submit', function (event) {
+        const selected = selectedProductIds();
         const productIdsInput = bulkForm.querySelector('input[name="product_ids"]');
         productIdsInput.value = selected.join(',');
 
         if (!selected.length) {
           event.preventDefault();
-          window.alert('Select at least one product to delete.');
+          window.alert(bulkForm.getAttribute('data-empty-message') || 'Select at least one product.');
           return;
         }
       });
-    }
+    });
 
     const searchInput = document.querySelector('input[name="q"]');
     const filterForm = document.querySelector('form[method="get"][action=""]');
@@ -163,6 +174,9 @@
                     <a href="/admin/dashboard/products/{{ row.id }}/"><i class="ph ph-eye"></i> View</a>
                     <a href="/admin/dashboard/products/{{ row.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit</a>
                     <a href="/admin/dashboard/products/{{ row.id }}/duplicate/"><i class="ph ph-copy"></i> Duplicate</a>
+                    {% if row.status == 'Draft' %}
+                    <a href="/admin/dashboard/confirm/?action=publish-product&product_id={{ row.id }}"><i class="ph ph-rocket"></i> Publish</a>
+                    {% endif %}
                     <a href="/admin/dashboard/confirm/?action=archive-product&product_id={{ row.id }}"><i class="ph ph-archive"></i> Archive</a>
                     <a class="danger" href="/admin/dashboard/confirm/?action=delete-product&product_id={{ row.id }}"><i class="ph ph-trash"></i> Delete</a>
                   {% elif page_data.page == 'categories' %}
@@ -191,6 +205,9 @@
                   <a href="/admin/dashboard/products/{{ row.id }}/">View</a>
                   <a href="/admin/dashboard/products/{{ row.id }}/edit/">Edit</a>
                   <a href="/admin/dashboard/products/{{ row.id }}/duplicate/">Duplicate</a>
+                  {% if row.status == 'Draft' %}
+                  <a href="/admin/dashboard/confirm/?action=publish-product&product_id={{ row.id }}">Publish confirm</a>
+                  {% endif %}
                   <a href="/admin/dashboard/products/{{ row.id }}/archive/">Archive</a>
                   <a href="/admin/dashboard/products/{{ row.id }}/delete/">Delete</a>
                   <a href="/admin/dashboard/confirm/?action=archive-product&product_id={{ row.id }}">Archive confirm</a>

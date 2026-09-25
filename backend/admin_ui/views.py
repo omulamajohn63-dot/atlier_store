@@ -209,6 +209,8 @@ class ConfirmActionView(View):
         'delete-product': 'products.delete',
         'delete-selected-products': 'products.delete',
         'archive-product': 'products.update',
+        'publish-product': 'products.update',
+        'publish-selected-products': 'products.update',
         'update-product': 'products.update',
     }
 
@@ -245,6 +247,19 @@ class ConfirmActionView(View):
             confirm_url = '/admin/dashboard/confirm/'
             confirm_post = {'action': 'archive-product',
                             'product_id': product_id}
+        elif action == 'publish-product' and product_id:
+            product = Product.objects.filter(pk=product_id).first()
+            message = f"Are you sure you want to publish product {self._product_title(product)}?"
+            confirm_url = '/admin/dashboard/confirm/'
+            confirm_post = {'action': 'publish-product',
+                            'product_id': product_id}
+        elif action == 'publish-selected-products' and product_ids:
+            products = list(Product.objects.filter(pk__in=product_ids)[:50])
+            product_count = len(products)
+            message = f"Are you sure you want to publish {product_count} product{'s' if product_count != 1 else ''}?"
+            confirm_url = '/admin/dashboard/confirm/'
+            confirm_post = {'action': 'publish-selected-products',
+                            'product_ids': product_ids}
         elif action == 'update-product' and product_id:
             product = Product.objects.filter(pk=product_id).first()
             message = f"Are you sure you want to update product {self._product_title(product)}?"
@@ -317,6 +332,40 @@ class ConfirmActionView(View):
             if product:
                 DashboardView.archive_product(product)
                 messages.success(request, 'Product archived.')
+            return redirect('admin-products')
+
+        if action == 'publish-product' and product_id:
+            product = Product.objects.filter(pk=product_id).first()
+            if product:
+                if DashboardView.publish_product(product):
+                    messages.success(request, 'Product published.')
+                else:
+                    messages.info(request, 'Product is already published.')
+            return redirect('admin-products')
+
+        if action == 'publish-selected-products':
+            selected_ids = list(dict.fromkeys(product_ids))
+            if not selected_ids:
+                messages.error(
+                    request, 'Select at least one product to publish.')
+                return redirect('admin-products')
+
+            products = list(Product.objects.filter(pk__in=selected_ids))
+            published = 0
+            for product in products:
+                if DashboardView.publish_product(product):
+                    published += 1
+
+            if published:
+                messages.success(
+                    request,
+                    f'{published} product{"s" if published != 1 else ""} published.'
+                )
+            elif products:
+                messages.info(
+                    request, 'Selected products are already published.')
+            else:
+                messages.error(request, 'No products were found to publish.')
             return redirect('admin-products')
 
         if action == 'update-product' and product_id:
@@ -854,6 +903,7 @@ class AdminPageView(View):
                 'View': f'/admin/dashboard/products/{product_id}/',
                 'Edit': f'/admin/dashboard/products/{product_id}/edit/',
                 'Duplicate': f'/admin/dashboard/products/{product_id}/duplicate/',
+                'Publish': f'/admin/dashboard/confirm/?action=publish-product&product_id={product_id}',
                 'Archive': f'/admin/dashboard/confirm/?action=archive-product&product_id={product_id}',
                 'Delete': f'/admin/dashboard/confirm/?action=delete-product&product_id={product_id}',
             }
@@ -976,7 +1026,12 @@ class AdminPageView(View):
                     'price': f'KES {product_price:.2f}',
                     'stock': str(stock_total),
                     'status': product.get_status_display(),
-                    'actions': ['View', 'Edit', 'Duplicate', 'Archive', 'Delete'],
+                    'actions': (
+                        ['View', 'Edit', 'Duplicate']
+                        + (['Publish'] if product.status ==
+                           Product.Status.DRAFT else [])
+                        + ['Archive', 'Delete']
+                    ),
                 })
             page_data = dict(page_data)
             page_data['rows'] = product_rows
@@ -1352,6 +1407,47 @@ class DashboardView(View):
             self.archive_product(product)
             messages.success(request, 'Product archived.')
             return redirect('admin-products')
+        if action == 'publish-product':
+            product = Product.objects.filter(
+                pk=request.POST.get('product_id')).first()
+            if not product:
+                messages.error(request, 'Product not found.')
+                return redirect('admin-products')
+            if self.publish_product(product):
+                messages.success(request, 'Product published.')
+            else:
+                messages.info(request, 'Product is already published.')
+            return redirect('admin-products')
+        if action == 'publish-selected-products':
+            raw_ids = request.POST.getlist('product_ids')
+            selected_ids = []
+            for raw in raw_ids:
+                selected_ids.extend(
+                    [part.strip() for part in raw.split(',') if part.strip()]
+                )
+            selected_ids = list(dict.fromkeys(selected_ids))
+            if not selected_ids:
+                messages.error(
+                    request, 'Select at least one product to publish.')
+                return redirect('admin-products')
+
+            products = list(Product.objects.filter(pk__in=selected_ids))
+            if not products:
+                messages.error(
+                    request, 'No products were found to publish.')
+                return redirect('admin-products')
+
+            published = sum(
+                1 for product in products if self.publish_product(product))
+            if published:
+                messages.success(
+                    request,
+                    f'{published} product{"s" if published != 1 else ""} published.'
+                )
+            else:
+                messages.info(
+                    request, 'Selected products are already published.')
+            return redirect('admin-products')
         if action == 'delete-product':
             product = Product.objects.filter(
                 pk=request.POST.get('product_id')).first()
@@ -1646,6 +1742,25 @@ class DashboardView(View):
             metadata={'status_changed': {'from': previous,
                                          'to': product.status}},
         )
+
+    @staticmethod
+    @transaction.atomic
+    def publish_product(product):
+        """Move a product live (ACTIVE + visible); no-op when already published."""
+        previous = product.status
+        already_published = (
+            previous == Product.Status.ACTIVE and product.is_active)
+        if already_published:
+            return False
+        product.status = Product.Status.ACTIVE
+        product.is_active = True
+        product.save(update_fields=['status', 'is_active', 'updated_at'])
+        _audit_catalog(
+            'update', product,
+            metadata={'status_changed': {'from': previous,
+                                         'to': product.status}},
+        )
+        return True
 
     @staticmethod
     @transaction.atomic

@@ -1870,6 +1870,123 @@ class AdminDashboardTests(TestCase):
         })
         self.assertRedirects(confirm_response, '/admin/dashboard/products/')
 
+    def test_products_page_shows_publish_action_only_for_draft_products(self):
+        draft = Product.objects.create(
+            category=self.category,
+            name='Draft Publish Product',
+            slug='draft-publish-product',
+            description='Should offer a publish action.',
+            price_minor=15000,
+            status=Product.Status.DRAFT,
+        )
+        live = Product.objects.create(
+            category=self.category,
+            name='Live Publish Product',
+            slug='live-publish-product',
+            description='Already published.',
+            price_minor=16000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get('/admin/dashboard/products/')
+
+        self.assertContains(
+            response,
+            f'/admin/dashboard/confirm/?action=publish-product&product_id={draft.id}',
+        )
+        self.assertNotContains(
+            response,
+            f'/admin/dashboard/confirm/?action=publish-product&product_id={live.id}',
+        )
+        self.assertContains(response, 'Publish selected')
+
+    def test_staff_can_publish_draft_product_from_confirmation_flow(self):
+        product = Product.objects.create(
+            category=self.category,
+            name='Publish Me',
+            slug='publish-me',
+            description='Draft that should go live.',
+            price_minor=17000,
+            status=Product.Status.DRAFT,
+        )
+        self.client.force_login(self.staff)
+
+        confirm_page = self.client.get(
+            '/admin/dashboard/confirm/',
+            {'action': 'publish-product', 'product_id': str(product.id)},
+        )
+
+        self.assertEqual(confirm_page.status_code, 200)
+        self.assertContains(
+            confirm_page,
+            f'Are you sure you want to publish product {product.name}?')
+
+        response = self.client.post('/admin/dashboard/confirm/', {
+            'action': 'publish-product',
+            'product_id': str(product.id),
+        })
+
+        self.assertRedirects(response, '/admin/dashboard/products/')
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+        self.assertTrue(product.is_active)
+
+    def test_staff_can_bulk_publish_selected_draft_products(self):
+        first = Product.objects.create(
+            category=self.category,
+            name='Bulk Publish First',
+            slug='bulk-publish-first',
+            description='Should be published in bulk.',
+            price_minor=11000,
+            status=Product.Status.DRAFT,
+        )
+        second = Product.objects.create(
+            category=self.category,
+            name='Bulk Publish Second',
+            slug='bulk-publish-second',
+            description='Should be published in bulk.',
+            price_minor=12000,
+            status=Product.Status.DRAFT,
+        )
+        live = Product.objects.create(
+            category=self.category,
+            name='Bulk Publish Already Live',
+            slug='bulk-publish-already-live',
+            description='Already published.',
+            price_minor=13000,
+            status=Product.Status.ACTIVE,
+        )
+        self.client.force_login(self.staff)
+
+        confirm_page = self.client.get(
+            '/admin/dashboard/confirm/',
+            {'action': 'publish-selected-products',
+                'product_ids': f'{first.id},{second.id}'},
+        )
+
+        self.assertEqual(confirm_page.status_code, 200)
+        self.assertContains(
+            confirm_page, 'Are you sure you want to publish 2 products?')
+
+        response = self.client.post(
+            '/admin/dashboard/confirm/',
+            {
+                'action': 'publish-selected-products',
+                'product_ids': [str(first.id), str(second.id), str(live.id)],
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, '/admin/dashboard/products/')
+        self.assertContains(response, '2 products published.')
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, Product.Status.ACTIVE)
+        self.assertEqual(second.status, Product.Status.ACTIVE)
+        self.assertTrue(first.is_active)
+        self.assertTrue(second.is_active)
+
     def test_staff_edit_form_posts_to_confirmation_route(self):
         product = Product.objects.create(
             category=self.category,
