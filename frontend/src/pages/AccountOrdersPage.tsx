@@ -275,9 +275,11 @@ export const AccountOrdersPage: React.FC = () => {
   }, [loadServerOrders]);
 
   const mergedOrders = useMemo<Order[]>(() => {
+    // Server is authoritative. Local context holds only this account's
+    // per-user cache + offline orders, so prefer the server copy on conflict.
     const seen = new Set<string>();
     const merged: Order[] = [];
-    for (const order of [...orders, ...(hydratedOrders ?? [])]) {
+    for (const order of [...(hydratedOrders ?? []), ...orders]) {
       const key = order.orderNumber.toUpperCase();
       if (seen.has(key)) continue;
       seen.add(key);

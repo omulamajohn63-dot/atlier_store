@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Order, OrderItem, OrderStatus, CreateOrderInput, OrderTimelineEvent } from '../types';
 import { useStore } from './StoreContext';
+import { useAuth } from './AuthContext';
 import { api } from '../services/apiClient';
 import { mapServerOrder } from '../utils/orderMapper';
 import { canMarkReceived } from '../utils/orderStatus';
@@ -11,7 +12,34 @@ import {
   VAT_RATE,
 } from '../utils/currency';
 
-const ORDERS_STORAGE_KEY = 'modeza_orders_v4_kes';
+const ORDERS_STORAGE_BASE_KEY = 'modeza_orders_v4_kes';
+const GUEST_KEY = `${ORDERS_STORAGE_BASE_KEY}:guest`;
+
+function ordersKeyFor(userId?: string | null): string {
+  return userId ? `${ORDERS_STORAGE_BASE_KEY}:${userId}` : GUEST_KEY;
+}
+
+function readStoredOrders(key: string): Order[] {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed as Order[];
+    }
+  } catch {
+    // ignore corrupt cache — fresh users start with 0 orders
+  }
+  return [];
+}
+
+/** One-time wipe of the legacy global key so old demo orders never leak. */
+function wipeLegacyGlobalOrders(): void {
+  try {
+    localStorage.removeItem(ORDERS_STORAGE_BASE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 export interface OrdersContextType {
   orders: Order[];
@@ -29,25 +57,69 @@ const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
 
 export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { checkBatchStock, deductInventoryForOrder, restockInventoryForOrder, validatePromoCode } = useStore();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const saved = localStorage.getItem(ORDERS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
+  // Fresh signups start with 0 orders. State is intentionally empty on first
+  // render so no previous user's cache can flash before scoping resolves.
+  const [orders, setOrders] = useState<Order[]>([]);
+  const activeKeyRef = useRef<string>(ordersKeyFor(userId));
+  const previousUserIdRef = useRef<string | null | undefined>(undefined);
+
+  // One-time wipe of the legacy global key (pre-per-user cache).
+  useEffect(() => {
+    wipeLegacyGlobalOrders();
+  }, []);
+
+  // Switch the active per-user cache whenever auth changes. Guest caches are
+  // discarded on sign-in (wiped, never migrated) so a new signup sees 0 orders.
+  useEffect(() => {
+    const prev = previousUserIdRef.current;
+    const next = userId;
+    const nextKey = ordersKeyFor(next);
+    activeKeyRef.current = nextKey;
+
+    if (prev === undefined) {
+      // Initial load: hydrate this account's cache only.
+      previousUserIdRef.current = next;
+      setOrders(readStoredOrders(nextKey));
+      return;
     }
-    return [];
-  });
+    if (prev !== next) {
+      if (!next && prev) {
+        // Signed out: wipe in-memory so the next session never sees it.
+        // Also discard the anonymous guest cache.
+        try {
+          localStorage.removeItem(GUEST_KEY);
+        } catch {
+          // ignore
+        }
+        previousUserIdRef.current = next;
+        activeKeyRef.current = GUEST_KEY;
+        setOrders([]);
+        return;
+      }
+      if (next && !prev) {
+        // Guest -> signed-in: discard guest cache, never migrate it.
+        try {
+          localStorage.removeItem(GUEST_KEY);
+        } catch {
+          // ignore
+        }
+        previousUserIdRef.current = next;
+        setOrders(readStoredOrders(nextKey));
+        return;
+      }
+      // Account switch (A -> B): isolate caches.
+      previousUserIdRef.current = next;
+      setOrders(readStoredOrders(nextKey));
+    }
+  }, [userId]);
 
+  // Persist only to the active per-user key.
   useEffect(() => {
     try {
-      localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+      localStorage.setItem(activeKeyRef.current, JSON.stringify(orders));
     } catch {
       // ignore
     }
@@ -429,9 +501,18 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const resetOrdersToDefault = useCallback(() => {
+    // Wipe all local order caches (legacy global + guest + active user).
     setOrders([]);
     try {
-      localStorage.removeItem(ORDERS_STORAGE_KEY);
+      localStorage.removeItem(ORDERS_STORAGE_BASE_KEY);
+      localStorage.removeItem(GUEST_KEY);
+      localStorage.removeItem(activeKeyRef.current);
+      const doomed: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`${ORDERS_STORAGE_BASE_KEY}:`)) doomed.push(key);
+      }
+      doomed.forEach((key) => localStorage.removeItem(key));
     } catch {
       // ignore
     }
