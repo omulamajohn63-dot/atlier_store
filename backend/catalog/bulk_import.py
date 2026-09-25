@@ -1036,6 +1036,7 @@ class BulkImportExecutionService:
             category='catalog', object_type='import_job', object_id=job.pk,
             object_repr=job.filename, description='Bulk import cancelled.',
             metadata={'filename': job.filename}, result='failure')
+        return job
 
 
 class BulkProductImportService:

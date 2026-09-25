@@ -2,7 +2,7 @@ import logging
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -268,6 +268,12 @@ def _import_status(value):
     raise BulkImportError('Choose Draft or Published for the import status.')
 
 
+# The admin import page posts multipart/form-data (empty FormData bodies for
+# validate/confirm/cancel, a limit field for process), while the API default is
+# JSON-only — accept all three so browser and JSON clients both work.
+BULK_IMPORT_ACTION_PARSERS = [MultiPartParser, FormParser, JSONParser]
+
+
 class BulkImportUploadView(AdminAPIView):
     required_permissions = ['products.import']
     parser_classes = [MultiPartParser, FormParser]
@@ -290,6 +296,7 @@ class BulkImportUploadView(AdminAPIView):
 
 class BulkImportValidateView(AdminAPIView):
     required_permissions = ['products.import']
+    parser_classes = BULK_IMPORT_ACTION_PARSERS
 
     def post(self, request, job_id):
         job = get_object_or_404(ImportJob, pk=job_id)
@@ -316,6 +323,7 @@ class BulkImportPreviewView(AdminAPIView):
 
 class BulkImportConfirmView(AdminAPIView):
     required_permissions = ['products.import']
+    parser_classes = BULK_IMPORT_ACTION_PARSERS
 
     def post(self, request, job_id):
         job = get_object_or_404(ImportJob, pk=job_id)
@@ -335,6 +343,7 @@ class BulkImportConfirmView(AdminAPIView):
 
 class BulkImportProcessView(AdminAPIView):
     required_permissions = ['products.import']
+    parser_classes = BULK_IMPORT_ACTION_PARSERS
 
     def post(self, request, job_id):
         job = get_object_or_404(ImportJob, pk=job_id)
@@ -360,6 +369,7 @@ class BulkImportStatusView(AdminAPIView):
 
 class BulkImportCancelView(AdminAPIView):
     required_permissions = ['products.import']
+    parser_classes = BULK_IMPORT_ACTION_PARSERS
 
     def post(self, request, job_id):
         job = get_object_or_404(ImportJob, pk=job_id)

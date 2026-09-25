@@ -105,6 +105,61 @@ class BulkImportAdminApiTests(TestCase):
             self.assertEqual(preview.status_code, 200)
             self.assertEqual(preview.json()['preview']['summary']['products'], 1)
 
+    def test_import_page_multipart_actions_are_accepted(self):
+        """Regression: the admin import page posts multipart/form-data bodies
+        (empty FormData + a limit field), but the API default parser is
+        JSON-only — validate/confirm/process/cancel used to return 415."""
+        self.authenticate()
+        self.enroll(['products.import'])
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        storage = FileSystemStorage(location=temporary.name)
+        with patch('catalog.bulk_import.default_storage', storage):
+            upload = self.client.post(
+                '/api/admin/bulk-import/upload',
+                {
+                    'file': SimpleUploadedFile('MODEZA_IMPORT.zip', self.package(), content_type='application/zip'),
+                    'import_status': 'DRAFT',
+                },
+                format='multipart',
+            )
+            self.assertEqual(upload.status_code, 201)
+            job_id = upload.json()['id']
+
+            validated = self.client.post(
+                f'/api/admin/bulk-import/{job_id}/validate', {}, format='multipart')
+            self.assertEqual(validated.status_code, 200)
+            self.assertEqual(validated.json()['status'], 'READY')
+
+            started = self.client.post(
+                f'/api/admin/bulk-import/{job_id}/confirm', {}, format='multipart')
+            self.assertEqual(started.status_code, 202)
+
+            processed = self.client.post(
+                f'/api/admin/bulk-import/{job_id}/process', {'limit': '10'}, format='multipart')
+            self.assertEqual(processed.status_code, 200)
+            payload = processed.json()
+            self.assertTrue(payload['finished'])
+            self.assertIn(payload['status'], ('COMPLETED', 'COMPLETED_WITH_ERRORS'))
+
+    def test_cancel_accepts_multipart(self):
+        self.authenticate()
+        self.enroll(['products.import'])
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        storage = FileSystemStorage(location=temporary.name)
+        with patch('catalog.bulk_import.default_storage', storage):
+            upload = self.client.post(
+                '/api/admin/bulk-import/upload',
+                {'file': SimpleUploadedFile('MODEZA_IMPORT.zip', self.package(), content_type='application/zip')},
+                format='multipart',
+            )
+            self.assertEqual(upload.status_code, 201)
+            cancelled = self.client.post(
+                f"/api/admin/bulk-import/{upload.json()['id']}/cancel", {}, format='multipart')
+            self.assertEqual(cancelled.status_code, 200)
+            self.assertEqual(cancelled.json()['status'], 'CANCELLED')
+
     def test_template_is_xlsx(self):
         self.authenticate()
         self.enroll(['products.import'])
