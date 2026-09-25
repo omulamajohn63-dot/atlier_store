@@ -114,7 +114,7 @@ class BulkImportTemplateService:
         ('name', 'YES', 'Product name. Must be identical for all rows sharing the same product_code.', 'Text, max 200 chars'),
         ('description', 'NO', 'Full product description.', 'Text'),
         ('tagline', 'NO', 'Short marketing tagline.', 'Text, max 255 chars'),
-        ('category', 'YES', 'Category name. Must match an existing active category exactly (case-insensitive). Categories are not created by import.', 'Existing category name, e.g., "Dresses"'),
+        ('category', 'YES', 'Category name. Matched against existing categories case-insensitively; categories that do not exist yet are created automatically during import.', 'Category name, e.g., "Dresses" — existing or new'),
         ('status', 'NO', 'Optional spreadsheet status. The status selected on the upload screen is applied to every product.', 'DRAFT, ACTIVE, ARCHIVED'),
         ('color', 'YES', 'Variant color name.', 'Text, e.g., "Black", "Navy Blue"'),
         ('color_hex', 'NO', 'Hex color code for swatches.', '#RRGGBB format, e.g., #000000'),

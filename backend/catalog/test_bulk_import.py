@@ -99,6 +99,48 @@ class BulkImportTests(TestCase):
         self.assertEqual(job.created_variants, 2)
         self.assertEqual(job.uploaded_images, 1)
 
+    def test_unknown_category_is_created_during_import(self):
+        rows = [
+            {'product_code': 'LSD001', 'name': 'Luna Silk Dress', 'description': 'Silk dress', 'category': 'Silk Evening', 'color': 'Black', 'size': 'S', 'sku': 'LSD-BLK-S', 'price': '4500', 'stock': '5', 'image_1': 'luna.jpg'},
+            {'product_code': 'LSD001', 'name': 'Luna Silk Dress', 'description': 'Silk dress', 'category': 'Silk Evening', 'color': 'Black', 'size': 'M', 'sku': 'LSD-BLK-M', 'price': '4500', 'stock': '7', 'image_1': 'luna.jpg'},
+        ]
+        job, storage = self.run_import(rows)
+        self.assertEqual(job.status, ImportJob.Status.READY)
+        self.assertEqual(job.error_count, 0)
+        self.assertTrue(job.validation_results['can_confirm'])
+        category_warnings = [
+            item for item in job.validation_results['warnings']
+            if item.get('field') == 'category'
+        ]
+        self.assertEqual(len(category_warnings), 1)
+        self.assertIn('Silk Evening', category_warnings[0]['message'])
+        self.assertFalse(Category.objects.filter(name='Silk Evening').exists())
+        with patch('catalog.bulk_import.default_storage', storage):
+            job = BulkProductImportService.confirm(job, actor=self.user)
+            job, finished = BulkProductImportService.process_chunk(job, limit=10, actor=self.user)
+        self.assertTrue(finished)
+        self.assertEqual(job.status, ImportJob.Status.COMPLETED)
+        category = Category.objects.get(name='Silk Evening')
+        self.assertTrue(category.is_active)
+        self.assertEqual(category.slug, 'silk-evening')
+        self.assertEqual(Product.objects.get(product_code='LSD001').category_id, category.pk)
+
+    def test_existing_category_is_matched_case_insensitively(self):
+        baseline = Category.objects.count()
+        rows = [{'product_code': 'LSD001', 'name': 'Luna Silk Dress', 'category': 'dresses', 'color': 'Black', 'size': 'S', 'sku': 'LSD-BLK-S', 'price': '4500', 'stock': '5', 'image_1': 'luna.jpg'}]
+        job, storage = self.run_import(rows)
+        self.assertEqual(job.error_count, 0)
+        self.assertTrue(job.validation_results['can_confirm'])
+        self.assertEqual(
+            [item for item in job.validation_results['warnings'] if item.get('field') == 'category'],
+            [])
+        with patch('catalog.bulk_import.default_storage', storage):
+            job = BulkProductImportService.confirm(job, actor=self.user)
+            job, finished = BulkProductImportService.process_chunk(job, limit=10, actor=self.user)
+        self.assertTrue(finished)
+        self.assertEqual(Product.objects.get(product_code='LSD001').category_id, self.category.pk)
+        self.assertEqual(Category.objects.count(), baseline)
+
     def test_invalid_workbook_does_not_modify_catalog(self):
         rows = [{'product_code': 'LSD001', 'name': 'Luna', 'category': 'Unknown', 'color': 'Black', 'size': 'S', 'sku': 'LSD-S', 'price': 'bad', 'stock': '-1'}]
         job, _storage = self.run_import(rows)

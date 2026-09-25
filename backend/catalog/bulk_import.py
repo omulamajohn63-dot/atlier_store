@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.text import slugify
 from openpyxl import load_workbook
@@ -468,13 +468,19 @@ class BulkImportValidationService:
                 group['warnings'].append(_issue('warning', 'description', 'Product has no description.'))
             category_value = _text(row.get('category'))
             category = categories_by_name.get(category_value.casefold()) or categories_by_slug.get(slugify(category_value).casefold())
-            if category_value and category is None:
-                message = f'Category "{category_value}" does not exist or is inactive.'
-                errors.append(_issue('error', 'category', message, row_number))
-                group['errors'].append(_issue('error', 'category', message))
             if category:
                 group['product']['category_id'] = str(category.id)
                 group['product']['category_name'] = category.name
+            elif category_value:
+                # Unknown (or inactive) categories are resolved during
+                # processing — created if missing — instead of failing
+                # validation, so a typo'd/new collection never blocks import.
+                group['product'].pop('category_id', None)
+                group['product']['category_name'] = category_value
+                if not any(item.get('field') == 'category' for item in group['warnings']):
+                    group['warnings'].append(_issue(
+                        'warning', 'category',
+                        f'Category "{category_value}" will be created during import if it does not exist.'))
             status_value = _text(row.get('status')).upper()
             if status_value:
                 if status_value in ('PUBLISHED', 'ACTIVE'):
@@ -890,10 +896,47 @@ class BulkImportExecutionService:
         raise BulkImportConflict('Validated product data is no longer available.')
 
     @classmethod
+    def _resolve_category(cls, product_data):
+        """Return the category for validated product data, creating it when missing."""
+        category_id = product_data.get('category_id')
+        if category_id:
+            category = Category.objects.filter(pk=category_id).first()
+            if category is not None:
+                return category
+        name = (_text(product_data.get('category_name')) or _text(product_data.get('category')) or '')[:120].strip()
+        if not name:
+            raise BulkImportConflict('Category is required.')
+        slug = slugify(name)[:100]
+        category = None
+        if slug:
+            category = Category.objects.filter(slug=slug).first()
+        if category is None:
+            category = Category.objects.filter(name__iexact=name).first()
+        if category is not None:
+            return category
+        try:
+            with transaction.atomic():
+                return Category.objects.create(
+                    name=name,
+                    slug=slug or f'category-{uuid4().hex[:10]}',
+                    description='Created automatically from bulk product import.',
+                    is_active=True,
+                )
+        except IntegrityError:
+            category = None
+            if slug:
+                category = Category.objects.filter(slug=slug).first()
+            if category is None:
+                category = Category.objects.filter(name__iexact=name).first()
+            if category is None:
+                raise BulkImportConflict(f'Category "{name}" could not be created.')
+            return category
+
+    @classmethod
     def _import_group(cls, job, group, package, actor, created_keys):
         product_data = group['product']
         rows = group['rows']
-        category = Category.objects.get(pk=product_data['category_id'])
+        category = cls._resolve_category(product_data)
         code = group['product_code']
         product = Product.objects.select_for_update().filter(product_code=code).first()
         if product is None:
