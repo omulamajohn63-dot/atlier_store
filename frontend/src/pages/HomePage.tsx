@@ -111,13 +111,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                   <span>Explore Collection</span>
                   <ArrowRight className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => navigate('/shop/dresses')}
-                >
-                  Shop Silk Dresses
-                </Button>
               </motion.div>
 
               {/* Value propositions */}
