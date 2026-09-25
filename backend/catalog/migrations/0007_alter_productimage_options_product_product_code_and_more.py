@@ -14,6 +14,18 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # A reverted deploy (8c6317d -> 0de71a6) left behind an old-schema
+        # catalog_importjob table plus an orphan django_migrations row for the
+        # now-deleted "0007_importjob" migration. Drop both so the CreateModel
+        # below can run; no-ops on fresh or already-migrated databases.
+        migrations.RunSQL(
+            sql="DROP TABLE IF EXISTS catalog_importjob",
+            reverse_sql=migrations.RunSQL.noop,
+        ),
+        migrations.RunSQL(
+            sql="DELETE FROM django_migrations WHERE app = 'catalog' AND name = '0007_importjob'",
+            reverse_sql=migrations.RunSQL.noop,
+        ),
         migrations.AlterModelOptions(
             name='productimage',
             options={'ordering': ('product', 'variant', 'order', 'id')},
