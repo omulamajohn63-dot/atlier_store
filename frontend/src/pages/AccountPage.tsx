@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
+import { CollapsibleGroup } from '../components/CollapsibleGroup';
 import { consumePostAuthDestination } from '../utils/postAuthRedirect';
 import { Badge } from '../components/modeza/Badge';
 import { Button } from '../components/modeza/Button';
@@ -110,12 +111,10 @@ const MemberAvatar: React.FC<{ initials: string; className?: string }> = ({ init
 );
 
 const AccountNavigation: React.FC<AccountNavigationProps> = ({ activePath, mobile = false, onNavigate }) => (
-  <nav className="space-y-6" aria-label="Account navigation">
-    {NAV_GROUPS.map((group) => (
-      <div key={group.label}>
-        <p className={`px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77] ${mobile ? '' : 'px-3'}`}>
-          {group.label}
-        </p>
+  <nav className={mobile ? 'space-y-2' : 'space-y-6'} aria-label="Account navigation">
+    {NAV_GROUPS.map((group) => {
+      const groupActive = group.items.some(({ href }) => href === activePath);
+      const items = (
         <div className="space-y-1">
           {group.items.map(({ label, href, icon }) => {
             const active = activePath === href;
@@ -137,8 +136,28 @@ const AccountNavigation: React.FC<AccountNavigationProps> = ({ activePath, mobil
             );
           })}
         </div>
-      </div>
-    ))}
+      );
+      if (mobile) {
+        return (
+          <CollapsibleGroup
+            key={group.label}
+            title={group.label}
+            defaultOpen={groupActive}
+            active={groupActive}
+          >
+            {items}
+          </CollapsibleGroup>
+        );
+      }
+      return (
+        <div key={group.label}>
+          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
+            {group.label}
+          </p>
+          {items}
+        </div>
+      );
+    })}
   </nav>
 );
 

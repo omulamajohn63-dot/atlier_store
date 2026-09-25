@@ -21,7 +21,8 @@ import { useCart } from '../context/CartContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { useStore } from '../context/StoreContext';
 import { useWishlist } from '../context/WishlistContext';
-import { useRouter } from '../router/RouterContext';
+import { useRouter, AppRoute } from '../router/RouterContext';
+import { CollapsibleGroup } from './CollapsibleGroup';
 import {
   Badge,
   Dialog,
@@ -132,6 +133,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
           categories={categories}
           productCategories={productCategories}
           currentCategory={currentCategory}
+          route={route}
           cartCount={cartCount}
           wishlistCount={wishlistCount}
         />
@@ -532,6 +534,7 @@ const MobileMenu: React.FC<{
   categories: NavigationItem[];
   productCategories: NavigationItem[];
   currentCategory?: string;
+  route: AppRoute;
   cartCount: number;
   wishlistCount: number;
 }> = ({
@@ -541,11 +544,24 @@ const MobileMenu: React.FC<{
   categories,
   productCategories,
   currentCategory,
+  route,
   cartCount,
   wishlistCount,
 }) => {
   const { user, signOut } = useAuth();
   if (!isOpen) return null;
+
+  const shopRoute = route.path === '/shop' ? route : undefined;
+  const browseActive = route.path === '/' || route.path === '/about' || Boolean(shopRoute?.sale);
+  const categoriesActive = Boolean(shopRoute?.category);
+  const shopActive = Boolean(
+    shopRoute && !shopRoute.category && !shopRoute.occasion && !shopRoute.sale,
+  );
+  const occasionActive = Boolean(shopRoute?.occasion);
+  const isPlainShop = Boolean(
+    shopRoute && !shopRoute.category && !shopRoute.occasion && !shopRoute.collection
+      && !shopRoute.query && !shopRoute.sale,
+  );
 
   return (
     <DialogContent className="left-auto right-0 top-0 flex h-dvh max-h-dvh w-[min(90vw,24rem)] max-w-[calc(100%-1rem)] translate-x-0 translate-y-0 flex-col overflow-hidden rounded-l-3xl rounded-r-none border-y-0 border-r-0 p-0 shadow-2xl lg:hidden">
@@ -560,14 +576,18 @@ const MobileMenu: React.FC<{
       </DialogDescription>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-7">
-        <MobileSection title="Browse">
-          <MobileLink label="Home" onClick={() => onNavigate('/')} />
-          <MobileLink label="About" onClick={() => onNavigate('/about')} />
-          <MobileLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
-          <MobileLink label="Sale" onClick={() => onNavigate('/shop?sale=true')} />
-        </MobileSection>
+        <CollapsibleGroup title="Browse" defaultOpen={browseActive} active={browseActive} className="mb-6">
+          <MobileLink label="Home" isActive={route.path === '/'} onClick={() => onNavigate('/')} />
+          <MobileLink label="About" isActive={route.path === '/about'} onClick={() => onNavigate('/about')} />
+          <MobileLink
+            label="New Arrivals"
+            isActive={shopRoute?.collection === 'new-arrivals'}
+            onClick={() => onNavigate('/shop?collection=new-arrivals')}
+          />
+          <MobileLink label="Sale" isActive={Boolean(shopRoute?.sale)} onClick={() => onNavigate('/shop?sale=true')} />
+        </CollapsibleGroup>
 
-        <MobileSection title="Categories">
+        <CollapsibleGroup title="Categories" defaultOpen={categoriesActive} active={categoriesActive} className="mb-6">
           {productCategories.map((category) => (
             <MobileLink
               key={category.slug}
@@ -576,33 +596,46 @@ const MobileMenu: React.FC<{
               isActive={currentCategory === category.slug}
             />
           ))}
-        </MobileSection>
+        </CollapsibleGroup>
 
-        <MobileSection title="Shop">
-          <MobileLink label="All Products" onClick={() => onNavigate('/shop')} />
-          <MobileLink label="Best Sellers" onClick={() => onNavigate('/shop?collection=best-sellers')} />
-          <MobileLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
-        </MobileSection>
+        <CollapsibleGroup title="Shop" defaultOpen={shopActive} active={shopActive} className="mb-6">
+          <MobileLink label="All Products" isActive={isPlainShop} onClick={() => onNavigate('/shop')} />
+          <MobileLink
+            label="Best Sellers"
+            isActive={shopRoute?.collection === 'best-sellers'}
+            onClick={() => onNavigate('/shop?collection=best-sellers')}
+          />
+          <MobileLink
+            label="New Arrivals"
+            isActive={shopRoute?.collection === 'new-arrivals'}
+            onClick={() => onNavigate('/shop?collection=new-arrivals')}
+          />
+        </CollapsibleGroup>
 
-        <MobileSection title="Shop by Category">
-          {productCategories.map((category) => (
-            <MobileLink
-              key={category.slug}
-              label={category.label}
-              onClick={() => onNavigate(category.path)}
-              isActive={currentCategory === category.slug}
-            />
-          ))}
-        </MobileSection>
-
-        <MobileSection title="Shop by Occasion">
-          <MobileLink label="Everyday" onClick={() => onNavigate('/shop?occasion=everyday')} />
-          <MobileLink label="Evening" onClick={() => onNavigate('/shop?occasion=evening')} />
-          <MobileLink label="Special Occasions" onClick={() => onNavigate('/shop?occasion=special-occasions')} />
-        </MobileSection>
+        <CollapsibleGroup title="Shop by Occasion" defaultOpen={occasionActive} active={occasionActive} className="mb-6">
+          <MobileLink
+            label="Everyday"
+            isActive={shopRoute?.occasion === 'everyday'}
+            onClick={() => onNavigate('/shop?occasion=everyday')}
+          />
+          <MobileLink
+            label="Evening"
+            isActive={shopRoute?.occasion === 'evening'}
+            onClick={() => onNavigate('/shop?occasion=evening')}
+          />
+          <MobileLink
+            label="Special Occasions"
+            isActive={shopRoute?.occasion === 'special-occasions'}
+            onClick={() => onNavigate('/shop?occasion=special-occasions')}
+          />
+        </CollapsibleGroup>
 
         <div className="mt-8 space-y-2 border-t border-[#E8E5DF] pt-6">
-          <MobileLink label="My Account" onClick={() => onNavigate('/account')} />
+          <MobileLink
+            label="My Account"
+            isActive={route.path.startsWith('/account')}
+            onClick={() => onNavigate('/account')}
+          />
           {user && (
             <button
               type="button"
@@ -616,9 +649,17 @@ const MobileMenu: React.FC<{
               Sign Out
             </button>
           )}
-          <MobileLink label={`Wishlist (${wishlistCount})`} onClick={() => onNavigate('/wishlist')} />
-          <MobileLink label="Track Order" onClick={() => onNavigate('/track')} />
-          <MobileLink label={`Cart (${cartCount})`} onClick={() => onNavigate('/cart')} />
+          <MobileLink
+            label={`Wishlist (${wishlistCount})`}
+            isActive={route.path === '/wishlist'}
+            onClick={() => onNavigate('/wishlist')}
+          />
+          <MobileLink label="Track Order" isActive={route.path === '/track'} onClick={() => onNavigate('/track')} />
+          <MobileLink
+            label={`Cart (${cartCount})`}
+            isActive={route.path === '/cart'}
+            onClick={() => onNavigate('/cart')}
+          />
         </div>
 
         <div className="mt-8 border-t border-[#E8E5DF] pt-6">
@@ -630,15 +671,6 @@ const MobileMenu: React.FC<{
     </DialogContent>
   );
 };
-
-const MobileSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="mb-8">
-    <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
-      {title}
-    </h3>
-    <div className="space-y-1">{children}</div>
-  </section>
-);
 
 const MobileLink: React.FC<{
   label: string;
