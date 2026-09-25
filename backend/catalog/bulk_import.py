@@ -72,6 +72,41 @@ class BulkImportConflict(BulkImportError):
     pass
 
 
+def queue_import_outcome_email(email_type, job, headline, detail=''):
+    """Queue the operator-facing email for a bulk import outcome.
+
+    Sent to the single ops inbox — ``notify_staff`` already fans the same event
+    out in-app. ``related_import_job`` supplies the idempotency key, so a
+    replayed completion or a duplicated task cannot email twice.
+    """
+    from emails.services import queue_email
+
+    origin = setting('FRONTEND_ORIGIN', 'http://localhost:3000')
+    report_url = f'{origin}/admin/dashboard/products/import/{job.pk}/report/'
+    lines = [headline, '']
+    if detail:
+        lines += [detail, '']
+    lines += [
+        f'File: {job.filename}',
+        f'Products created: {job.created_products}',
+        f'Products updated: {job.updated_products}',
+        f'Variants created: {job.created_variants}',
+        f'Variants updated: {job.updated_variants}',
+        f'Images uploaded: {job.uploaded_images}',
+        f'Rows failed: {job.failed_rows}',
+        f'Warnings: {job.warning_count}',
+        '',
+        f'View the report: {report_url}',
+    ]
+    return queue_email(
+        email_type=email_type,
+        subject=f'Bulk import: {job.filename}',
+        body_text='\n'.join(lines),
+        related_import_job=job,
+        metadata={'import_job_id': str(job.pk), 'report_url': report_url},
+    )
+
+
 def setting(name, default):
     return getattr(settings, name, default)
 
@@ -739,11 +774,22 @@ class BulkImportExecutionService:
 
     @classmethod
     def process_chunk(cls, job_id, limit=10, actor=None):
+        """Import one chunk of product groups.
+
+        Public behaviour is unchanged: claim the lease, import up to ``limit``
+        groups, then either finish the job or release the lease for the next
+        caller. The body lives in :meth:`_execute_chunk` so the Celery worker
+        in ``catalog.tasks`` drives exactly the same code.
+        """
         limit = min(max(int(limit or 10), 1), 25)
         token = cls._claim(job_id)
         if token is None:
             job = ImportJob.objects.get(pk=job_id)
             return job, False
+        return cls._execute_chunk(job_id, token, limit, actor)
+
+    @classmethod
+    def _execute_chunk(cls, job_id, token, limit, actor=None):
         job = ImportJob.objects.get(pk=job_id)
         result = job.import_results or {}
         previews = job.validation_results.get('products', [])
@@ -754,10 +800,18 @@ class BulkImportExecutionService:
             cls._finish_job(job, token, actor)
             return ImportJob.objects.get(pk=job_id), True
         package = None
+        stopped = False
         try:
             package = BulkImportPackage(job)
             package.__enter__()
             for preview in previews[next_index:next_index + limit]:
+                if not cls._still_owns(job_id, token):
+                    # The import was cancelled (or the lease was taken over by
+                    # a newer execution). Stop at a product-group boundary: the
+                    # group already inside its atomic block still commits, but
+                    # no further group is started and no counter is written.
+                    stopped = True
+                    break
                 if preview.get('product_code') in completed_codes or preview.get('product_code') in failed_codes:
                     next_index += 1
                     result['next_index'] = next_index
@@ -808,6 +862,9 @@ class BulkImportExecutionService:
                     'created_products', 'updated_products', 'created_variants',
                     'updated_variants', 'uploaded_images', 'import_results', 'error_details', 'updated_at',
                 ])
+            if stopped:
+                cls._release(job, token)
+                return ImportJob.objects.get(pk=job_id), False
             if next_index >= len(previews):
                 cls._finish_job(job, token, actor)
                 return ImportJob.objects.get(pk=job_id), True
@@ -846,6 +903,17 @@ class BulkImportExecutionService:
             logger.exception('Could not release bulk import lease for job %s', job.pk)
 
     @classmethod
+    def _still_owns(cls, job_id, token):
+        """True while this execution still holds the processing lease *and* the
+        job is still PROCESSING — i.e. it has not been cancelled underneath us
+        and no newer execution has taken the lease over."""
+        return ImportJob.objects.filter(
+            pk=job_id,
+            processing_token=token,
+            status=ImportJob.Status.PROCESSING,
+        ).exists()
+
+    @classmethod
     def _finish_job(cls, job, token, actor=None):
         now = timezone.now()
         failed = job.failed_rows > 0
@@ -853,6 +921,10 @@ class BulkImportExecutionService:
         ImportJob.objects.filter(pk=job.pk, processing_token=token).update(
             status=status, completed_at=now, processing_token=None,
             processing_lease_until=None, updated_at=now)
+        job.status = status
+        job.completed_at = now
+        job.processing_token = None
+        job.processing_lease_until = None
         AuditLogService.log(
             'bulk_import_completed' if not failed else 'bulk_import_failed',
             actor=actor or job.uploaded_by, category='catalog', object_type='import_job',
@@ -885,6 +957,12 @@ class BulkImportExecutionService:
             )
         except Exception:
             logger.exception('Bulk import completion notification failed for job %s', job.pk)
+        queue_import_outcome_email(
+            'bulk_import_failed' if failed else 'bulk_import_completed',
+            job,
+            ('Bulk import completed with errors.' if failed
+             else 'Bulk import completed.'),
+        )
         return ImportJob.objects.get(pk=job.pk)
 
     @classmethod
@@ -1063,12 +1141,24 @@ class BulkImportExecutionService:
 
     @classmethod
     def cancel(cls, job, actor=None):
-        if job.status == ImportJob.Status.PROCESSING:
-            raise BulkImportConflict('A processing import cannot be cancelled safely.')
+        """Cancel an import, including one that is mid-flight.
+
+        A PROCESSING job is stopped cooperatively: the status flips to CANCELLED
+        immediately (so the admin sees it and no new chunk can be claimed) and
+        the running execution — browser-driven or Celery — notices at the next
+        product-group boundary and releases its lease. The in-flight group still
+        commits its own atomic transaction, which is why the worker never
+        rewrites the job once it has been cancelled.
+        """
         job.status = ImportJob.Status.CANCELLED
         job.cancelled_at = timezone.now()
         job.completed_at = job.cancelled_at
-        job.save(update_fields=['status', 'cancelled_at', 'completed_at', 'updated_at'])
+        job.processing_token = None
+        job.processing_lease_until = None
+        job.save(update_fields=[
+            'status', 'cancelled_at', 'completed_at',
+            'processing_token', 'processing_lease_until', 'updated_at',
+        ])
         if job.package_path:
             try:
                 default_storage.delete(job.package_path)

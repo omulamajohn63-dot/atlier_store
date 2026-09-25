@@ -71,12 +71,6 @@ class BackInStockApiTests(TestCase):
 
 class BackInStockNotificationTests(TestCase):
     def setUp(self):
-        from unittest.mock import patch
-
-        self.mail_patcher = patch('inventory.services.EmailMessage.send')
-        self.mock_send = self.mail_patcher.start()
-        self.addCleanup(self.mail_patcher.stop)
-
         category = Category.objects.create(name='Tops', slug='tops-restock')
         self.product = Product.objects.create(
             category=category,
@@ -91,6 +85,12 @@ class BackInStockNotificationTests(TestCase):
         self.request = BackInStockRequest.objects.create(
             variant=self.variant, email='ada@example.com')
 
+    @staticmethod
+    def _back_in_stock_emails():
+        from emails.models import EmailLog
+
+        return EmailLog.objects.filter(email_type='back_in_stock')
+
     def test_subscribers_notified_once_when_variant_is_restocked(self):
         from inventory.services import adjust_stock
 
@@ -100,7 +100,11 @@ class BackInStockNotificationTests(TestCase):
         self.request.refresh_from_db()
         self.assertEqual(self.request.status, BackInStockRequest.Status.NOTIFIED)
         self.assertIsNotNone(self.request.notified_at)
-        self.assertEqual(self.mock_send.call_count, 1)
+        self.assertEqual(self._back_in_stock_emails().count(), 1)
+        self.assertEqual(
+            self._back_in_stock_emails().values_list(
+                'recipient_email', flat=True)[0],
+            'ada@example.com')
         self.assertTrue(AuditLog.objects.filter(
             action='back_in_stock_notified',
             object_type='product_variant',
@@ -137,4 +141,4 @@ class BackInStockNotificationTests(TestCase):
 
         self.request.refresh_from_db()
         self.assertEqual(self.request.status, BackInStockRequest.Status.PENDING)
-        self.assertEqual(self.mock_send.call_count, 0)
+        self.assertEqual(self._back_in_stock_emails().count(), 0)

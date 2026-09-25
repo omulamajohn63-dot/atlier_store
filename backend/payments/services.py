@@ -8,6 +8,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from admin_ui.models import notify_customer
 from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
+from emails.services import queue_email
 from inventory.models import StockReservation
 from orders.models import Order
 from receipts.services import generate_receipt
@@ -24,6 +25,56 @@ def get_order_for_cart(order_number, cart_key):
     if not cart_key or not order.cart or order.cart.cart_key != cart_key:
         raise PermissionDenied('You cannot access this order.')
     return order
+
+
+def _customer_email(order):
+    return ((order.customer or {}).get('email') or '').strip()
+
+
+def _payment_body(order, headline, reference=''):
+    customer = order.customer or {}
+    name = (customer.get('fullName') or '').strip() or 'there'
+    lines = [
+        f'Hi {name},',
+        '',
+        headline,
+        '',
+        f'Order number: {order.order_number}',
+        f'Total: {order.currency or "KES"} {(order.total_minor or 0) / 100:.2f}',
+    ]
+    if reference:
+        lines.append(f'Reference: {reference}')
+    lines.extend([
+        '',
+        'View your order: '
+        f'{getattr(settings, "FRONTEND_ORIGIN", "http://localhost:3000")}'
+        f'/account/orders/{order.order_number}',
+        '',
+        getattr(settings, 'STORE_NAME', 'MODEZA Boutique'),
+        getattr(settings, 'STORE_ADDRESS', ''),
+    ])
+    return '\n'.join(lines)
+
+
+def _queue_payment_email(email_type, order, subject, body_text, notification):
+    """Queue a payment-related customer email after the transaction commits.
+
+    ``notification`` is the payload the call site just passed to
+    ``notify_customer``; the shared ``event_key`` keeps the two in step.
+    """
+    recipient = _customer_email(order)
+    if not recipient:
+        return None
+    return queue_email(
+        email_type=email_type,
+        subject=subject,
+        body_text=body_text,
+        recipient_email=recipient,
+        recipient_name=(order.customer or {}).get('fullName') or '',
+        related_user=order.user,
+        related_order=order,
+        notification=notification,
+    )
 
 
 @transaction.atomic
@@ -101,15 +152,30 @@ def _mark_intent_succeeded(intent, gateway_reference):
         message=f'Payment received for order {order.order_number}.',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
+    paid = {
+        'category': 'payment',
+        'title': 'Payment received',
+        'message': f'Payment for order {order.order_number} was successful.',
+        'link': f'/account/orders/{order.order_number}',
+        'event_key': f'customer-payment-success:{order.pk}',
+    }
     if order.user is not None:
         notify_customer(
             order.user,
-            'payment',
-            'Payment received',
-            f'Payment for order {order.order_number} was successful.',
-            link=f'/account/orders/{order.order_number}',
-            event_key=f'customer-payment-success:{order.pk}',
+            paid['category'], paid['title'], paid['message'],
+            link=paid['link'], event_key=paid['event_key'],
         )
+    _queue_payment_email(
+        'payment_success', order,
+        f'Payment received for order {order.order_number}',
+        _payment_body(
+            order,
+            f'Your payment for order {order.order_number} was received '
+            'successfully.',
+            intent.gateway_reference,
+        ),
+        paid,
+    )
     return order
 
 
@@ -184,14 +250,28 @@ def process_webhook(payload, signature, event_id):
             message=f'Payment for order {order.order_number} did not complete.',
             link=f'/admin/dashboard/orders/{order.pk}/',
         )
+        failed = {
+            'category': 'payment',
+            'title': 'Payment failed',
+            'message': f'Payment for order {order.order_number} did not complete. You can try again.',
+            'link': f'/account/orders/{order.order_number}',
+            'event_key': f'customer-payment-failed:{order.pk}',
+        }
         if order.user is not None:
             notify_customer(
                 order.user,
-                'payment',
-                'Payment failed',
-                f'Payment for order {order.order_number} did not complete. You can try again.',
-                link=f'/account/orders/{order.order_number}',
-                event_key=f'customer-payment-failed:{order.pk}',
+                failed['category'], failed['title'], failed['message'],
+                link=failed['link'], event_key=failed['event_key'],
             )
+        _queue_payment_email(
+            'payment_failed', order,
+            f'Payment failed for order {order.order_number}',
+            _payment_body(
+                order,
+                'Your payment did not complete and no charge was made. '
+                'You can try again whenever you are ready.',
+            ),
+            failed,
+        )
         return {'received': True, 'status': 'payment_failed', 'orderNumber': order.order_number}
     return {'received': True, 'status': 'unhandled_event'}

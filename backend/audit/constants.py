@@ -100,6 +100,7 @@ AUDIT_ACTIONS = (
     "server_error",
     "unexpected_server_error",
     "inventory_low_stock",
+    "email_retry_requested",
 )
 
 # Events the browser storefront is allowed to emit via POST /api/audit/events.
@@ -230,6 +231,7 @@ CATEGORY_BY_ACTION = {
     "server_error": "system",
     "unexpected_server_error": "system",
     "inventory_low_stock": "inventory",
+    "email_retry_requested": "system",
     "security_event": "security",
 }
 
@@ -272,6 +274,7 @@ SEVERITY_BY_ACTION = {
     "role_deleted": "high",
     "permissions_granted": "high",
     "permissions_revoked": "medium",
+    "email_retry_requested": "medium",
 }
 
 

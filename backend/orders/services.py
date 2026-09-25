@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
@@ -8,6 +9,7 @@ from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 from cart.models import Cart
 from catalog.models import Product
+from emails.services import queue_email
 from inventory.services import release_reservation, reserve_variant
 from receipts.services import generate_receipt
 
@@ -32,6 +34,56 @@ def _audit_order(action, order, result='success', metadata=None, status_code=Non
     )
 
 
+def _customer_email(order):
+    return ((order.customer or {}).get('email') or '').strip()
+
+
+def _money(minor):
+    return f'{(minor or 0) / 100:.2f}'
+
+
+def _order_summary(order, headline):
+    customer = order.customer or {}
+    name = (customer.get('fullName') or '').strip() or 'there'
+    quantity = sum(item.quantity for item in order.items.all())
+    return (
+        f'Hi {name},\n\n{headline}\n\n'
+        f'Order number: {order.order_number}\n'
+        f'Items: {quantity}\n'
+        f'Total: {order.currency or "KES"} {_money(order.total_minor)}\n'
+        f'Shipping: {order.shipping_method}\n'
+        f'Payment: {order.payment_method}\n\n'
+        f'View your order: '
+        f'{getattr(settings, "FRONTEND_ORIGIN", "http://localhost:3000")}'
+        f'/account/orders/{order.order_number}\n\n'
+        f'{getattr(settings, "STORE_NAME", "MODEZA Boutique")}\n'
+        f'{getattr(settings, "STORE_ADDRESS", "")}'
+    )
+
+
+def _queue_order_email(email_type, order, subject, headline, notification):
+    """Queue the customer email for after the transaction commits.
+
+    ``notification`` is the very same payload the call site just handed to
+    ``notify_customer``. Carrying it along means a successful delivery can
+    still surface in the storefront if the in-app write ever regresses, while
+    the shared ``event_key`` keeps the two from both firing for one event.
+    """
+    recipient = _customer_email(order)
+    if not recipient:
+        return None
+    return queue_email(
+        email_type=email_type,
+        subject=subject,
+        body_text=_order_summary(order, headline),
+        recipient_email=recipient,
+        recipient_name=(order.customer or {}).get('fullName') or '',
+        related_user=order.user,
+        related_order=order,
+        notification=notification,
+    )
+
+
 @transaction.atomic
 def receive_order(order):
     if order.status == Order.Status.RECEIVED:
@@ -49,15 +101,24 @@ def receive_order(order):
                   'reason': 'received'},
     )
 
+    received = {
+        'category': 'order',
+        'title': 'Order received',
+        'message': f'Your order {order.order_number} has been marked as received.',
+        'link': f'/account/orders/{order.order_number}',
+        'event_key': f'customer-order-received:{order.pk}',
+    }
     if order.user is not None:
         notify_customer(
             order.user,
-            'order',
-            'Order received',
-            f'Your order {order.order_number} has been marked as received.',
-            link=f'/account/orders/{order.order_number}',
-            event_key=f'customer-order-received:{order.pk}',
+            received['category'], received['title'], received['message'],
+            link=received['link'], event_key=received['event_key'],
         )
+    _queue_order_email(
+        'order_received', order,
+        f'Order {order.order_number} received',
+        received['message'], received,
+    )
 
     return order
 
@@ -103,15 +164,24 @@ def mark_received_paid(order):
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
 
+    settled = {
+        'category': 'order',
+        'title': 'Order received and paid',
+        'message': f'Your order {order.order_number} has been marked as received and settled.',
+        'link': f'/account/orders/{order.order_number}',
+        'event_key': f'customer-order-received-paid:{order.pk}',
+    }
     if order.user is not None:
         notify_customer(
             order.user,
-            'order',
-            'Order received and paid',
-            f'Your order {order.order_number} has been marked as received and settled.',
-            link=f'/account/orders/{order.order_number}',
-            event_key=f'customer-order-received-paid:{order.pk}',
+            settled['category'], settled['title'], settled['message'],
+            link=settled['link'], event_key=settled['event_key'],
         )
+    _queue_order_email(
+        'order_received', order,
+        f'Order {order.order_number} received',
+        settled['message'], settled,
+    )
 
     return order
 
@@ -219,15 +289,24 @@ def create_order(cart_key, payload, user=None):
         f'({order.customer.get("fullName") or "a customer"}).',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
+    placed = {
+        'category': 'order',
+        'title': 'Order placed',
+        'message': f'Your order {order.order_number} has been placed and is being prepared.',
+        'link': f'/account/orders/{order.order_number}',
+        'event_key': f'customer-order-created:{order.pk}',
+    }
     if user is not None:
         notify_customer(
             user,
-            'order',
-            'Order placed',
-            f'Your order {order.order_number} has been placed and is being prepared.',
-            link=f'/account/orders/{order.order_number}',
-            event_key=f'customer-order-created:{order.pk}',
+            placed['category'], placed['title'], placed['message'],
+            link=placed['link'], event_key=placed['event_key'],
         )
+    _queue_order_email(
+        'order_confirmation', order,
+        f'Order {order.order_number} received',
+        placed['message'], placed,
+    )
     return order
 
 
@@ -260,15 +339,24 @@ def approve_order(order):
         message=f'Order {order.order_number} has been confirmed.',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
+    confirmed = {
+        'category': 'order',
+        'title': 'Order confirmed',
+        'message': f'Your order {order.order_number} has been confirmed and is now being prepared.',
+        'link': f'/account/orders/{order.order_number}',
+        'event_key': f'customer-order-confirmed:{order.pk}',
+    }
     if order.user is not None:
         notify_customer(
             order.user,
-            'order',
-            'Order confirmed',
-            f'Your order {order.order_number} has been confirmed and is now being prepared.',
-            link=f'/account/orders/{order.order_number}',
-            event_key=f'customer-order-confirmed:{order.pk}',
+            confirmed['category'], confirmed['title'], confirmed['message'],
+            link=confirmed['link'], event_key=confirmed['event_key'],
         )
+    _queue_order_email(
+        'order_confirmed', order,
+        f'Order {order.order_number} confirmed',
+        confirmed['message'], confirmed,
+    )
     generate_receipt(order)
     return order
 
@@ -364,13 +452,22 @@ def cancel_order(order):
         message=f'Order {order.order_number} was cancelled.',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
+    cancelled = {
+        'category': 'order',
+        'title': 'Order cancelled',
+        'message': f'Your order {order.order_number} has been cancelled.',
+        'link': f'/account/orders/{order.order_number}',
+        'event_key': f'customer-order-cancelled:{order.pk}',
+    }
     if order.user is not None:
         notify_customer(
             order.user,
-            'order',
-            'Order cancelled',
-            f'Your order {order.order_number} has been cancelled.',
-            link=f'/account/orders/{order.order_number}',
-            event_key=f'customer-order-cancelled:{order.pk}',
+            cancelled['category'], cancelled['title'], cancelled['message'],
+            link=cancelled['link'], event_key=cancelled['event_key'],
         )
+    _queue_order_email(
+        'order_cancelled', order,
+        f'Order {order.order_number} cancelled',
+        cancelled['message'], cancelled,
+    )
     return order

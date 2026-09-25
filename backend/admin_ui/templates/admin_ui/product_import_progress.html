@@ -68,6 +68,9 @@
         <button id="retryButton" class="btn btn-primary" type="button" style="display: none;">
           <i class="ph ph-arrows-clockwise"></i> Retry
         </button>
+        <button id="cancelButton" class="btn btn-secondary" type="button" style="display: none;">
+          <i class="ph ph-x"></i> Cancel Import
+        </button>
         <a id="reportLink" class="btn btn-secondary" href="{{ report_url }}" style="display: {% if is_terminal %}inline-flex{% else %}none{% endif %};">
           <i class="ph ph-file-text"></i> View Report
         </a>
@@ -100,6 +103,10 @@
 (function () {
   const csrfInput = document.querySelector('[name="csrfmiddlewaretoken"]');
   const csrfToken = csrfInput ? csrfInput.value : '';
+  // True when a Celery worker owns the import: the browser then only watches
+  // GET .../status and may be closed without stalling the job. False keeps the
+  // original behaviour where this page drives POST .../process itself.
+  const WORKER_ENABLED = {{ celery_worker_enabled|yesno:'true,false' }};
   const initial = document.getElementById('initial-job');
   let job = initial ? JSON.parse(initial.textContent) : null;
   let running = false;
@@ -119,6 +126,7 @@
   const errorList = document.getElementById('errorList');
   const startButton = document.getElementById('startButton');
   const retryButton = document.getElementById('retryButton');
+  const cancelButton = document.getElementById('cancelButton');
   const reportLink = document.getElementById('reportLink');
   const backLink = document.getElementById('backLink');
 
@@ -194,6 +202,7 @@
     else setNote('The import failed. Review the errors below.', 'error');
     startButton.style.display = 'none';
     retryButton.style.display = 'none';
+    cancelButton.style.display = 'none';
     backLink.style.display = 'none';
     if (data.id) {
       reportLink.href = '/admin/dashboard/products/import/' + data.id + '/report/';
@@ -227,17 +236,21 @@
       progressTitle.textContent = 'Import in progress';
       startButton.style.display = 'none';
       retryButton.style.display = 'none';
+      cancelButton.style.display = 'inline-flex';
       backLink.style.display = 'inline-flex';
       reportLink.style.display = 'none';
-      setNote('Importing products…', '');
+      setNote(WORKER_ENABLED ? 'Importing in the background…' : 'Importing products…', '');
     } else if (data.status === 'READY') {
       progressTitle.textContent = 'Ready to import';
       startButton.style.display = 'inline-flex';
+      cancelButton.style.display = 'inline-flex';
       setNote('Review the totals, then start the import.', '');
     } else if (data.status === 'UPLOADED' || data.status === 'VALIDATING') {
       progressTitle.textContent = 'Import not confirmed';
+      cancelButton.style.display = 'inline-flex';
       setNote('This package still needs validation. Open the import page to continue.', 'error');
     } else if (data.status === 'CANCELLED') {
+      cancelButton.style.display = 'none';
       progressTitle.textContent = 'Import cancelled';
       setNote('This import was cancelled.', 'error');
     }
@@ -272,9 +285,15 @@
     running = true;
     showBanner('', '');
     try {
-      const body = new FormData();
-      body.append('limit', '25');
-      const result = await request('/admin/bulk-import/' + job.id + '/process', { method: 'POST', body: body });
+      let result;
+      if (WORKER_ENABLED) {
+        // A Celery worker is advancing the job; this page only watches it.
+        result = await request('/admin/bulk-import/' + job.id + '/status');
+      } else {
+        const body = new FormData();
+        body.append('limit', '25');
+        result = await request('/admin/bulk-import/' + job.id + '/process', { method: 'POST', body: body });
+      }
       errorRetries = 0;
       const progressed = result.processed_rows !== job.processed_rows
         || result.created_products !== job.created_products
@@ -285,13 +304,14 @@
         running = false;
         return;
       }
-      let delay = 250;
+      let delay = WORKER_ENABLED ? 2000 : 250;
       if (progressed) {
         noProgressRetries = 0;
       } else {
-        // Another session holds the processing lease — wait and try again.
+        // Another session holds the processing lease (or the worker has not
+        // picked the job up yet) — wait a little longer before asking again.
         noProgressRetries += 1;
-        if (noProgressRetries >= 3) delay = 3000;
+        if (noProgressRetries >= 3) delay = WORKER_ENABLED ? 5000 : 3000;
       }
       running = false;
       schedule(delay);
@@ -316,7 +336,32 @@
     }
   }
 
+  async function cancelImport() {
+    if (!job) return;
+    const confirmed = window.confirm(
+      'Cancel this import? Products that were already imported stay in the catalogue.');
+    if (!confirmed) return;
+    cancelButton.disabled = true;
+    showBanner('', '');
+    setNote('Cancelling…', '');
+    try {
+      if (pendingTimer) { window.clearTimeout(pendingTimer); pendingTimer = null; }
+      const result = await request('/admin/bulk-import/' + job.id + '/cancel', {
+        method: 'POST', body: new FormData()
+      });
+      renderProgress(result);
+      if (result.status === 'CANCELLED') setNote('This import was cancelled.', 'error');
+    } catch (error) {
+      showBanner(error.message, 'error');
+      setNote('The import could not be cancelled.', 'error');
+      if (job.status === 'PROCESSING') schedule(2000);
+    } finally {
+      cancelButton.disabled = false;
+    }
+  }
+
   startButton.addEventListener('click', startImport);
+  cancelButton.addEventListener('click', cancelImport);
   retryButton.addEventListener('click', function () {
     errorRetries = 0;
     retryButton.style.display = 'none';

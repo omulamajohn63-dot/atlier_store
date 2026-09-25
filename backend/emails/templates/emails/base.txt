@@ -1,0 +1,10 @@
+{% if recipient_name %}Hello {{ recipient_name }},{% else %}Hello,{% endif %}
+
+{{ body_text }}
+
+--
+{{ store_name }}
+{{ store_website }}
+{% if store_phone %}{{ store_phone }}
+{% endif %}{% if store_address %}{{ store_address }}
+{% endif %}{% if store_email %}Questions? Reply to this address or write to {{ store_email }}.{% endif %}

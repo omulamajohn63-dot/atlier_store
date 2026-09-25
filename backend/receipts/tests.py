@@ -287,11 +287,13 @@ class ReceiptApiTests(TestCase):
         intent = self._create_intent()
         with self.captureOnCommitCallbacks(execute=True):
             self._confirm_payment(intent['id'])
-        self.assertEqual(len(mail.outbox), 1)
-        email = mail.outbox[0]
         receipt = Receipt.objects.get(order=self.order)
+        # Confirming the payment also queues its own payment email, so narrow
+        # the assertion to the one message that carries this receipt.
+        messages = [m for m in mail.outbox if receipt.receipt_number in m.subject]
+        self.assertEqual(len(messages), 1)
+        email = messages[0]
         self.assertEqual(email.to, ['ada@example.com'])
-        self.assertIn(receipt.receipt_number, email.subject)
         self.assertEqual(len(email.attachments), 1)
         filename, payload, content_type = email.attachments[0]
         self.assertEqual(filename, f'{receipt.receipt_number}.pdf')

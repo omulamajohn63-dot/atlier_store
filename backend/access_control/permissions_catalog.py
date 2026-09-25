@@ -24,6 +24,7 @@ GROUPS = [
     ("staff", "Staff"),
     ("roles", "Roles & Permissions"),
     ("audit_logs", "Audit Logs"),
+    ("emails", "Emails"),
 ]
 
 # (code, label, description, is_sensitive, requires)
@@ -84,6 +85,9 @@ PERMISSIONS = [
     # Audit Logs
     ("audit_logs.view", "View audit logs", "View the audit trail.", False, []),
     ("audit_logs.export", "Export audit logs", "Export / download audit data.", False, ["audit_logs.view"]),
+    # Emails
+    ("emails.view", "View emails", "View the outbound email log.", False, []),
+    ("emails.manage", "Manage emails", "Re-send failed or stuck outbound emails.", False, ["emails.view"]),
 ]
 
 PERMISSION_BY_CODE = {code: p for p in PERMISSIONS for code in ([p[0]] if isinstance(p[0], str) else p[0])}

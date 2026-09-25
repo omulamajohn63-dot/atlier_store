@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -13,6 +14,7 @@ from catalog.bulk_import import BulkImportError, BulkProductImportService, job_d
 from catalog.models import Category, ImportJob, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
 from catalog.services import BulkImportTemplateService
+from catalog.tasks import enqueue_import_job
 from inventory.services import adjust_stock, expire_reservations
 
 from .serializers import CategoryWriteSerializer, ProductWriteSerializer, StockAdjustmentSerializer
@@ -333,12 +335,20 @@ class BulkImportConfirmView(AdminAPIView):
                 job.import_status = _import_status(requested_status)
                 job.save(update_fields=['import_status', 'updated_at'])
             job = BulkProductImportService.confirm(job, actor=request.user)
+            if settings.CELERY_WORKER_ENABLED:
+                # Background worker owns the job from here; the browser just
+                # polls GET .../status. Without a worker the confirm response
+                # is unchanged and the page drives /process as it always has.
+                enqueue_import_job(job.pk, request.user.pk)
+                job.refresh_from_db()
         except BulkImportError as exc:
             return _bulk_error(exc)
         except Exception:
             logger.exception('Bulk import confirmation failed for job %s', job_id)
             return _bulk_error('The import could not be started. Please try again.', 'BULK_IMPORT_CONFIRM_FAILED', 500)
-        return Response(job_data(job), 202)
+        payload = job_data(job)
+        payload['queued'] = settings.CELERY_WORKER_ENABLED
+        return Response(payload, 202)
 
 
 class BulkImportProcessView(AdminAPIView):
@@ -347,6 +357,20 @@ class BulkImportProcessView(AdminAPIView):
 
     def post(self, request, job_id):
         job = get_object_or_404(ImportJob, pk=job_id)
+        if settings.CELERY_WORKER_ENABLED:
+            # Idempotent kick: the task re-claims the lease itself, so a duplicate
+            # message or a stray browser call is harmless.
+            try:
+                if job.status == ImportJob.Status.PROCESSING:
+                    enqueue_import_job(job.pk, request.user.pk)
+                    job.refresh_from_db()
+            except Exception:
+                logger.exception('Bulk import dispatch failed for job %s', job_id)
+                return _bulk_error('The import could not continue. Please retry the job.', 'BULK_IMPORT_PROCESS_FAILED', 500)
+            payload = job_data(job)
+            payload['finished'] = job.status in (
+                ImportJob.Status.COMPLETED, ImportJob.Status.COMPLETED_WITH_ERRORS)
+            return Response(payload)
         try:
             job, finished = BulkProductImportService.process_chunk(
                 job, limit=request.data.get('limit', 10), actor=request.user)

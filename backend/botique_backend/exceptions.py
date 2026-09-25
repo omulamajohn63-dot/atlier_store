@@ -11,6 +11,7 @@ audit/notify hooks never raise.
 """
 
 import logging
+import uuid
 
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
@@ -48,6 +49,39 @@ def _error_code(exc, status):
         return default_code.upper()
     return STATUS_CODES.get(status, default_code.upper() or 'API_ERROR')
 
+
+def _queue_critical_error_email(request, status, path):
+    """Email the ops inbox about an unhandled 5xx.
+
+    Keyed on the request id so one failing request yields one message; the
+    bounded retry ladder decides whether it ever lands. Best effort: an email
+    problem must never turn a 500 into a second error.
+    """
+    from django.conf import settings
+
+    from emails.services import queue_email
+
+    request_id = AuditLogService.current_request_id() or ''
+    method = getattr(request, 'method', '') or ''
+    store = getattr(settings, 'STORE_NAME', 'MODEZA Boutique')
+    queue_email(
+        email_type='admin_critical_error',
+        subject=f'Server error {status} on {method} {path}',
+        body_text=(
+            'Unhandled server error\n\n'
+            f'Method: {method}\n'
+            f'Path: {path}\n'
+            f'Status: {status}\n'
+            f'Request id: {request_id or "n/a"}\n\n'
+            'The full traceback is in the server log and the audit trail.\n\n'
+            f'{store}\n'
+        ),
+        idempotency_key=(
+            f'admin_critical_error:request:{request_id}' if request_id
+            else f'admin_critical_error:request:{uuid.uuid4().hex}'),
+        metadata={'path': path, 'method': method, 'status': status,
+                  'request_id': request_id},
+    )
 
 def _failure_path(request):
     return getattr(request, 'path', '') if request is not None else ''
@@ -218,6 +252,7 @@ def api_exception_handler(exc, context):
             severity='high',
             description='Unhandled server error on API request.',
         )
+        _queue_critical_error_email(request, status, path)
 
     if response is not None:
         response.data = payload

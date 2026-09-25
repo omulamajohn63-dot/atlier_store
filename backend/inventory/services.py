@@ -1,12 +1,14 @@
-from django.core.mail import EmailMessage
-from django.db import transaction
 from datetime import timedelta
+
+from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from admin_ui.models import notify_staff
 from audit.services import AuditLogService
 from catalog.models import ProductVariant
+from emails.services import queue_email
 
 from .models import BackInStockRequest, InventoryTransaction, StockReservation
 
@@ -24,6 +26,37 @@ def _audit_variant(action, variant, metadata=None, result='success'):
     )
 
 
+def _notify_low_stock(variant):
+    """Warn the staff once per variant when it first falls to three or fewer.
+
+    The in-app ``notify_staff`` call and the ops email share the same
+    ``event_key``/idempotency key, so a variant produces exactly one of each —
+    never one per further decrement.
+    """
+    message = (
+        f'Low stock: {variant.product.name} ({variant.sku}) is down to '
+        f'{variant.stock_quantity}.'
+    )
+    notify_staff(
+        'inventory',
+        'Low stock alert',
+        message,
+        link=f'/admin/dashboard/inventory/adjust/?variant={variant.pk}',
+        event_key=f'low-stock:{variant.pk}',
+    )
+    queue_email(
+        email_type='admin_low_stock',
+        subject=f'Low stock: {variant.product.name} ({variant.sku})',
+        body_text=(
+            f'Low stock alert\n\n{message}\n\n'
+            f'Adjust stock: '
+            f'{getattr(settings, "FRONTEND_ORIGIN", "http://localhost:3000")}'
+            f'/admin/dashboard/inventory/adjust/?variant={variant.pk}\n'
+        ),
+        idempotency_key=f'admin_low_stock:variant:{variant.pk}',
+    )
+
+
 def reserve_variant(order, variant, quantity):
     if quantity < 1:
         raise ValidationError({'quantity': 'Quantity must be at least 1.'})
@@ -35,13 +68,7 @@ def reserve_variant(order, variant, quantity):
     locked_variant.stock_quantity -= quantity
     locked_variant.save(update_fields=['stock_quantity'])
     if locked_variant.stock_quantity <= 3:
-        notify_staff(
-            'inventory',
-            'Low stock alert',
-            f'Low stock: {locked_variant.product.name} ({locked_variant.sku}) is down to {locked_variant.stock_quantity}.',
-            link=f'/admin/dashboard/inventory/adjust/?variant={locked_variant.pk}',
-            event_key=f'low-stock:{locked_variant.pk}',
-        )
+        _notify_low_stock(locked_variant)
     reservation = StockReservation.objects.create(
         order=order,
         variant=locked_variant,
@@ -112,13 +139,7 @@ def adjust_stock(variant_id, delta, reason, actor=None):
                   'new_quantity': new_quantity, 'reason': reason},
     )
     if variant.stock_quantity <= 3:
-        notify_staff(
-            'inventory',
-            'Low stock alert',
-            f'Low stock: {variant.product.name} ({variant.sku}) is down to {variant.stock_quantity}.',
-            link=f'/admin/dashboard/inventory/adjust/?variant={variant.pk}',
-            event_key=f'low-stock:{variant.pk}',
-        )
+        _notify_low_stock(variant)
     transaction.on_commit(
         lambda: _maybe_notify_restock(variant, previous, new_quantity))
     return InventoryTransaction.objects.create(
@@ -216,9 +237,13 @@ def notify_back_in_stock(variant, quantity):
 
 
 def _send_back_in_stock_email(request, variant):
-    """Best-effort email delivery for a back-in-stock notification."""
-    from django.conf import settings
-    subject = f'{getattr(settings, "STORE_NAME", "Modeza Boutique")} — back in stock'
+    """Queue the back-in-stock notification through the central mailer.
+
+    The subscription only carries an address (no account), so there is no
+    in-app notification to mirror — the row itself is the record of who was
+    told. ``request.pk`` is the idempotency key: one message per subscriber.
+    """
+    subject = f'{getattr(settings, "STORE_NAME", "Modeza Boutique")} \u2014 back in stock'
     body = (
         f'Hello,\n\n'
         f'Good news: {variant.product.name}'
@@ -229,13 +254,15 @@ def _send_back_in_stock_email(request, variant):
         f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}\n'
         f'{getattr(settings, "STORE_ADDRESS", "")}'
     )
-    try:
-        EmailMessage(
-            subject, body, settings.DEFAULT_FROM_EMAIL, [request.email]).send(
-            fail_silently=True)
-    except Exception:  # noqa: BLE001 - delivery must never break the restock
-        logger = __import__('logging').getLogger('modeza.inventory')
-        logger.warning('Back-in-stock email failed for %s', request.email)
+    queue_email(
+        email_type='back_in_stock',
+        subject=subject,
+        body_text=body,
+        recipient_email=request.email,
+        idempotency_key=f'back_in_stock:request:{request.pk}',
+        metadata={'back_in_stock_request_id': str(request.pk),
+                  'variant_id': str(variant.pk)},
+    )
 
 
 @transaction.atomic

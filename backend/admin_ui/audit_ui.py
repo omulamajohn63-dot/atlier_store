@@ -93,6 +93,7 @@ ACTION_META = {
     'server_error':        {'label': 'Server Error',            'icon': 'ph-warning-octagon'},
     'unexpected_server_error': {'label': 'Server Error',        'icon': 'ph-warning-octagon'},
     'inventory_low_stock': {'label': 'Low Stock',               'icon': 'ph-archive-box'},
+    'email_retry_requested': {'label': 'Email Re-send Requested', 'icon': 'ph-envelope'},
     'security_event':      {'label': 'Security Event',          'icon': 'ph-shield-warning'},
 }
 

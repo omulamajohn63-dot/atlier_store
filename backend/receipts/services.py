@@ -12,17 +12,18 @@ Single-writer design mirrors the rest of Modeza:
 """
 
 import logging
+import uuid
 
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.mail import EmailMessage
 from django.db import transaction
 from django.utils import timezone
 
 from admin_ui.models import notify_customer
 from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
+from emails.services import queue_email
 
 from .models import Receipt, ReceiptSequence
 from .pdf import render_receipt_pdf
@@ -291,10 +292,16 @@ def dispatch_receipt_email(receipt_id):
 
 
 def email_receipt(receipt, *, force=False):
-    """Attach and send the receipt PDF. Idempotent; never raises."""
+    """Queue the receipt PDF for delivery. Idempotent; never raises.
+
+    Delivery, retries and the ``receipt.email_*`` bookkeeping all live in the
+    central email subsystem (see ``emails.hooks``): this function only decides
+    *what* to send and records the "no address" case that never reaches SMTP.
+    """
     if receipt.email_sent_at and not force:
         return receipt
 
+    order = receipt.order
     customer = receipt.snapshot.get('customer') or {}
     recipient = (customer.get('email') or '').strip()
     if not recipient:
@@ -303,71 +310,57 @@ def email_receipt(receipt, *, force=False):
         receipt.save(update_fields=['email_attempts',
                      'email_error', 'updated_at'])
         return receipt
-
-    try:
-        pdf_bytes = read_pdf_bytes(receipt)
-        subject = (
-            f'Your Modeza receipt {receipt.receipt_number} '
-            f'for order {receipt.order.order_number}')
-        body = (
-            f'Dear {customer.get("fullName") or "customer"},\n\n'
-            f'Thank you for shopping with '
-            f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}.\n'
-            f'Your official receipt {receipt.receipt_number} for order '
-            f'{receipt.order.order_number} is attached.\n\n'
-            f'Total paid: {receipt.currency} '
-            f'{float(receipt.amount_minor or 0) / 100:.2f}\n\n'
-            f'If you believe this was sent in error, contact us at '
-            f'{getattr(settings, "STORE_EMAIL", "")}.\n\n'
-            f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}\n'
-            f'{getattr(settings, "STORE_ADDRESS", "")}'
-        )
-        email = EmailMessage(
-            subject,
-            body,
-            settings.DEFAULT_FROM_EMAIL,
-            [recipient],
-        )
-        email.attach(f'{receipt.receipt_number}.pdf', pdf_bytes,
-                     'application/pdf')
-        email.send(fail_silently=False)
-
-        receipt.email_sent_at = timezone.now()
+    if not receipt.pdf_key:
         receipt.email_attempts += 1
-        receipt.email_error = ''
-        receipt.save(update_fields=[
-            'email_sent_at', 'email_attempts', 'email_error', 'updated_at'])
-
-        AuditLogService.log(
-            'receipt_email_sent',
-            object_type='receipt',
-            object_id=receipt.pk,
-            object_repr=receipt.receipt_number,
-            category='payments',
-            metadata={'recipient': recipient},
-            description=f'Receipt {receipt.receipt_number} emailed to {recipient}.',
-        )
-        return receipt
-
-    except Exception as exc:  # noqa: BLE001 - delivery must never raise
-        receipt.email_attempts += 1
-        receipt.email_error = str(exc)[:300]
+        receipt.email_error = 'Receipt PDF has not been generated.'
         receipt.save(update_fields=['email_attempts',
                      'email_error', 'updated_at'])
-        AuditLogService.log(
-            'receipt_email_failed',
-            object_type='receipt',
-            object_id=receipt.pk,
-            object_repr=receipt.receipt_number,
-            category='payments',
-            result='failure',
-            severity='medium',
-            metadata={'recipient': recipient},
-            description=f'Emailed receipt {receipt.receipt_number} failed.',
-        )
-        logger.warning('Receipt email failed for %s: %s',
-                       receipt.receipt_number, exc)
         return receipt
+
+    subject = (
+        f'Your Modeza receipt {receipt.receipt_number} '
+        f'for order {order.order_number}')
+    body = (
+        f'Dear {customer.get("fullName") or "customer"},\n\n'
+        f'Thank you for shopping with '
+        f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}.\n'
+        f'Your official receipt {receipt.receipt_number} for order '
+        f'{order.order_number} is attached.\n\n'
+        f'Total paid: {receipt.currency} '
+        f'{float(receipt.amount_minor or 0) / 100:.2f}\n\n'
+        f'If you believe this was sent in error, contact us at '
+        f'{getattr(settings, "STORE_EMAIL", "")}.\n\n'
+        f'{getattr(settings, "STORE_NAME", "Modeza Boutique")}\n'
+        f'{getattr(settings, "STORE_ADDRESS", "")}'
+    )
+    queue_email(
+        email_type='receipt',
+        subject=subject,
+        body_text=body,
+        recipient_email=recipient,
+        recipient_name=customer.get('fullName') or '',
+        related_user=order.user,
+        related_order=order,
+        attachments=[{
+            'key': receipt.pdf_key,
+            'name': f'{receipt.receipt_number}.pdf',
+            'mimetype': 'application/pdf',
+        }],
+        metadata={'receipt_id': str(receipt.pk)},
+        notification={
+            'category': 'payment',
+            'title': 'Receipt available',
+            'message': f'Your official receipt {receipt.receipt_number} for '
+                       f'order {order.order_number} is ready.',
+            'link': f'/account/orders/{order.order_number}',
+            'event_key': f'customer-receipt:{order.pk}',
+        },
+        idempotency_key=(
+            f'receipt:order:{order.pk}' if not force
+            else f'receipt:order:{order.pk}:force:{uuid.uuid4().hex}'),
+        defer=False,
+    )
+    return receipt
 
 
 def read_pdf_bytes(receipt):

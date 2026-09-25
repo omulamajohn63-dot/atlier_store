@@ -69,12 +69,59 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         if not subject:
             raise AuthenticationFailed('Supabase token has no subject.')
         role = self.get_role(claims)
-        user = self.get_or_create_user(subject, claims)
+        user, created = self.get_or_create_user(subject, claims)
         user.supabase_role = role
         user.supabase_claims = claims
         self.sync_local_role(user, role)
         self.sync_local_name(user, claims)
+        if created and role == 'customer':
+            self.send_welcome(user, claims)
         return user, token
+
+    @staticmethod
+    def send_welcome(user, claims):
+        """Queue the one-off welcome email for a brand-new customer account.
+
+        Only account creation triggers this, so it cannot repeat in normal
+        traffic; ``welcome:user:{pk}`` makes it exactly-once anyway should the
+        creation ever be replayed. Staff/admin sign-ups are skipped.
+        """
+        from emails.services import queue_email
+
+        metadata = (claims.get('user_metadata')
+                    or claims.get('raw_user_meta_data') or {})
+        display = str(metadata.get('full_name') or metadata.get('name')
+                      or '').strip()
+        if not display:
+            display = (user.get_full_name() or '').strip()
+        email = str(user.email or claims.get('email') or '').strip()
+        if '@' not in email:
+            return
+
+        origin = getattr(settings, 'FRONTEND_ORIGIN', 'http://localhost:3000')
+        store = getattr(settings, 'STORE_NAME', 'MODEZA Boutique')
+        queue_email(
+            email_type='welcome',
+            subject=f'Welcome to {store}',
+            body_text=(
+                f'Hi {display or "there"},\n\n'
+                f'Your {store} account is ready. You can track orders, '
+                'keep your details on file and check out faster next time.\n\n'
+                f'Start shopping: {origin}/\n\n'
+                f'{store}\n{getattr(settings, "STORE_ADDRESS", "")}'
+            ),
+            recipient_email=email,
+            recipient_name=display,
+            related_user=user,
+            idempotency_key=f'welcome:user:{user.pk}',
+            notification={
+                'category': 'account',
+                'title': f'Welcome to {store}',
+                'message': 'Your account is ready.',
+                'link': '/account/',
+                'event_key': f'customer-welcome:{user.pk}',
+            },
+        )
 
     @staticmethod
     def get_role(claims):
@@ -137,4 +184,4 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         if not created and email and user.email != email:
             user.email = email
             user.save(update_fields=['email'])
-        return user
+        return user, created

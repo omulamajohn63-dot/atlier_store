@@ -1,0 +1,125 @@
+{% extends "admin_ui/base_admin.html" %}
+{% load static %}
+{% load permission_tags %}
+{% block title %}Email detail | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li><a href="{% url 'emails:admin-email-list' %}">Emails</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Detail</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .em-meta { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; font-size: 13px; }
+  .em-meta dt { color: var(--text-secondary); }
+  .em-meta dd { margin: 0; word-break: break-word; }
+  .em-body {
+    white-space: pre-wrap; word-break: break-word;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; font-size: 13px; line-height: 1.6;
+    max-height: 420px; overflow: auto;
+  }
+  .em-json {
+    white-space: pre-wrap; word-break: break-word;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px; font-size: 12px;
+    max-height: 240px; overflow: auto; margin: 0;
+  }
+  .em-error {
+    background: var(--status-danger-bg); color: var(--status-danger);
+    border: 1px solid #F8B4B4; border-radius: 8px; padding: 12px;
+    font-size: 13px; white-space: pre-wrap; word-break: break-word;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">{{ log.subject }}</h2>
+    <p class="page-subtitle">{{ type_label }} &middot; to {{ log.recipient_email }}</p>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <span class="status-badge {{ log.status_class }}">{{ log.status_label }}</span>
+    <a class="btn btn-secondary" href="{% url 'emails:admin-email-list' %}"><i class="ph ph-arrow-left"></i> Back</a>
+    {% if log.can_resend and request.user|can:'emails.manage' %}
+    <a class="btn btn-primary" href="{% url 'emails:admin-email-retry' log.pk %}"><i class="ph ph-arrows-clockwise"></i> Re-send</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if log.status == 'FAILED' %}
+<div class="alert alert-error" role="alert" style="margin-bottom: 20px;">
+  <strong>Delivery failed permanently.</strong>
+  The automatic retry ladder stopped after {{ log.attempt_count }} attempt(s).
+</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Message</span></div>
+    <div class="card-body" style="padding: 16px 24px 20px;">
+      <dl class="em-meta">
+        <dt>From</dt><dd>{{ log.sender_email|default:"—" }}</dd>
+        <dt>To</dt><dd>{{ log.recipient_name }}{% if log.recipient_name %} &lt;{% endif %}{{ log.recipient_email }}{% if log.recipient_name %}&gt;{% endif %}</dd>
+        <dt>Type</dt><dd>{{ type_label }}</dd>
+        <dt>Queued</dt><dd>{{ log.created_at|date:"M d, Y H:i:s" }}</dd>
+        <dt>Started</dt><dd>{{ log.started_at|date:"M d, Y H:i:s"|default:"—" }}</dd>
+        <dt>Sent</dt><dd>{{ log.sent_at|date:"M d, Y H:i:s"|default:"—" }}</dd>
+        <dt>Failed</dt><dd>{{ log.failed_at|date:"M d, Y H:i:s"|default:"—" }}</dd>
+        <dt>Attempts</dt><dd>{{ log.attempt_count }} of {{ log.max_attempts }}</dd>
+        <dt>Next retry</dt><dd>{{ log.next_retry_at|date:"M d, Y H:i:s"|default:"—" }}</dd>
+        <dt>Idempotency key</dt><dd style="font-family: monospace; font-size: 12px;">{{ log.idempotency_key }}</dd>
+        {% if log.attachments %}
+        <dt>Attachments</dt>
+        <dd>{% for item in log.attachments %}<div>{{ item.name|default:item }}</div>{% endfor %}</dd>
+        {% endif %}
+      </dl>
+
+      {% if log.last_error %}
+      <div style="margin-top: 16px;">
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Last error</div>
+        <div class="em-error">{{ log.last_error }}</div>
+      </div>
+      {% endif %}
+
+      <div style="margin-top: 16px;">
+        <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Related</div>
+        <div style="font-size: 13px;">
+          {% if related_order %}
+          <div>Order: <a href="/admin/dashboard/orders/{{ related_order.pk }}/">{{ related_order.order_number }}</a></div>
+          {% endif %}
+          {% if related_import_job %}
+          <div>Import: <a href="/admin/dashboard/products/import/{{ related_import_job.pk }}/report/">{{ related_import_job.filename }}</a></div>
+          {% endif %}
+          {% if related_user %}
+          <div>User: {{ related_user.username }}{% if related_user.email %} ({{ related_user.email }}){% endif %}</div>
+          {% endif %}
+          {% if not related_order and not related_import_job and not related_user %}
+          <span style="color: var(--text-secondary);">None</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Body</span></div>
+    <div class="card-body" style="padding: 16px 24px 20px;">
+      <div class="em-body">{{ log.body_text }}</div>
+    </div>
+  </div>
+</div>
+
+{% if log.metadata %}
+<div class="card" style="margin-top: 20px;">
+  <div class="card-header"><span class="card-title">Metadata</span></div>
+  <div class="card-body" style="padding: 16px 24px 20px;">
+    <pre class="em-json">{{ log.metadata }}</pre>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

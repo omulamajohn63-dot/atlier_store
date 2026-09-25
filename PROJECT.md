@@ -92,12 +92,13 @@ boutique-fashion-store/
 │   ├── payments/                  # M-Pesa create-intent/confirm/webhook
 │   ├── inventory/                 # stock + reservations ledger
 │   ├── receipts/                  # PDF/email receipts
+│   ├── emails/                    # central outbound mailer (EmailLog + retries)
 │   ├── audit/                     # audit log + /api/audit/events
 │   ├── access_control/            # roles: customer/staff/admin
 │   ├── admin_ui/                  # server-rendered admin dashboard
 │   ├── admin_api/                 # staff REST endpoints
 │   ├── store/                     # /api/health/
-│   └── docs/                      # LOGGING.md, ADMIN_VARIANTS.md
+│   └── docs/                      # LOGGING.md, ADMIN_VARIANTS.md, CELERY.md
 └── frontend/                      # React + Vite storefront
     ├── package.json, server.ts, vite.config.ts, vercel.json
     ├── src/
@@ -384,5 +385,6 @@ npm run test:api    # API integration tests
 | `load-test-info.md` | k6 load-testing guide + API contracts |
 | `backend/docs/LOGGING.md` | Logging / audit / notification spec |
 | `backend/docs/ADMIN_VARIANTS.md` | Product variant admin feature spec |
+| `backend/docs/CELERY.md` | Background imports & email subsystem runbook |
 | `frontend/README.md` | Frontend local-run instructions |
 | `.env.example` | Master environment variable template |

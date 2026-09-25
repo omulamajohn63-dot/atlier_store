@@ -1,0 +1,140 @@
+{% extends "admin_ui/base_admin.html" %}
+{% load static %}
+{% load permission_tags %}
+{% block title %}Emails | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Emails</li>
+{% endblock %}
+
+{% block extra_css %}
+{% include "admin_ui/components/logs/_styles.html" %}
+<style>
+  .email-cell { max-width: 320px; }
+  .email-cell a { color: var(--text); font-weight: 600; text-decoration: none; }
+  .email-cell a:hover { text-decoration: underline; }
+  .email-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .email-count { font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 4px; }
+  .email-count-danger { background: var(--status-danger-bg); color: var(--status-danger); }
+  .email-count-warning { background: var(--status-warning-bg); color: var(--status-warning); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Emails</h2>
+    <p class="page-subtitle">{{ page_subtitle }}</p>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <span class="email-count email-count-danger">{{ counts.FAILED }} failed</span>
+    <span class="email-count email-count-warning">{{ counts.RETRYING }} retrying</span>
+    <span class="email-count" style="background: var(--status-neutral-bg); color: var(--status-neutral);">{{ counts.QUEUED }} queued</span>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header" style="padding: 16px 24px;">
+    <span class="card-title" style="display:inline-flex; align-items:center; gap:8px;"><i class="ph ph-funnel"></i> Filters</span>
+  </div>
+  <div class="card-body" style="padding: 16px 24px 20px;">
+    <form method="get" class="alog-filter-form">
+      <div class="alog-filter-group">
+        <label for="em-q">Search</label>
+        <input type="search" id="em-q" name="q" value="{{ filters.q }}" placeholder="recipient, subject, key, error..." size="24">
+      </div>
+      <div class="alog-filter-group">
+        <label for="em-status">Status</label>
+        <select id="em-status" name="status">
+          <option value="">All statuses</option>
+          {% for value, label in status_options %}
+            <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="alog-filter-group">
+        <label for="em-type">Type</label>
+        <select id="em-type" name="type">
+          <option value="">All types</option>
+          {% for value, label in type_options %}
+            <option value="{{ value }}" {% if filters.email_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="alog-filter-group">
+        <button type="submit" class="btn btn-primary"><i class="ph ph-funnel"></i> Apply</button>
+      </div>
+      {% if filters.q or filters.status or filters.email_type %}
+      <div class="alog-filter-group">
+        <a href="{% url 'emails:admin-email-list' %}" class="btn btn-secondary"><i class="ph ph-x"></i> Clear</a>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<form method="post" action="{% url 'emails:admin-email-bulk-retry' %}">
+  {% csrf_token %}
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Outbound messages</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size: 12px; color: var(--text-secondary);">{{ page_obj.paginator.count }} total &middot; page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if request.user|can:'emails.manage' %}
+        <button type="submit" class="btn btn-secondary"><i class="ph ph-arrows-clockwise"></i> Re-send selected</button>
+        {% endif %}
+      </div>
+    </div>
+    {% if email_logs %}
+    <div class="table-container">
+      <table class="table">
+        <thead>
+          <tr>
+            {% if request.user|can:'emails.manage' %}<th style="width:32px;"><input type="checkbox" aria-label="Select all" onclick="document.querySelectorAll('.em-pick').forEach(c => c.checked = this.checked)"></th>{% endif %}
+            <th>Recipient</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Attempts</th>
+            <th>Queued</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in email_logs %}
+          <tr>
+            {% if request.user|can:'emails.manage' %}
+            <td><input type="checkbox" class="em-pick" name="ids" value="{{ log.pk }}" aria-label="Select email to {{ log.recipient_email }}"></td>
+            {% endif %}
+            <td class="email-cell">
+              <a href="{% url 'emails:admin-email-detail' log.pk %}">{{ log.subject }}</a>
+              <div class="email-sub">{{ log.recipient_email }}</div>
+            </td>
+            <td>{{ log.type_label }}</td>
+            <td><span class="status-badge {{ log.status_class }}">{{ log.status_label }}</span></td>
+            <td>{{ log.attempt_count }} / {{ log.max_attempts }}</td>
+            <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
+            <td style="text-align: right; white-space: nowrap;">
+              <a class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" href="{% url 'emails:admin-email-detail' log.pk %}">View</a>
+              {% if log.can_resend and request.user|can:'emails.manage' %}
+              <a class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" href="{% url 'emails:admin-email-retry' log.pk %}"><i class="ph ph-arrows-clockwise"></i> Re-send</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "admin_ui/components/logs/_pagination.html" %}
+    {% else %}
+    <div style="text-align: center; padding: 48px 24px; color: var(--text-secondary);">
+      <i class="ph ph-envelope-open" style="font-size: 48px; margin-bottom: 16px; color: var(--border);"></i>
+      <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 8px 0;">No emails found</h3>
+      <p style="font-size: 13px; margin: 0 0 24px 0;">Nothing matches the current filters.</p>
+      <a class="btn btn-secondary" href="{% url 'emails:admin-email-list' %}">Clear filters</a>
+    </div>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

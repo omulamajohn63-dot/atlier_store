@@ -694,6 +694,7 @@ class ProductImportProgressPageView(View):
                 f'/admin/dashboard/products/import/{job.pk}/report/'
                 if job.status in self.terminal_statuses else ''
             ),
+            'celery_worker_enabled': settings.CELERY_WORKER_ENABLED,
             'admin_page': 'bulk-import',
         })
 
@@ -1675,7 +1676,10 @@ class DashboardView(View):
             'total_orders': total_orders,
             'total_customers': total_customers,
             'orders_needing_attention': Order.objects.filter(
-                status__in=['pending', 'confirmed', 'processing']
+                status=Order.Status.PENDING
+            ).filter(
+                Q(payment_status=Order.PaymentStatus.PAID)
+                | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])
             ).count(),
             'orders': recent_orders,
             'low_stock_products': low_stock_variants[:8],
@@ -1841,7 +1845,9 @@ class DashboardDataView(View):
         total_customers = get_user_model().objects.filter(is_staff=False).count()
         total_products = Product.objects.count()
         orders_needing_attention = Order.objects.filter(
-            status__in=['pending', 'confirmed', 'processing']).count()
+            status=Order.Status.PENDING).filter(
+            Q(payment_status=Order.PaymentStatus.PAID)
+            | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])).count()
 
         low_stock_variants = list(
             ProductVariant.objects.filter(stock_quantity__lte=3)

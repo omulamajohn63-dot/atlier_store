@@ -48,6 +48,13 @@ npm run test:api              # bundled API integration tests
    - Observability: `LOG_FORMAT=json`, `LOG_LEVEL=INFO`,
      `AUDIT_LOG_RETENTION_DAYS=365`, `USE_X_FORWARDED_FOR=True`, and an optional
      `THROTTLE_AUDIT_RATE` for the client audit-event endpoint.
+   - Background work: `CELERY_WORKER_ENABLED=false` (the free plan cannot run a
+     worker, so bulk imports and email delivery run inline in the web process).
+     Link a managed **Redis** resource to get `REDIS_URL` injected — see
+     `backend/docs/CELERY.md` for how to switch the worker on later.
+   - Outbound email: `EMAIL_HOST` + `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD`
+     (leaving `EMAIL_HOST` empty keeps the console backend). Admin alerts land on
+     `SERVER_EMAIL`, customer mail on `DEFAULT_FROM_EMAIL`.
    - Add a managed **Postgres** database and paste its connection string into `DATABASE_URL`.
 4. Migrations now run automatically on every container start (`python manage.py migrate
    --noinput` in the Dockerfile), so the schema is applied as soon as the first deploy
@@ -114,6 +121,26 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
 - [ ] M-Pesa callbacks can reach `https://<backend>/api/payments/mpesa/callback`
       (sandbox first via `MPESA_ENV=sandbox`).
 - [ ] CORS: frontend origin is in `FRONTEND_ORIGIN`; cookie-flags work over HTTPS.
+- [ ] `https://<backend>/admin/dashboard/emails/` loads and a test order produces a
+      row there (status `SENT` once `EMAIL_HOST` is configured).
+
+## Background work (bulk imports & email)
+
+Bulk product imports and every outbound email are driven by Celery, but the
+deployment ships **without a worker**: `render.yaml` sets
+`CELERY_WORKER_ENABLED=false`, so both run inline in the web process with
+byte-for-byte the same retry, idempotency and audit behaviour. Local
+development needs no Redis either — `python manage.py runserver` is enough.
+
+After a restart on the free plan (its Redis is in-memory) rebuild any lost work:
+
+```bash
+python manage.py requeue_stuck_imports --dry-run
+python manage.py requeue_stuck_emails   --dry-run
+```
+
+Full runbook — switches, queues, retry ladders, and how to enable the worker
+on a paid plan — is in `backend/docs/CELERY.md`.
 
 ## Observability (logging & audit)
 

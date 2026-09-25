@@ -66,6 +66,7 @@ urlpatterns = [
     path('activity/export/', ActivityExportView.as_view(),
          name='admin-activity-export'),
     path('security/', SecurityCenterPageView.as_view(), name='admin-security'),
+    path('emails/', include('emails.urls')),
     path('system-health/', SystemHealthPageView.as_view(),
          name='admin-system-health'),
     path('confirm/', ConfirmActionView.as_view(), name='admin-confirm-action'),

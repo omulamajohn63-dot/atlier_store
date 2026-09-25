@@ -11,14 +11,24 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
 from dotenv import load_dotenv
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Build paths inside this project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
+
+
+def _env_flag(name, default=False):
+    """Read a boolean environment variable, falling back to ``default`` when
+    the variable is unset or empty."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 # Quick-start development settings - unsuitable for production
@@ -92,6 +102,12 @@ else:
 DEFAULT_FROM_EMAIL = os.getenv(
     'DEFAULT_FROM_EMAIL', f'{STORE_NAME} <receipts@modeza.co.ke>')
 
+# Explicit override wins (lets CI/staging force a backend); otherwise the
+# backend derived from EMAIL_HOST above stands.
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or EMAIL_BACKEND
+# Envelope sender for system-generated mail (bounces/complaints).
+SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+
 
 # Application definition
 
@@ -111,6 +127,7 @@ INSTALLED_APPS = [
     'admin_ui.apps.AdminUiConfig',
     'catalog',
     'cart',
+    'emails',
     'inventory',
     'orders',
     'payments',
@@ -281,6 +298,71 @@ USE_I18N = True
 USE_TZ = True
 
 
+# ---------------------------------------------------------------------------
+# Celery (background bulk imports + email delivery)
+#
+# CELERY_WORKER_ENABLED is the single switch deciding whether long-running work
+# is handed to a Redis-backed worker:
+#   * False -> bulk imports keep their current browser-driven /process loop
+#              and every email is dispatched inline right after the DB commit.
+#   * True  -> both are handed to a Celery worker through Redis.
+# It is forced to False under the test runner so tests never need a broker and
+# the legacy import code path is always exercised.
+# ---------------------------------------------------------------------------
+REDIS_URL = os.getenv('REDIS_URL', '').strip()
+TESTING = 'test' in sys.argv
+
+if TESTING:
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_WORKER_ENABLED = False
+    # Tests must never open a socket to a real mail server. The locmem backend
+    # also puts django.core.mail.outbox at every test's disposal, so an app can
+    # assert on what was sent without configuring anything.
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+else:
+    CELERY_BROKER_URL = REDIS_URL or 'memory://'
+    CELERY_WORKER_ENABLED = _env_flag('CELERY_WORKER_ENABLED', bool(REDIS_URL))
+    # A broker message nobody drains is a silently lost task. Eager mode is
+    # therefore the default unless a worker is *and* can be connected: it keeps
+    # the web-only Render blueprint (Redis linked, no worker) safe even if a
+    # future code path calls .delay() directly.
+    CELERY_TASK_ALWAYS_EAGER = _env_flag(
+        'CELERY_TASK_ALWAYS_EAGER',
+        not (CELERY_WORKER_ENABLED and bool(REDIS_URL)))
+
+# Eager mode returns an EagerResult instead of re-raising inside the caller.
+CELERY_TASK_EAGER_PROPAGATES = False
+CELERY_RESULT_BACKEND = None
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_TIMEOUT = float(os.getenv(
+    'CELERY_BROKER_CONNECTION_TIMEOUT', '10'))
+# acks_late + reject_on_worker_loss re-queue in-flight work when a worker dies
+# instead of dropping it; prefetch 1 keeps a single job per child process.
+CELERY_TASK_ACKS_LATE = True
+CELERY_TASK_REJECT_ON_WORKER_LOSS = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_DEFAULT_QUEUE = 'default'
+CELERY_TASK_ROUTES = {
+    'catalog.tasks.*': {'queue': 'imports'},
+    'emails.tasks.*': {'queue': 'email'},
+}
+# Visibility timeout must exceed the longest task (bulk imports, 2h), otherwise
+# Redis would redeliver a still-running job to a second worker.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': int(os.getenv('CELERY_VISIBILITY_TIMEOUT', '7500')),
+}
+CELERY_TASK_TIME_LIMIT = int(os.getenv('CELERY_TASK_TIME_LIMIT', str(60 * 60)))
+CELERY_TASK_SOFT_TIME_LIMIT = int(os.getenv(
+    'CELERY_TASK_SOFT_TIME_LIMIT', str(60 * 60 - 60)))
+
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
@@ -436,6 +518,16 @@ LOGGING = {
             'propagate': False,
         },
         'receipts': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'modeza.celery': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'emails': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
             'propagate': False,

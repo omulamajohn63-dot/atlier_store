@@ -39,6 +39,18 @@ services:
       - key: SUPABASE_STORAGE_BUCKET
         value: "product-images"
 
+      # ---- Background work: Celery + Redis (see backend/docs/CELERY.md) ----
+      # REDIS_URL is injected automatically by Render once the Redis resource
+      # is linked to this service, so it is deliberately not declared here.
+      #
+      # The free plan cannot run a worker (render.yaml rejects `type: worker`
+      # with `plan: free`), so both bulk imports and email delivery run inline
+      # inside this web process. Every behaviour — retries, idempotency,
+      # audit, the /admin/dashboard/emails pages — is identical; only the
+      # process that performs the send differs.
+      - key: CELERY_WORKER_ENABLED
+        value: "false"
+
       # Secrets — set each via the Render dashboard ("sync: false" values are
       # never stored in source control):
       - key: DJANGO_SECRET_KEY
@@ -65,3 +77,56 @@ services:
         sync: false
       - key: MPESA_CALLBACK_URL
         sync: false
+
+# ---------------------------------------------------------------------------
+# Worker service — DISABLED on the free plan.
+#
+# Render's free tier rejects `type: worker` with `plan: free`, so this block is
+# shipped commented out. To move bulk imports and email delivery off the web
+# process:
+#
+#   1. Upgrade the blueprint (or this worker) to a paid plan — a worker costs
+#      the price of one Starter instance.
+#   2. Uncomment the block below.
+#   3. Set CELERY_WORKER_ENABLED to "true" on boutique-backend (the web
+#      service), so it starts publishing to Redis instead of running inline.
+#
+# Both services must share the same Redis resource and the same env vars.
+# Full runbook: backend/docs/CELERY.md
+# ---------------------------------------------------------------------------
+# services:
+#   - type: worker
+#     name: boutique-backend-worker
+#     runtime: docker
+#     rootDir: backend
+#     dockerfilePath: Dockerfile
+#     plan: starter
+#     numInstances: 1
+#     buildCommand: ""
+#     # Three queues are consumed by one worker process:
+#     #   default -> botique_backend.tasks / everything unrouted
+#     #   imports -> catalog.tasks (bulk product imports)
+#     #   email   -> emails.tasks  (outbound email delivery)
+#     startCommand: >-
+#       celery -A botique_backend worker
+#       --loglevel=info
+#       --queues=default,imports,email
+#       --concurrency=2
+#     envVars:
+#       - key: DJANGO_DEBUG
+#         value: "False"
+#       - key: LOG_FORMAT
+#         value: "json"
+#       - key: CELERY_WORKER_ENABLED
+#         value: "true"
+#       - key: REDIS_URL
+#         fromService:
+#           type: redis
+#           name: boutique-redis
+#           property: connectionString
+#       - key: DATABASE_URL
+#         sync: false
+#       - key: DJANGO_SECRET_KEY
+#         sync: false
+#       # ... copy the remaining envVars from boutique-backend above; the
+#       # worker needs them too because it imports Django models and templates.

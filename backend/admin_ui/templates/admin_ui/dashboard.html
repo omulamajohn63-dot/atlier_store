@@ -682,7 +682,7 @@
       </div>
       <div class="metric-value">{{ total_orders }}</div>
       <div class="dashboard-kpi-insight">
-        <a href="/admin/dashboard/orders/"><span class="insight-label">Need attention</span></a>
+        <a href="/admin/dashboard/orders/"><span class="insight-label">Pending approval</span></a>
         <span class="chip-value {% if orders_needing_attention %}alert{% endif %}" id="kpi-orders-attention">{{ orders_needing_attention }}</span>
       </div>
     </div>
@@ -872,7 +872,7 @@
       <div class="dashboard-attention">
         <a class="dashboard-attention-item warn" href="/admin/dashboard/orders/">
           <i class="ph ph-list-checks"></i>
-          <div><div class="count" id="attention-orders">{{ orders_needing_attention }}</div><div class="label">Orders</div></div>
+          <div><div class="count" id="attention-orders">{{ orders_needing_attention }}</div><div class="label">Pending approval</div></div>
         </a>
         <a class="dashboard-attention-item info" href="/admin/dashboard/inventory/">
           <i class="ph ph-archive-box"></i>

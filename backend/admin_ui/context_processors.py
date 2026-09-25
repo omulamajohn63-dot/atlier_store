@@ -1,3 +1,5 @@
+from emails.models import EmailLog
+
 from .models import AdminNotification
 
 
@@ -6,6 +8,7 @@ def admin_notifications(request):
         return {
             'admin_notifications': [],
             'admin_notifications_unread_count': 0,
+            'email_failed_count': 0,
         }
 
     notifications = list(AdminNotification.objects.filter(
@@ -15,4 +18,6 @@ def admin_notifications(request):
     return {
         'admin_notifications': notifications,
         'admin_notifications_unread_count': unread_count,
+        'email_failed_count': EmailLog.objects.filter(
+            status=EmailLog.Status.FAILED).count(),
     }
