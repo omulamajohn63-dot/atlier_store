@@ -86,9 +86,11 @@ def render_receipt_pdf(receipt):
     customer = snapshot.get('customer') or {}
     items = snapshot.get('items') or []
     subtotal = snapshot.get('subtotal_minor') or 0
+    discount = snapshot.get('discount_minor') or 0
     shipping = snapshot.get('shipping_cost_minor') or 0
     tax = snapshot.get('tax_minor') or 0
     total = snapshot.get('total_minor') or receipt.amount_minor or 0
+    coupon_code = snapshot.get('coupon_code') or ''
     paid = receipt.amount_minor or 0
     balance = max(total - paid, 0)
 
@@ -256,6 +258,11 @@ def render_receipt_pdf(receipt):
     # -- Totals -------------------------------------------------------------
     rows = [
         _totals_row('Subtotal', _money(subtotal)),
+    ]
+    if discount:
+        label = f'Promotion{(" (" + coupon_code + ")") if coupon_code else ""}'
+        rows.append(_totals_row(label, f'-{_money(discount)}'))
+    rows += [
         _totals_row('Shipping', _money(shipping)),
         _totals_row('VAT (16%)', _money(tax)),
         _totals_row('Total', _money(total), bold=True),

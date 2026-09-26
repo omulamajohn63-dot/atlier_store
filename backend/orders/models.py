@@ -32,9 +32,13 @@ class Order(models.Model):
     customer = models.JSONField(default=dict)
     notes = models.CharField(max_length=500, blank=True)
     subtotal_minor = models.PositiveIntegerField()
+    discount_minor = models.PositiveIntegerField(default=0)
     shipping_cost_minor = models.PositiveIntegerField(default=0)
+    shipping_discount_minor = models.PositiveIntegerField(default=0)
     tax_minor = models.PositiveIntegerField(default=0)
     total_minor = models.PositiveIntegerField()
+    coupon_code = models.CharField(max_length=60, blank=True, default='')
+    promotion_snapshot = models.JSONField(default=dict, blank=True)
     shipping_method = models.CharField(max_length=10, default='standard')
     payment_method = models.CharField(max_length=30, default='mpesa')
     status = models.CharField(

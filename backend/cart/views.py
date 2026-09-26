@@ -44,6 +44,9 @@ class CartView(APIView):
         cart = cart_for_request(request)
         item_count = cart.items.count()
         cart.items.all().delete()
+        if getattr(cart, 'coupon_code', ''):
+            cart.coupon_code = ''
+            cart.save(update_fields=['coupon_code', 'updated_at'])
         AuditLogService.log(
             'cart_cleared',
             category='orders',

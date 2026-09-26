@@ -77,12 +77,54 @@ export interface CartItemDTO {
   lineTotal: number;
 }
 
+export interface CartPromotionDTO {
+  code: string;
+  name: string;
+  discount: number;
+  type: string;
+}
+
+export interface AppliedPromotionDTO {
+  code: string;
+  name: string;
+  type: string;
+  discount: number;
+  shippingDiscount?: number;
+}
+
 export interface CartDTO {
   id: string;
   items: CartItemDTO[];
   subtotal: number;
   itemCount: number;
   currency: string;
+  discount?: number;
+  shippingDiscount?: number;
+  tax?: number;
+  total?: number;
+  promotion?: CartPromotionDTO | null;
+  appliedPromotions?: AppliedPromotionDTO[];
+}
+
+export interface PromotionPricingDTO {
+  subtotal: number;
+  eligibleSubtotal: number;
+  discount: number;
+  shipping: number;
+  shippingDiscount: number;
+  tax: number;
+  total: number;
+  currency: string;
+  promotion: CartPromotionDTO | null;
+  appliedPromotions: AppliedPromotionDTO[];
+}
+
+export interface AvailablePromotionDTO {
+  name: string;
+  type: string;
+  code: string;
+  badge: string;
+  automatic: boolean;
 }
 
 export interface CartMergeSummaryItem {
@@ -147,7 +189,10 @@ export interface OrderDTO {
   };
   items: OrderItemDTO[];
   subtotal: number;
+  discount?: number;
   shippingCost: number;
+  shippingDiscount?: number;
+  promotion?: CartPromotionDTO | null;
   tax: number;
   total: number;
   shippingMethod: 'standard' | 'express';

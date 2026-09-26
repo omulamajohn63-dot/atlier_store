@@ -5,6 +5,8 @@ import {
   CartMergeResponse,
   OrderDTO,
   PaymentIntentDTO,
+  PromotionPricingDTO,
+  AvailablePromotionDTO,
   ReceiptDTO,
   PaginatedProductsResponse,
 } from '../types/api';
@@ -217,6 +219,25 @@ export const api = {
     }, true, true);
   },
 
+  // Promotions (Django is the single source of truth for rules + math)
+  async applyPromoCode(code: string, shippingMethod = 'standard'): Promise<PromotionPricingDTO> {
+    return request<PromotionPricingDTO>('/api/promotions/apply', {
+      method: 'POST',
+      body: JSON.stringify({ code, shippingMethod }),
+    });
+  },
+
+  async removePromoCode(shippingMethod = 'standard'): Promise<PromotionPricingDTO> {
+    return request<PromotionPricingDTO>('/api/promotions/remove', {
+      method: 'POST',
+      body: JSON.stringify({ shippingMethod }),
+    });
+  },
+
+  async getAvailablePromotions(): Promise<{ pricing: PromotionPricingDTO | null; available: AvailablePromotionDTO[] }> {
+    return request<{ pricing: PromotionPricingDTO | null; available: AvailablePromotionDTO[] }>('/api/promotions/available');
+  },
+
   async cancelOrder(orderNumber: string): Promise<OrderDTO> {
     return request<OrderDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/cancel`, {
       method: 'POST',
@@ -252,6 +273,8 @@ export const api = {
     shippingMethod?: 'standard' | 'express';
     paymentMethod?: 'mpesa' | 'card' | 'cash_on_delivery' | 'pay_on_delivery';
     notes?: string;
+    couponCode?: string;
+    discountCode?: string;
   }): Promise<OrderDTO> {
     return request<OrderDTO>('/api/orders', {
       method: 'POST',

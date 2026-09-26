@@ -53,7 +53,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   onQuickView,
 }) => {
   const { navigate } = useRouter();
-  const { products, categories: storeCategories } = useStore();
+  const { products, categories: storeCategories, availablePromotions } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<CategorySlug>(initialCategory);
   const [selectedCollection, setSelectedCollection] = useState(initialCollection);
   const [selectedOccasion, setSelectedOccasion] = useState<ShopOccasion | undefined>(initialOccasion);
@@ -270,6 +270,24 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           </div>
         </div>
       </Card>
+
+      {availablePromotions.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#A2574F]/20 bg-[#F7ECEA] px-4 py-3"
+          role="status"
+          aria-label="Current promotions"
+        >
+          <Sparkles className="h-4 w-4 text-[#A2574F]" aria-hidden="true" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
+            Current offers
+          </span>
+          {availablePromotions.slice(0, 4).map((promo) => (
+            <Badge key={promo.name} variant="warning" size="sm" title={promo.name}>
+              {promo.badge} · {promo.name}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       <Card className="sticky top-3 z-30 bg-white/95 p-3 shadow-lg backdrop-blur-xl sm:p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto] lg:items-center">

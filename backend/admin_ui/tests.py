@@ -2346,6 +2346,7 @@ class AdminAuthTests(TestCase):
         self.assertTrue(user.is_active)
         self.assertTrue(user.check_password('Adm1n-S3cret!'))
         self.assertIn(group, user.groups.all())
+        self.assertTrue(StaffProfile.objects.filter(user=user).exists())
         self.assertTrue(AdminNotification.objects.filter(
             recipient=user,
             title='New admin account created',
@@ -2373,6 +2374,7 @@ class AdminAuthTests(TestCase):
         self.assertTrue(user.is_staff)
         self.assertFalse(user.is_superuser)
         self.assertIn(group, user.groups.all())
+        self.assertTrue(StaffProfile.objects.filter(user=user).exists())
 
     def test_signup_rejects_mismatched_passwords(self):
         self.client.force_login(self.superuser)

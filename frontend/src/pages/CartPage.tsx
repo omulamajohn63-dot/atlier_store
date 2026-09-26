@@ -66,18 +66,23 @@ export const CartPage: React.FC = () => {
     navigate('/checkout');
   };
 
-  const handleApplyPromo = (e: React.FormEvent) => {
+  const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
     setPromoMsg(null);
     if (!promoCodeInput.trim()) return;
 
-    const result = applyPromoCode(promoCodeInput.trim());
+    const result = await applyPromoCode(promoCodeInput.trim());
     if (result.success) {
       setPromoMsg({ text: result.message, isError: false });
       setPromoCodeInput('');
     } else {
       setPromoMsg({ text: result.message, isError: true });
     }
+  };
+
+  const handleRemovePromo = async () => {
+    await removePromoCode();
+    setPromoMsg(null);
   };
 
   const isFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
@@ -353,7 +358,7 @@ export const CartPage: React.FC = () => {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={removePromoCode}
+                          onClick={handleRemovePromo}
                           className="h-6 w-6 shrink-0 text-[#9E332B] hover:bg-[#FDF2F2]"
                           aria-label={`Remove promo code ${appliedPromo.code}`}
                         >

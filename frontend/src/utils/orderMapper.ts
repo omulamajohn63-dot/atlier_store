@@ -58,6 +58,16 @@ export function mapServerOrder(serverOrder: OrderDTO): Order {
       image: item.imageUrl || '',
     })),
     subtotal: serverOrder.subtotal,
+    discount: serverOrder.promotion
+      ? {
+          code: serverOrder.promotion.code,
+          type: (serverOrder.promotion.type === 'fixed' ? 'fixed' : 'percentage') as 'percentage' | 'fixed',
+          amount: serverOrder.discount ?? serverOrder.promotion.discount ?? 0,
+          description: serverOrder.promotion.name,
+        }
+      : serverOrder.discount
+        ? { code: '', type: 'fixed' as const, amount: serverOrder.discount, description: 'Promotion discount' }
+        : undefined,
     shippingMethod: serverOrder.shippingMethod,
     shippingCost: serverOrder.shippingCost,
     tax: serverOrder.tax,

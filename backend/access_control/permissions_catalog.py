@@ -17,6 +17,7 @@ GROUPS = [
     ("variants", "Product Variants"),
     ("inventory", "Inventory"),
     ("orders", "Orders"),
+    ("promotions", "Promotions"),
     ("customers", "Customers"),
     ("payments", "Payments"),
     ("receipts", "Receipts"),
@@ -59,6 +60,11 @@ PERMISSIONS = [
     ("orders.cancel", "Cancel orders", "Cancel orders.", False, ["orders.view"]),
     ("orders.refund", "Refund orders", "Issue refunds for orders.", True, ["orders.view"]),
     ("orders.delete", "Delete orders", "Delete orders.", False, ["orders.view"]),
+    # Promotions
+    ("promotions.view", "View promotions", "View promotions and usage.", False, []),
+    ("promotions.create", "Add promotions", "Create new promotions.", False, ["promotions.view"]),
+    ("promotions.update", "Edit promotions", "Edit and activate promotions.", False, ["promotions.view"]),
+    ("promotions.delete", "Delete promotions", "Delete promotions.", False, ["promotions.view"]),
     # Customers
     ("customers.view", "View customers", "View customer profiles.", False, []),
     ("customers.update", "Edit customers", "Edit customer details.", False, ["customers.view"]),
@@ -141,6 +147,7 @@ DEFAULT_ROLES = [
         [
             "orders.view", "orders.create", "orders.update", "orders.confirm",
             "orders.cancel", "orders.delete",
+            "promotions.view",
             "customers.view",
             "payments.view",
             "receipts.view",
@@ -172,6 +179,18 @@ DEFAULT_ROLES = [
             "receipts.view", "receipts.generate",
             "reports.view", "reports.financial",
             "orders.view", "customers.view",
+        ],
+    ),
+    (
+        "promotion_manager",
+        "Promotion Manager",
+        "Manages promotions, coupon codes and promotion analytics.",
+        False,
+        False,
+        [
+            "promotions.view", "promotions.create", "promotions.update", "promotions.delete",
+            "products.view", "variants.view", "categories.view",
+            "orders.view", "reports.view",
         ],
     ),
     (

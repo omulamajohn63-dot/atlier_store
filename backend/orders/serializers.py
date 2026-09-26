@@ -52,6 +52,7 @@ class OrderCreateSerializer(serializers.Serializer):
         default='mpesa'
     )
     notes = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    couponCode = serializers.CharField(max_length=60, required=False, allow_blank=True, default='')
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -102,9 +103,12 @@ class OrderSerializer(serializers.ModelSerializer):
     orderNumber = serializers.CharField(source='order_number')
     cartId = serializers.SerializerMethodField()
     subtotal = serializers.SerializerMethodField()
+    discount = serializers.SerializerMethodField()
     shippingCost = serializers.SerializerMethodField()
+    shippingDiscount = serializers.SerializerMethodField()
     tax = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
+    promotion = serializers.SerializerMethodField()
     shippingMethod = serializers.CharField(source='shipping_method')
     paymentMethod = serializers.CharField(source='payment_method')
     paymentStatus = serializers.CharField(source='payment_status')
@@ -117,7 +121,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ('id', 'orderNumber', 'cartId', 'customer', 'items', 'subtotal', 'shippingCost', 'tax', 'total',
+        fields = ('id', 'orderNumber', 'cartId', 'customer', 'items', 'subtotal', 'discount',
+                  'shippingCost', 'shippingDiscount', 'tax', 'total', 'promotion',
                   'shippingMethod', 'paymentMethod', 'status', 'paymentStatus', 'paymentIntentId', 'currency', 'createdAt', 'updatedAt', 'timeline')
 
     def get_timeline(self, obj):
@@ -158,6 +163,26 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_subtotal(self, obj):
         return major_units(obj.subtotal_minor)
+
+    def get_discount(self, obj):
+        return major_units(getattr(obj, 'discount_minor', 0) or 0)
+
+    def get_shippingDiscount(self, obj):
+        return major_units(getattr(obj, 'shipping_discount_minor', 0) or 0)
+
+    def get_promotion(self, obj):
+        snapshot = getattr(obj, 'promotion_snapshot', None) or {}
+        applied = snapshot.get('applied') or []
+        if not applied:
+            code = getattr(obj, 'coupon_code', '') or ''
+            if not code and not (snapshot.get('discount') or snapshot.get('shipping_discount')):
+                return None
+            return {'code': code, 'name': snapshot.get('name', code),
+                    'discount': ((snapshot.get('discount') or 0) / 100)}
+        primary = applied[0]
+        return {'code': primary.get('code', ''), 'name': primary.get('name', ''),
+                'discount': (primary.get('discount') or 0) / 100,
+                'type': primary.get('type', '')}
 
     def get_shippingCost(self, obj):
         return major_units(obj.shipping_cost_minor)

@@ -10,6 +10,7 @@ from catalog.models import ProductVariant
 class Cart(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     cart_key = models.CharField(max_length=100, unique=True)
+    coupon_code = models.CharField(max_length=60, blank=True, default='')
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

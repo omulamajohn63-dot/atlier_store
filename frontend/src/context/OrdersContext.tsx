@@ -164,6 +164,9 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           shippingMethod: input.shippingMethod,
           paymentMethod: input.paymentMethod || 'mpesa',
           notes: input.notes,
+          // Forward the checkout coupon: Django revalidates eligibility and
+          // computes the discount server-side (never trusts this value).
+          couponCode: input.discountCode,
         });
 
         const now = new Date().toISOString();

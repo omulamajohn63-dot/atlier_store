@@ -406,6 +406,88 @@ class StaffViewAccessTests(AccessControlTestCase):
         user.refresh_from_db()
         self.assertTrue(user.is_active)
 
+    def test_staff_pages_render_when_profile_is_missing(self):
+        orphan = self.make_user('orphan')
+        self.assertFalse(StaffProfile.objects.filter(user=orphan).exists())
+
+        response = self.superuser_client.get(
+            reverse('access-staff-detail', args=[orphan.pk]))
+        self.assertEqual(response.status_code, 200)
+
+        response = self.superuser_client.get(
+            reverse('access-staff-edit', args=[orphan.pk]))
+        self.assertEqual(response.status_code, 200)
+
+    def test_editing_staff_without_profile_creates_profile(self):
+        orphan = self.make_user('orphan')
+
+        response = self.superuser_client.post(
+            reverse('access-staff-edit', args=[orphan.pk]),
+            {'first_name': 'Orphan', 'last_name': 'Staff',
+             'email': 'orphan@modeza.test',
+             'roles': [], 'direct_permissions': []})
+        self.assertEqual(response.status_code, 302)
+        profile = StaffProfile.objects.get(user=orphan)
+        self.assertEqual(profile.status, StaffProfile.Status.ACTIVE)
+
+    def test_revoking_direct_permission_is_audited(self):
+        target = self.make_user('grantee')
+        self.enroll(target, codes=['products.restock'])
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.superuser_client.post(
+                reverse('access-staff-edit', args=[target.pk]),
+                {'first_name': '', 'last_name': '',
+                 'email': 'grantee@modeza.test',
+                 'roles': [], 'direct_permissions': []})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(target.staff_profile.direct_permissions.exists())
+
+        event = AuditLog.objects.filter(
+            action='permissions_revoked', object_id=str(target.pk)).first()
+        self.assertIsNotNone(event)
+        self.assertEqual(event.metadata['permissions'], ['products.restock'])
+
+    def test_granting_direct_permission_is_audited(self):
+        target = self.make_user('grantee')
+        self.enroll(target)
+        restock = Permission.objects.get(code='products.restock')
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.superuser_client.post(
+                reverse('access-staff-edit', args=[target.pk]),
+                {'first_name': '', 'last_name': '',
+                 'email': 'grantee@modeza.test',
+                 'roles': [], 'direct_permissions': [str(restock.pk)]})
+        self.assertEqual(response.status_code, 302)
+
+        event = AuditLog.objects.filter(
+            action='permissions_granted', object_id=str(target.pk)).first()
+        self.assertIsNotNone(event)
+        self.assertIn('products.restock', event.metadata['permissions'])
+        self.assertFalse(AuditLog.objects.filter(
+            action='permissions_revoked', object_id=str(target.pk)).exists())
+
+    def test_deactivate_and_reactivate_staff_without_profile(self):
+        orphan = self.make_user('orphan')
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.superuser_client.post(
+                reverse('access-staff-deactivate', args=[orphan.pk]),
+                {'reason': 'contract ended'})
+        self.assertRedirects(
+            response, reverse('access-staff-detail', args=[orphan.pk]))
+        orphan.refresh_from_db()
+        self.assertFalse(orphan.is_active)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.superuser_client.post(
+                reverse('access-staff-reactivate', args=[orphan.pk]))
+        self.assertRedirects(
+            response, reverse('access-staff-detail', args=[orphan.pk]))
+        orphan.refresh_from_db()
+        self.assertTrue(orphan.is_active)
+
     def test_cannot_deactivate_own_account(self):
         response = self.superuser_client.post(
             reverse('access-staff-deactivate', args=[self.superuser.pk]),

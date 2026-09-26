@@ -846,6 +846,15 @@ class AdminPageView(View):
             'columns': ['Order Number', 'Customer', 'Date', 'Items', 'Total', 'Payment Status', 'Order Status', 'Actions'],
             'rows': [],
         },
+        'promotions': {
+            'title': 'Promotions',
+            'subtitle': 'Create, schedule and monitor discount campaigns.',
+            'primary_action': '+ Add Promotion',
+            'primary_url': '/admin/dashboard/promotions/new/',
+            'filters': ['Search promotions', 'Status filter'],
+            'columns': ['Name', 'Type', 'Code', 'Status', 'Starts', 'Ends', 'Usage', 'Discount', 'Actions'],
+            'rows': [],
+        },
         'customers': {
             'title': 'Customers',
             'subtitle': 'Manage customer accounts.',
@@ -926,6 +935,7 @@ class AdminPageView(View):
         'inventory': 'inventory.view',
         'variants': 'inventory.view',
         'orders': 'orders.view',
+        'promotions': 'promotions.view',
         'customers': 'customers.view',
         'admin-users': 'staff.view',
         'analytics': 'reports.view',
@@ -1041,6 +1051,41 @@ class AdminPageView(View):
         key = self.COLUMN_KEY_ALIASES.get(safe_column, safe_column)
         return row.get(key, '')
 
+    def _render_promotion_cell(self, column, row):
+        safe_column = column.lower().strip()
+        if safe_column == 'name':
+            promo_id = row.get('id') or ''
+            name = row.get('name') or 'Unnamed promotion'
+            if promo_id:
+                return mark_safe(
+                    f'<a href="/admin/dashboard/promotions/{promo_id}/edit/" class="admin-product-name-link">{name}</a>'
+                )
+            return mark_safe(name)
+        if safe_column == 'status':
+            value = row.get('status', '')
+            css = str(value).lower().replace(' ', '-')
+            return mark_safe(f'<span class="status-badge {css}">{value}</span>')
+        if safe_column == 'actions':
+            promo_id = row.get('id') or ''
+            actions = row.get('actions') or []
+            route_map = {
+                'Edit': f'/admin/dashboard/promotions/{promo_id}/edit/',
+                'Activate': f'/admin/dashboard/promotions/{promo_id}/activate/',
+                'Deactivate': f'/admin/dashboard/promotions/{promo_id}/deactivate/',
+                'Duplicate': f'/admin/dashboard/promotions/{promo_id}/duplicate/',
+            }
+            options = ['<option selected disabled>Actions</option>']
+            for action in actions:
+                route = route_map.get(action)
+                if route:
+                    options.append(f'<option value="{route}">{action}</option>')
+            return mark_safe(
+                '<select class="admin-action-select" onchange="if (this.value) window.location.href=this.value" aria-label="Actions">'
+                + ''.join(options) + '</select>'
+            )
+        key = self.COLUMN_KEY_ALIASES.get(safe_column, safe_column)
+        return row.get(key, '')
+
     def _render_page_cell(self, page, column, row):
         if page == 'products':
             return self._render_product_cell(column, row)
@@ -1048,6 +1093,8 @@ class AdminPageView(View):
             return self._render_category_cell(column, row)
         if page == 'orders':
             return self._render_order_cell(column, row)
+        if page == 'promotions':
+            return self._render_promotion_cell(column, row)
         safe_column = column.lower().strip()
         key = self.COLUMN_KEY_ALIASES.get(safe_column, safe_column)
         return row.get(key, '')
@@ -1237,6 +1284,52 @@ class AdminPageView(View):
                 })
             page_data = dict(page_data)
             page_data['rows'] = order_rows
+
+        if page == 'promotions':
+            from promotions.models import Promotion
+            promo_rows = []
+            promos = Promotion.objects.order_by('-priority', '-created_at')
+            status_filter = request.GET.get('status') or ''
+            if status_filter:
+                promos = promos.filter(status=status_filter)
+            if query:
+                promos = promos.filter(
+                    Q(name__icontains=query) | Q(coupon_code__icontains=query)
+                )
+            for promo in promos:
+                used = promo.redemptions.filter(voided=False).count()
+                usage = f'{used} / {promo.usage_limit}' if promo.usage_limit else str(used)
+                if promo.promotion_type == 'percentage':
+                    value = f'{promo.discount_percent:g}%'
+                elif promo.promotion_type == 'fixed':
+                    value = f'KES {(promo.discount_amount_minor or 0) / 100:,.0f}'
+                elif promo.promotion_type == 'free_shipping':
+                    value = 'FREE DELIVERY'
+                elif promo.promotion_type == 'buy_x_get_y':
+                    value = f'Buy {promo.qualifying_quantity} Get {promo.reward_quantity}'
+                else:
+                    value = f'Buy {promo.qualifying_quantity} Get {promo.reward_discount_percent:g}% off'
+                promo_rows.append({
+                    'id': str(promo.pk),
+                    'name': promo.name,
+                    'type': promo.get_promotion_type_display(),
+                    'code': promo.coupon_code or ('Automatic' if promo.is_automatic else '-'),
+                    'status': promo.get_status_display(),
+                    'start': promo.starts_at.strftime('%d %b') if promo.starts_at else '-',
+                    'end': promo.ends_at.strftime('%d %b') if promo.ends_at else '-',
+                    'usage': usage,
+                    'value': value,
+                    'actions': (['Edit', 'Duplicate']
+                                + (['Activate'] if promo.status != 'active' else ['Deactivate'])),
+                })
+            page_data = dict(page_data)
+            page_data['rows'] = promo_rows
+            page_data['promo_counts'] = {
+                'active': Promotion.objects.filter(status='active').count(),
+                'scheduled': Promotion.objects.filter(status='scheduled').count(),
+                'expired': Promotion.objects.filter(status='expired').count(),
+                'disabled': Promotion.objects.filter(status='disabled').count(),
+            }
 
         if page == 'customers':
             customer_rows = []
@@ -2063,6 +2156,157 @@ class CategoryDeletePageView(View):
             _audit_catalog('delete', category)
             messages.success(request, 'Category deleted.')
         return redirect('admin-dashboard')
+
+
+def _audit_promotion(action, promo, metadata=None, status_code=None):
+    AuditLogService.log(
+        action,
+        object_type='promotion',
+        object_id=promo.pk,
+        object_repr=promo.name,
+        category='orders',
+        metadata=metadata,
+        status_code=status_code,
+        description=f'{action}: promotion {promo.name}.',
+    )
+
+
+@permission_required('promotions.create')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class PromotionCreatePageView(View):
+    template_name = 'admin_ui/promotion_form_page.html'
+
+    def get(self, request):
+        from .forms import PromotionForm
+        return self.render_form(request, PromotionForm())
+
+    def post(self, request):
+        from .forms import PromotionForm
+        from promotions.models import normalize_coupon_code
+        form = PromotionForm(request.POST)
+        if form.is_valid():
+            normalized = normalize_coupon_code(form.cleaned_data.get('coupon_code') or '')
+            if normalized and _promo_code_taken(normalized):
+                form.add_error('coupon_code', 'An active promotion already uses this code.')
+                return self.render_form(request, form)
+            form.instance.created_by = request.user
+            form.instance.updated_by = request.user
+            promo = form.save()
+            _audit_promotion('promotion_created', promo, status_code=201)
+            messages.success(request, 'Promotion created.')
+            return redirect('admin-promotions')
+        return self.render_form(request, form)
+
+    def render_form(self, request, form):
+        return render(request, self.template_name, {
+            'form': form,
+            'page_title': 'Add a promotion',
+            'page_subtitle': 'Define the discount, eligibility, schedule and limits.',
+            'submit_label': 'Add promotion',
+        })
+
+
+@permission_required('promotions.update')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class PromotionEditPageView(View):
+    template_name = 'admin_ui/promotion_form_page.html'
+
+    def get_promo(self, promo_id):
+        from promotions.models import Promotion
+        return Promotion.objects.filter(pk=promo_id).first()
+
+    def get(self, request, promo_id):
+        from .forms import PromotionForm
+        promo = self.get_promo(promo_id)
+        if not promo:
+            messages.error(request, 'Promotion not found.')
+            return redirect('admin-promotions')
+        return self.render_form(request, PromotionForm(instance=promo), promo)
+
+    def post(self, request, promo_id):
+        from .forms import PromotionForm
+        from promotions.models import normalize_coupon_code
+        promo = self.get_promo(promo_id)
+        if not promo:
+            messages.error(request, 'Promotion not found.')
+            return redirect('admin-promotions')
+        old_code = promo.coupon_code_normalized
+        form = PromotionForm(request.POST, instance=promo)
+        if form.is_valid():
+            normalized = normalize_coupon_code(form.cleaned_data.get('coupon_code') or '')
+            if normalized and _promo_code_taken(normalized, exclude_pk=promo.pk):
+                form.add_error('coupon_code', 'An active promotion already uses this code.')
+                return self.render_form(request, form, promo)
+            updated = form.save(commit=False)
+            updated.updated_by = request.user
+            updated.save()
+            form.save()
+            if old_code != updated.coupon_code_normalized:
+                _audit_promotion('promotion_code_changed', updated,
+                                 metadata={'from': old_code, 'to': updated.coupon_code_normalized})
+            _audit_promotion('promotion_updated', updated)
+            messages.success(request, 'Promotion updated.')
+            return redirect('admin-promotions')
+        return self.render_form(request, form, promo)
+
+    def render_form(self, request, form, promo=None):
+        return render(request, self.template_name, {
+            'form': form,
+            'promo': promo,
+            'page_title': 'Edit promotion',
+            'page_subtitle': 'Update the discount, eligibility, schedule and limits.',
+            'submit_label': 'Save changes',
+        })
+
+
+def _promo_code_taken(normalized, exclude_pk=None):
+    from promotions.models import Promotion
+    qs = Promotion.objects.filter(coupon_code_normalized=normalized).exclude(
+        status__in=[Promotion.Status.DISABLED, Promotion.Status.EXPIRED])
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs.exists()
+
+
+@permission_required('promotions.update')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class PromotionActionPageView(View):
+    def get(self, request, promo_id, action):
+        from promotions.models import Promotion
+        promo = Promotion.objects.filter(pk=promo_id).first()
+        if not promo:
+            messages.error(request, 'Promotion not found.')
+            return redirect('admin-promotions')
+        if action == 'activate':
+            promo.status = Promotion.Status.ACTIVE
+            promo.save(update_fields=['status', 'updated_at'])
+            _audit_promotion('promotion_activated', promo)
+            messages.success(request, f'Promotion "{promo.name}" activated.')
+        elif action == 'deactivate':
+            promo.status = Promotion.Status.DISABLED
+            promo.save(update_fields=['status', 'updated_at'])
+            _audit_promotion('promotion_deactivated', promo)
+            messages.success(request, f'Promotion "{promo.name}" deactivated.')
+        elif action == 'duplicate':
+            from copy import deepcopy
+            clone = deepcopy(promo)
+            clone.pk = None
+            clone.name = f'{promo.name} (copy)'
+            clone.coupon_code = ''
+            clone.coupon_code_normalized = ''
+            clone.status = Promotion.Status.DISABLED
+            clone.save()
+            for link in promo.promo_products.all():
+                promo.promo_products.model.objects.create(promotion=clone, product=link.product)
+            for link in promo.promo_categories.all():
+                promo.promo_categories.model.objects.create(promotion=clone, category=link.category)
+            for link in promo.promo_variants.all():
+                promo.promo_variants.model.objects.create(promotion=clone, variant=link.variant)
+            _audit_promotion('promotion_created', clone, metadata={'duplicated_from': str(promo.pk)})
+            messages.success(request, f'Promotion duplicated as "{clone.name}".')
+        else:
+            messages.error(request, 'Unknown promotion action.')
+        return redirect('admin-promotions')
 
 
 @permission_required('products.create')

@@ -65,10 +65,66 @@ class CartSerializer(serializers.ModelSerializer):
     subtotal = serializers.SerializerMethodField()
     itemCount = serializers.SerializerMethodField()
     currency = serializers.SerializerMethodField()
+    discount = serializers.SerializerMethodField()
+    shippingDiscount = serializers.SerializerMethodField()
+    tax = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+    promotion = serializers.SerializerMethodField()
+    appliedPromotions = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
-        fields = ('id', 'items', 'subtotal', 'itemCount', 'currency')
+        fields = ('id', 'items', 'subtotal', 'itemCount', 'currency',
+                  'discount', 'shippingDiscount', 'tax', 'total',
+                  'promotion', 'appliedPromotions')
+
+    def _pricing(self, obj):
+        if '_promo_pricing' not in self.context:
+            try:
+                from promotions.services import price_cart
+                request = self.context.get('request')
+                user = getattr(request, 'user', None)
+                if user is not None and getattr(user, 'is_anonymous', False):
+                    user = None
+                self.context['_promo_pricing'] = price_cart(
+                    obj, user=user, shipping_method='standard',
+                    coupon_code=getattr(obj, 'coupon_code', '') or '')
+            except Exception:
+                self.context['_promo_pricing'] = None
+        return self.context.get('_promo_pricing')
+
+    def get_discount(self, obj):
+        pricing = self._pricing(obj)
+        return (pricing['discount'] / 100) if pricing else 0
+
+    def get_shippingDiscount(self, obj):
+        pricing = self._pricing(obj)
+        return (pricing['shipping_discount'] / 100) if pricing else 0
+
+    def get_tax(self, obj):
+        pricing = self._pricing(obj)
+        return (pricing['tax'] / 100) if pricing else 0
+
+    def get_total(self, obj):
+        pricing = self._pricing(obj)
+        if pricing:
+            return pricing['total'] / 100
+        return self.get_subtotal(obj)
+
+    def get_promotion(self, obj):
+        pricing = self._pricing(obj)
+        if not pricing or not pricing.get('applied'):
+            return None
+        primary = pricing['applied'][0]
+        return {'code': primary['code'], 'name': primary['name'],
+                'discount': primary['discount'] / 100, 'type': primary['type']}
+
+    def get_appliedPromotions(self, obj):
+        pricing = self._pricing(obj)
+        if not pricing:
+            return []
+        return [{'code': a['code'], 'name': a['name'], 'type': a['type'],
+                 'discount': a['discount'] / 100} for a in pricing.get('applied', [])]
 
     def get_subtotal(self, obj):
         return sum(item.line_total_minor for item in self._priced_items(obj)) / 100

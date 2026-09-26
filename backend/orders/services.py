@@ -46,10 +46,16 @@ def _order_summary(order, headline):
     customer = order.customer or {}
     name = (customer.get('fullName') or '').strip() or 'there'
     quantity = sum(item.quantity for item in order.items.all())
-    return (
-        f'Hi {name},\n\n{headline}\n\n'
-        f'Order number: {order.order_number}\n'
-        f'Items: {quantity}\n'
+    lines = [
+        f'Hi {name},\n\n{headline}\n',
+        f'Order number: {order.order_number}\n',
+        f'Items: {quantity}\n',
+    ]
+    if getattr(order, 'discount_minor', 0):
+        snapshot = getattr(order, 'promotion_snapshot', None) or {}
+        code = getattr(order, 'coupon_code', '') or snapshot.get('coupon_code', '')
+        lines.append(f'Promotion ({code}): -{order.currency or "KES"} {_money(order.discount_minor)}\n')
+    lines.append(
         f'Total: {order.currency or "KES"} {_money(order.total_minor)}\n'
         f'Shipping: {order.shipping_method}\n'
         f'Payment: {order.payment_method}\n\n'
@@ -59,6 +65,7 @@ def _order_summary(order, headline):
         f'{getattr(settings, "STORE_NAME", "MODEZA Boutique")}\n'
         f'{getattr(settings, "STORE_ADDRESS", "")}'
     )
+    return ''.join(lines)
 
 
 def _queue_order_email(email_type, order, subject, headline, notification):
@@ -229,6 +236,13 @@ def create_order(cart_key, payload, user=None):
         description='Checkout started from cart.',
     )
 
+    # --- Promotion resolution (authoritative, server-side) -----------------
+    # Coupon precedence: explicit checkout code > code stored on the cart.
+    from promotions.models import Promotion, PromotionRedemption, normalize_coupon_code
+    from promotions.services import FRIENDLY, price_cart
+    requested_code = normalize_coupon_code(
+        payload.get('couponCode') or getattr(cart, 'coupon_code', '') or '')
+
     order_items = []
     subtotal_minor = 0
     for cart_item in items:
@@ -245,8 +259,45 @@ def create_order(cart_key, payload, user=None):
 
     shipping_method = payload.get('shippingMethod', 'standard')
     payment_method = payload.get('paymentMethod', 'mpesa')
-    shipping_minor = shipping_cost_minor(subtotal_minor, shipping_method)
-    tax_minor = tax_cost_minor(subtotal_minor)
+
+    # Lock any coupon promotion row first so concurrent checkouts racing for
+    # the final redemption are serialized (usage limits enforced below).
+    if requested_code:
+        promo_row = Promotion.objects.select_for_update().filter(
+            coupon_code_normalized=requested_code).first()
+        if promo_row is not None and promo_row.status != Promotion.Status.ACTIVE:
+            promo_row = promo_row  # evaluated below for a precise error
+
+    breakdown = price_cart(cart, user=user, shipping_method=shipping_method,
+                           coupon_code=requested_code)
+    if requested_code and not breakdown.get('applied'):
+        err = breakdown.get('coupon_error') or 'INVALID_CODE'
+        from audit.services import AuditLogService as _ALS
+        _ALS.log('promotion_redemption_failed', category='orders', result='failure',
+                 object_type='promotion', object_repr=requested_code,
+                 metadata={'code': err, 'cart_key': cart_key},
+                 description=f'Checkout rejected coupon {requested_code}: {err}.')
+        raise ValidationError(
+            {'couponCode': FRIENDLY.get(err, 'Invalid promotion code.')})
+    # Re-check usage limits under the row lock (price_cart counted without it).
+    if requested_code:
+        for entry in breakdown.get('applied') or []:
+            if (entry.get('code') or '').upper() == requested_code:
+                prow = Promotion.objects.select_for_update().filter(pk=entry['id']).first()
+                if prow is not None:
+                    base = PromotionRedemption.objects.filter(
+                        promotion=prow, voided=False)
+                    if prow.usage_limit is not None and base.count() >= prow.usage_limit:
+                        raise ValidationError({'couponCode': FRIENDLY['USAGE_LIMIT_REACHED']})
+                    if (prow.usage_limit_per_customer is not None and user is not None
+                            and getattr(user, 'is_authenticated', False)):
+                        if base.filter(user_id=user.pk).count() >= prow.usage_limit_per_customer:
+                            raise ValidationError({'couponCode': FRIENDLY['CUSTOMER_LIMIT_REACHED']})
+
+    discount_minor = breakdown.get('discount', 0)
+    shipping_discount_minor = breakdown.get('shipping_discount', 0)
+    shipping_minor = breakdown.get('shipping', shipping_cost_minor(subtotal_minor, shipping_method))
+    tax_minor = breakdown.get('tax', tax_cost_minor(max(0, subtotal_minor - discount_minor)))
     order = Order.objects.create(
         order_number=f'AT-{uuid.uuid4().hex[:12].upper()}',
         cart=cart,
@@ -254,12 +305,39 @@ def create_order(cart_key, payload, user=None):
         customer=payload['customer'],
         notes=payload.get('notes', ''),
         subtotal_minor=subtotal_minor,
+        discount_minor=discount_minor,
         shipping_cost_minor=shipping_minor,
+        shipping_discount_minor=shipping_discount_minor,
         tax_minor=tax_minor,
-        total_minor=subtotal_minor + shipping_minor + tax_minor,
+        total_minor=(subtotal_minor - discount_minor) + shipping_minor + tax_minor,
         shipping_method=shipping_method,
         payment_method=payment_method,
+        coupon_code=requested_code,
+        promotion_snapshot={
+            'discount': discount_minor,
+            'shipping_discount': shipping_discount_minor,
+            'coupon_code': requested_code,
+            'applied': breakdown.get('applied') or [],
+            'subtotal': subtotal_minor,
+        },
     )
+    # Immutable redemption records (one per applied promotion).
+    for entry in breakdown.get('applied') or []:
+        PromotionRedemption.objects.create(
+            promotion_id=entry['id'], order=order,
+            user=user if user is not None and getattr(user, 'is_authenticated', False) else None,
+            cart_key=cart_key, coupon_code=entry.get('code') or '',
+            discount_minor=entry.get('discount') or 0,
+            shipping_discount_minor=entry.get('shipping_discount') or 0,
+        )
+    if breakdown.get('applied'):
+        AuditLogService.log(
+            'promotion_redeemed', category='orders', object_type='order',
+            object_id=order.pk, object_repr=order.order_number,
+            metadata={'coupon_code': requested_code, 'discount_minor': discount_minor,
+                      'promotions': [e.get('name') for e in breakdown.get('applied') or []]},
+            description=f'Promotion redeemed on order {order.order_number}.',
+        )
     for cart_item, variant, price_minor, line_total_minor in order_items:
         reserve_variant(order, variant, cart_item.quantity)
         OrderItem.objects.create(
@@ -276,6 +354,9 @@ def create_order(cart_key, payload, user=None):
             line_total_minor=line_total_minor,
         )
     cart.items.all().delete()
+    if getattr(cart, 'coupon_code', ''):
+        cart.coupon_code = ''
+        cart.save(update_fields=['coupon_code', 'updated_at'])
     audit_log = _audit_order(
         'order_created', order,
         status_code=201,
@@ -434,6 +515,10 @@ def cancel_order(order):
 
     for reservation in order.reservations.select_for_update().all():
         release_reservation(reservation)
+
+    # Void redemptions so cancelled orders free up usage limits while the
+    # immutable record (and the order snapshot) remains for history.
+    order.promo_redemptions.filter(voided=False).update(voided=True)
 
     if order.payment_status == Order.PaymentStatus.PAID:
         order.payment_status = Order.PaymentStatus.REFUNDED

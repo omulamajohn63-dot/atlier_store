@@ -152,8 +152,10 @@ def merge_carts(user, guest_key):
             for item in CartItem.objects.select_for_update().select_related(
                     'variant__product').filter(id__in=guest_item_ids):
                 _merge_cart_item(target, item, summary)
+            if not getattr(target, 'coupon_code', '') and getattr(guest, 'coupon_code', ''):
+                target.coupon_code = guest.coupon_code
             guest.delete()
-            target.save(update_fields=['updated_at'])
+            target.save(update_fields=['updated_at'] + (['coupon_code'] if getattr(target, 'coupon_code', '') else []))
 
     if summary['merged'] or summary['clamped'] or summary['skipped']:
         AuditLogService.log(

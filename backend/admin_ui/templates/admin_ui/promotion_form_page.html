@@ -1,0 +1,78 @@
+{% extends "admin_ui/base_admin.html" %}
+
+{% block title %}{{ page_title }} | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li><a href="/admin/dashboard/promotions/">Promotions</a></li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 760px; margin: 0 auto;">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">{{ page_title }}</h2>
+      <p class="page-subtitle">{{ page_subtitle }}</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post" style="display: flex; flex-direction: column; gap: 20px;">
+        {% csrf_token %}
+        <h3 style="margin: 0;">Basic information</h3>
+        {{ form.name.errors }}{{ form.name.label_tag }}{{ form.name }}
+        {{ form.description.errors }}{{ form.description.label_tag }}{{ form.description }}
+        {{ form.promotion_type.errors }}{{ form.promotion_type.label_tag }}{{ form.promotion_type }}
+        {{ form.status.errors }}{{ form.status.label_tag }}{{ form.status }}
+
+        <h3 style="margin: 8px 0 0;">Discount</h3>
+        {{ form.discount_percent.errors }}{{ form.discount_percent.label_tag }}{{ form.discount_percent }}
+        {{ form.discount_amount.errors }}{{ form.discount_amount.label_tag }}{{ form.discount_amount }}
+        {{ form.maximum_discount.errors }}{{ form.maximum_discount.label_tag }}{{ form.maximum_discount }}
+        {{ form.qualifying_quantity.errors }}{{ form.qualifying_quantity.label_tag }}{{ form.qualifying_quantity }}
+        {{ form.reward_quantity.errors }}{{ form.reward_quantity.label_tag }}{{ form.reward_quantity }}
+        {{ form.reward_discount_percent.errors }}{{ form.reward_discount_percent.label_tag }}{{ form.reward_discount_percent }}
+        {{ form.max_redemptions_per_order.errors }}{{ form.max_redemptions_per_order.label_tag }}{{ form.max_redemptions_per_order }}
+
+        <h3 style="margin: 8px 0 0;">Eligibility</h3>
+        {{ form.minimum_order_value.errors }}{{ form.minimum_order_value.label_tag }}{{ form.minimum_order_value }}
+        {{ form.minimum_quantity.errors }}{{ form.minimum_quantity.label_tag }}{{ form.minimum_quantity }}
+        {{ form.eligible_all.errors }}{{ form.eligible_all.label_tag }}{{ form.eligible_all }}
+        {{ form.sale_only.errors }}{{ form.sale_only.label_tag }}{{ form.sale_only }}
+        {{ form.new_only.errors }}{{ form.new_only.label_tag }}{{ form.new_only }}
+        {{ form.target_products.errors }}{{ form.target_products.label_tag }}{{ form.target_products }}
+        {{ form.target_categories.errors }}{{ form.target_categories.label_tag }}{{ form.target_categories }}
+        {{ form.target_variants.errors }}{{ form.target_variants.label_tag }}{{ form.target_variants }}
+
+        <h3 style="margin: 8px 0 0;">Coupon &amp; customers</h3>
+        {{ form.coupon_code.errors }}{{ form.coupon_code.label_tag }}{{ form.coupon_code }}
+        {{ form.is_automatic.errors }}{{ form.is_automatic.label_tag }}{{ form.is_automatic }}
+        {{ form.customer_scope.errors }}{{ form.customer_scope.label_tag }}{{ form.customer_scope }}
+
+        <h3 style="margin: 8px 0 0;">Schedule &amp; limits</h3>
+        {{ form.starts_at.errors }}{{ form.starts_at.label_tag }}{{ form.starts_at }}
+        {{ form.ends_at.errors }}{{ form.ends_at.label_tag }}{{ form.ends_at }}
+        {{ form.usage_limit.errors }}{{ form.usage_limit.label_tag }}{{ form.usage_limit }}
+        {{ form.usage_limit_per_customer.errors }}{{ form.usage_limit_per_customer.label_tag }}{{ form.usage_limit_per_customer }}
+
+        <h3 style="margin: 8px 0 0;">Behavior</h3>
+        {{ form.priority.errors }}{{ form.priority.label_tag }}{{ form.priority }}
+        {{ form.stackable.errors }}{{ form.stackable.label_tag }}{{ form.stackable }}
+
+        {% if form.non_field_errors %}
+        <ul class="errorlist" style="color: var(--status-danger);">
+          {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+
+        <div style="display: flex; gap: 12px; padding-top: 8px;">
+          <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+          <a class="btn btn-secondary" href="/admin/dashboard/promotions/">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

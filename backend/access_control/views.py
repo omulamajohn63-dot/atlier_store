@@ -38,6 +38,17 @@ def _page_context(request, page, title, subtitle):
     }
 
 
+def _staff_profile(user):
+    """Return the user's StaffProfile, or None when it does not exist yet.
+
+    Staff accounts can be created outside of StaffCreateView (invite form,
+    ``ensure_superuser``, Django admin), so the profile may be missing.
+    ``user.staff_profile`` raises ``RelatedObjectDoesNotExist`` in that case,
+    which subclasses ``AttributeError`` and is therefore swallowed by getattr.
+    """
+    return getattr(user, "staff_profile", None)
+
+
 # ---------------------------------------------------------------------------
 # Staff management
 # ---------------------------------------------------------------------------
@@ -102,7 +113,7 @@ class StaffDetailView(StaffPermissionRequiredMixin, View):
                 "permissions_granted", "permissions_revoked"],
         ).select_related("actor").order_by("-created_at")[:20]
 
-        profile = user.staff_profile
+        profile = _staff_profile(user)
         role_ids = set(profile.roles.values_list("pk", flat=True)) if profile else set()
         direct_ids = (set(profile.direct_permissions.values_list("pk", flat=True))
                       if profile else set())
@@ -245,7 +256,7 @@ class StaffEditView(StaffPermissionRequiredMixin, View):
 
     def get(self, request, user_id):
         user = get_object_or_404(User, pk=user_id, is_staff=True)
-        profile = user.staff_profile
+        profile = _staff_profile(user)
         initial = {
             "first_name": user.first_name,
             "last_name": user.last_name,
@@ -269,7 +280,7 @@ class StaffEditView(StaffPermissionRequiredMixin, View):
             return redirect("access-staff-detail", user_id=user.pk)
 
         data = form.cleaned_data
-        profile = user.staff_profile
+        profile = _staff_profile(user)
         if profile is None:
             profile = StaffProfile.objects.create(user=user)
 
@@ -277,6 +288,9 @@ class StaffEditView(StaffPermissionRequiredMixin, View):
         new_direct_ids = set(p.pk for p in data["direct_permissions"])
         old_role_ids = set(profile.roles.values_list("pk", flat=True))
         old_direct_ids = set(profile.direct_permissions.values_list("pk", flat=True))
+        old_direct_codes = set(
+            Permission.objects.filter(pk__in=old_direct_ids)
+            .values_list("code", flat=True))
 
         roles_changed = new_role_ids != old_role_ids
         perms_changed = new_direct_ids != old_direct_ids
@@ -332,10 +346,10 @@ class StaffEditView(StaffPermissionRequiredMixin, View):
             user.save()
 
             profile.roles.set(new_roles)
+            granted_codes = set(
+                expand_with_dependencies([p.code for p in new_permissions]))
             profile.direct_permissions.set(
-                Permission.objects.filter(
-                    code__in=expand_with_dependencies(
-                        [p.code for p in new_permissions])))
+                Permission.objects.filter(code__in=granted_codes))
             profile.save()
 
             if roles_changed:
@@ -348,18 +362,14 @@ class StaffEditView(StaffPermissionRequiredMixin, View):
                         "superuser": user.is_superuser,
                     })
 
-            added = sorted(
-                p.code for p in new_permissions
-                if p.pk not in old_direct_ids)
+            added = sorted(granted_codes - old_direct_codes)
             if added:
                 audit_staff_event(
                     "permissions_granted", request.user, user,
                     f"Granted {len(added)} direct permission(s) to {user.username}.",
                     {"permissions": added})
 
-            revoked = sorted(
-                p.code for p in profile.direct_permissions.all()
-                if p.pk not in new_direct_ids)
+            revoked = sorted(old_direct_codes - granted_codes)
             if revoked:
                 audit_staff_event(
                     "permissions_revoked", request.user, user,
@@ -396,7 +406,7 @@ class StaffDeactivateView(StaffPermissionRequiredMixin, View):
                 "Super Admin role before deactivating this account.")
             return redirect("access-staff-detail", user_id=user.pk)
 
-        profile = user.staff_profile
+        profile = _staff_profile(user)
         with transaction.atomic():
             user.is_active = False
             user.save(update_fields=["is_active"])
@@ -433,7 +443,7 @@ class StaffReactivateView(StaffPermissionRequiredMixin, View):
 
     def post(self, request, user_id):
         user = get_object_or_404(User, pk=user_id, is_staff=True)
-        profile = user.staff_profile
+        profile = _staff_profile(user)
         with transaction.atomic():
             user.is_active = True
             user.save(update_fields=["is_active"])

@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ArrowRight, Check, Eye, Heart, ShoppingBag } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
+import { useStore } from '../context/StoreContext';
 import { useWishlist } from '../context/WishlistContext';
 import {
   getColorSwatches,
@@ -36,6 +37,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const addedTimerRef = useRef<number | null>(null);
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { addToCart, isLoading } = useCart();
+  const { availablePromotions } = useStore();
   const saved = isWishlisted(product.id);
 
   useEffect(() => {
@@ -60,6 +62,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const hasOptionsToSelect = visibleOptionGroups.length > 0;
   const isSoldOut = totalStock <= 0;
   const isLowStock = !isSoldOut && totalStock <= 4;
+  // Server-driven promotion badge (Django /api/promotions/available metadata).
+  const promoBadge = availablePromotions.length > 0 ? availablePromotions[0].badge : '';
+  const showPromoBadge = Boolean(promoBadge) && !isSoldOut &&
+    (Boolean(product.compareAtPrice && product.compareAtPrice > product.price) || product.isNewArrival);
   const hasMultipleImages = product.images.length > 1;
   const selectedVariant = hasVariants
     ? product.variants.find((item) => isVariantPurchasable(item)) || product.variants[0]
@@ -234,6 +240,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="pointer-events-none absolute left-3 top-3 z-20 flex flex-col items-start gap-1.5">
             {isSoldOut ? (
               <Badge variant="secondary" size="sm">Sold Out</Badge>
+            ) : showPromoBadge ? (
+              <Badge variant="warning" size="sm">{promoBadge}</Badge>
             ) : product.compareAtPrice && product.compareAtPrice > product.price ? (
               <Badge variant="warning" size="sm">Sale</Badge>
             ) : product.isNewArrival ? (

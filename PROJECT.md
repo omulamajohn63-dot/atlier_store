@@ -183,17 +183,92 @@ Custom hash-aware `RouterContext` — no React Router dependency.
 | App | Responsibility |
 |---|---|
 | `catalog` | Products, categories, variants |
-| `cart` | Guest carts via `x-cart-id` header |
-| `orders` | Checkout, order lifecycle |
+| `cart` | Guest carts via `x-cart-id` header (+ persisted `coupon_code`) |
+| `orders` | Checkout, order lifecycle (server-side promo totals, snapshot) |
 | `payments` | M-Pesa create-intent / confirm / webhook / callback |
+| `promotions` | Promotion rules, coupon validation, pricing engine, redemptions |
 | `inventory` | Stock levels + reservations ledger |
 | `accounts` | Supabase JWT auth, `/api/auth/me` |
-| `receipts` | PDF/email receipts (reportlab) |
+| `receipts` | PDF/email receipts (reportlab; includes promotion lines) |
 | `audit` | Audit log, client `/api/audit/events` |
-| `access_control` | Roles: customer / staff / admin |
-| `admin_ui` | Custom server-rendered dashboard |
+| `access_control` | Roles: customer / staff / admin (+ `promotions.*` permissions) |
+| `admin_ui` | Custom server-rendered dashboard (incl. Promotions pages) |
 | `admin_api` | Staff REST endpoints (products, inventory, notifications, maintenance) |
 | `store` | `/api/health/` health check |
+
+---
+
+## Promotions & Discounts Engine
+
+Django (`promotions/`) is the single source of truth for eligibility,
+discount math, coupon validation, usage limits, redemption and order totals.
+The React storefront only requests, displays and submits promotion data.
+
+### Promotion types
+| Type | Behaviour |
+|---|---|
+| `percentage` | % off eligible subtotal, optional `maximum_discount` cap |
+| `fixed` | Fixed KES off eligible subtotal, never below zero |
+| `free_shipping` | Removes the shipping charge (most visible on express) |
+| `buy_x_get_y` | Cheapest `reward_quantity` units free per qualifying group |
+| `buy_x_get_pct` | `reward_discount_percent` off the cheapest reward units |
+| Automatic | `is_automatic=true` promos apply without a coupon code |
+
+### Calculation rules
+- Money in minor units (KES cents); percentages are `Decimal(0–100)`.
+- Targeting: whole store, products, variants, categories, sale-only, new-only.
+- Customer scope: `all` / `new` (0 prior orders; guests count as new) /
+  `existing` / `specific` (allow-list). Verified server-side.
+- Coupon codes are case-insensitive, whitespace-normalized, unique across
+  non-disabled/expired promotions.
+- Tax (16%) applies to `subtotal − discount`; shipping follows the existing
+  `orders.services` rules, then free-shipping promos zero it.
+- Usage limits count immutable `PromotionRedemption` rows (voided on order
+  cancel); `select_for_update()` serializes concurrent redemptions.
+
+### Stacking & priority (deterministic)
+1. Collect eligible promotions. 2. Sort by `(-priority, name, pk)`.
+3. If any eligible promo is non-stackable, only the top-priority one applies
+   (coupon promos win exact ties when a coupon was supplied).
+4. Otherwise all eligible stackable promos apply, capped at the subtotal.
+
+### Redemption rules
+- `POST /api/promotions/apply` persists `Cart.coupon_code`; checkout
+  (`POST /api/orders` with `couponCode`) re-resolves everything server-side.
+- Orders freeze `discount_minor`, `shipping_discount_minor`, `coupon_code`
+  and a `promotion_snapshot` so history survives later promo edits.
+- `PaymentIntent.amount_minor` always equals the server-side order total.
+
+### API endpoints
+```
+POST   /api/promotions/apply          # {code, shippingMethod?}
+POST   /api/promotions/remove         # {}
+GET    /api/promotions/available      # pricing + public discovery badges
+GET    /api/admin/promotions          # list + status counts
+POST   /api/admin/promotions          # create
+GET    /api/admin/promotions/<id>     # detail
+PATCH  /api/admin/promotions/<id>     # update
+DELETE /api/admin/promotions/<id>     # delete
+POST   /api/admin/promotions/<id>/activate|deactivate|duplicate
+GET    /api/admin/promotions/<id>/analytics
+POST   /api/admin/promotions/<id>/preview   # {exampleCart} -> {discount, final}
+```
+Dashboard pages: `/admin/dashboard/promotions/`, `.../new/`,
+`.../<id>/edit/`, `.../<id>/activate|deactivate|duplicate/`.
+
+### Admin workflow
+Promotions page → Add Promotion (Basic → Discount → Eligibility → Coupon &
+customers → Schedule & limits → Behavior) → preview via API → activate.
+Usage analytics per promotion: redemptions, revenue, discount given, AOV.
+
+### Audit / RBAC / notifications
+- Audit: `promotion_created/updated/activated/deactivated/deleted/`
+  `code_changed/redeemed/redemption_failed/usage_limit_reached`.
+- Permissions: `promotions.view/create/update/delete` (+ `promotion_manager` role).
+- Customer in-app notes on redemption/coupon issue; promo emails use the
+  central `emails` mailer (`promotion_announcement`, `promotion_ending_soon`,
+  `coupon_issued`) and require explicit consent; `EMAIL_ENABLED=false` still
+  only records rows.
 
 ---
 
@@ -204,10 +279,13 @@ Custom hash-aware `RouterContext` — no React Router dependency.
 GET    /api/products/                  # list (filter/sort/search)
 GET    /api/products/<slug|uuid>/      # detail
 GET    /api/categories/
-GET    /api/cart                       # get cart (x-cart-id)
+GET    /api/cart                       # get cart (x-cart-id; includes discount/promotion)
 POST   /api/cart/items                 # add item
-POST   /api/orders                     # checkout
-POST   /api/payments/create-intent     # start payment
+POST   /api/promotions/apply           # apply coupon {code}
+POST   /api/promotions/remove          # remove coupon
+GET    /api/promotions/available       # pricing + discovery badges
+POST   /api/orders                     # checkout (accepts couponCode; server re-prices)
+POST   /api/payments/create-intent     # start payment (amount = server total)
 POST   /api/payments/confirm           # confirm payment
 POST   /api/payments/webhook           # provider webhook
 POST   /api/payments/mpesa/callback    # M-Pesa callback

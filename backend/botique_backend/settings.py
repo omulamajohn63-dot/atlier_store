@@ -217,6 +217,7 @@ INSTALLED_APPS = [
     'inventory',
     'orders',
     'payments',
+    'promotions',
     'receipts',
     'store',
 ]
@@ -598,6 +599,11 @@ LOGGING = {
             'propagate': False,
         },
         'admin_ui': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'promotions': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
             'propagate': False,

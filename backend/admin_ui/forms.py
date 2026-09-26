@@ -12,6 +12,7 @@ from catalog.variant_services import (
     sku_collides_within,
     unique_sku,
 )
+from access_control.models import StaffProfile
 
 
 class AdminLoginForm(AuthenticationForm):
@@ -119,6 +120,8 @@ class AdminSignupForm(forms.ModelForm):
         if commit:
             user.save()
             self.save_m2m()
+            StaffProfile.objects.get_or_create(
+                user=user, defaults={'status': StaffProfile.Status.ACTIVE})
         return user
 
 
@@ -331,3 +334,76 @@ class StockAdjustmentForm(forms.Form):
                                max_value=100000, help_text='Add stock with a positive number or remove it with a negative number.')
     reason = forms.CharField(label='Reason', max_length=40,
                              initial='manual_adjustment')
+
+
+class PromotionForm(forms.ModelForm):
+    discount_amount = forms.DecimalField(label='Fixed discount (KES)', required=False, min_value=0, initial=0)
+    maximum_discount = forms.DecimalField(label='Maximum discount (KES, optional)', required=False, min_value=0)
+    minimum_order_value = forms.DecimalField(label='Minimum order value (KES)', required=False, min_value=0, initial=0)
+    target_products = forms.ModelMultipleChoiceField(label='Specific products (optional)', queryset=Product.objects.order_by('name'), required=False)
+    target_categories = forms.ModelMultipleChoiceField(label='Specific categories (optional)', queryset=Category.objects.order_by('name'), required=False)
+    target_variants = forms.ModelMultipleChoiceField(label='Specific variants (optional)', queryset=ProductVariant.objects.select_related('product').order_by('sku'), required=False)
+
+    class Meta:
+        from promotions.models import Promotion
+        model = Promotion
+        fields = ('name', 'description', 'promotion_type', 'status', 'discount_percent',
+                  'qualifying_quantity', 'reward_quantity', 'reward_discount_percent',
+                  'max_redemptions_per_order', 'coupon_code', 'is_automatic',
+                  'starts_at', 'ends_at', 'usage_limit', 'usage_limit_per_customer',
+                  'priority', 'stackable', 'eligible_all', 'sale_only', 'new_only',
+                  'customer_scope', 'minimum_quantity')
+        widgets = {
+            'starts_at': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'ends_at': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+            'description': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        inst = self.instance
+        if inst is not None and getattr(inst, 'pk', None):
+            self.fields['discount_amount'].initial = (inst.discount_amount_minor or 0) / 100
+            self.fields['maximum_discount'].initial = ((inst.maximum_discount_minor / 100)
+                                                         if inst.maximum_discount_minor is not None else None)
+            self.fields['minimum_order_value'].initial = (inst.minimum_order_value_minor or 0) / 100
+            self.fields['target_products'].initial = [l.product_id for l in inst.promo_products.all()]
+            self.fields['target_categories'].initial = [l.category_id for l in inst.promo_categories.all()]
+            self.fields['target_variants'].initial = [l.variant_id for l in inst.promo_variants.all()]
+
+    def clean(self):
+        cleaned = super().clean()
+        starts, ends = cleaned.get('starts_at'), cleaned.get('ends_at')
+        if starts and ends and ends <= starts:
+            raise forms.ValidationError('End date must be after start date.')
+        if float(cleaned.get('discount_percent') or 0) > 100:
+            raise forms.ValidationError('Discount percentage cannot exceed 100.')
+        ptype = cleaned.get('promotion_type')
+        if ptype in ('buy_x_get_y', 'buy_x_get_pct') and ((cleaned.get('qualifying_quantity') or 0) <= 0 or (cleaned.get('reward_quantity') or 0) <= 0):
+            raise forms.ValidationError('Buy X Get Y promotions need qualifying and reward quantities.')
+        if not cleaned.get('is_automatic') and not (cleaned.get('coupon_code') or '').strip():
+            raise forms.ValidationError('Non-automatic promotions require a coupon code.')
+        return cleaned
+
+    def save(self, commit=True):
+        promo = super().save(commit=False)
+        promo.discount_amount_minor = int(round(float(self.cleaned_data.get('discount_amount') or 0) * 100))
+        maxd = self.cleaned_data.get('maximum_discount')
+        promo.maximum_discount_minor = None if maxd in (None, '') else int(round(float(maxd) * 100))
+        promo.minimum_order_value_minor = int(round(float(self.cleaned_data.get('minimum_order_value') or 0) * 100))
+        if commit:
+            promo.save()
+            from promotions.models import PromotionCategory, PromotionProduct, PromotionVariant
+            PromotionProduct.objects.filter(promotion=promo).delete()
+            PromotionCategory.objects.filter(promotion=promo).delete()
+            PromotionVariant.objects.filter(promotion=promo).delete()
+            for product in self.cleaned_data.get('target_products') or []:
+                PromotionProduct.objects.get_or_create(promotion=promo, product=product)
+            for category in self.cleaned_data.get('target_categories') or []:
+                PromotionCategory.objects.get_or_create(promotion=promo, category=category)
+            for variant in self.cleaned_data.get('target_variants') or []:
+                PromotionVariant.objects.get_or_create(promotion=promo, variant=variant)
+            if promo.eligible_all is False and not ((self.cleaned_data.get('target_products') or []) or (self.cleaned_data.get('target_categories') or []) or (self.cleaned_data.get('target_variants') or [])):
+                pass
+        return promo
+

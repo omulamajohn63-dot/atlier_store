@@ -261,3 +261,34 @@ Only 4 of 6 active products have variants; the test uses these for add-to-cart:
 | silk-midi-wrap-dress    | `9cf5a094-d48e-4665-94fd-7e3d7a964234` | 12    |
 
 With `CHECKOUT_DRY_RUN=true` (default), stock is not reserved, so cart operations remain stable for the full test duration.
+
+## 19. Promotion-heavy traffic (k6)
+
+The promotions engine adds three storefront endpoints plus heavier cart
+pricing (one extra promotion query per `GET /api/cart`). Extend the k6
+script (`boutique-500-users.js`) with these scenarios; all share the
+`x-cart-id` header flow and run under `LOAD_TEST_MODE=true` so the
+`orders`-scoped throttle (coupon apply/remove) does not 429 the run:
+
+| # | Scenario | Requests | What it proves |
+|---|---|---|---|
+| 1 | Browse with active promos | `GET /api/products/` + `GET /api/promotions/available` | discovery payload stays small; product list p95 unaffected |
+| 2 | Cart pricing | `POST /api/cart/items` → `GET /api/cart` | `discount/promotion/appliedPromotions` computed per GET without N+1 |
+| 3 | Coupon apply | `POST /api/promotions/apply {code}` (valid + invalid codes) | validation errors return 422 with stable `{error:{code,message}}` envelope |
+| 4 | Checkout with promotion | `POST /api/orders {couponCode}` → `POST /api/payments/create-intent` | order total = subtotal − discount + shipping + tax; intent amount matches |
+| 5 | Concurrent redemption | N VUs `POST /api/orders {couponCode}` against a `usage_limit=1` promo | exactly 1 order succeeds; rest get `USAGE_LIMIT_REACHED` (row-locked) |
+
+Seed a coupon promo before the run (Django shell or admin API):
+
+```python
+from decimal import Decimal
+from promotions.models import Promotion
+Promotion.objects.create(name='Load Test 10%', promotion_type='percentage',
+    status='active', discount_percent=Decimal('10'), coupon_code='LOAD10',
+    priority=10, stackable=True)
+```
+
+Ramp with the same progressive sequence as §18 (`VUS=1/10/25/50/100/250/500`);
+compare cart/checkout p95 against the no-promo baseline — the engine is
+`select_related`/`prefetch_related`-backed and must not regress p95 by more
+than ~10%.

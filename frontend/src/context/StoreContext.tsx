@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Product, ProductVariant, Category, CategorySlug, DiscountCode, InventoryLog, CartItem } from '../types';
 import { PROMOTIONAL_CODES } from '../data/promotions';
 import { api } from '../services/apiClient';
+import { AvailablePromotionDTO } from '../types/api';
 import { mapProductDtoToDomain } from '../utils/productMapper';
 
 const INVENTORY_LOGS_KEY = 'modeza_inventory_logs_v1';
@@ -119,6 +120,8 @@ export interface StoreContextType {
   products: Product[];
   categories: Category[];
   promotions: DiscountCode[];
+  availablePromotions: AvailablePromotionDTO[];
+  refreshPromotions: () => Promise<void>;
   inventoryLogs: InventoryLog[];
   totalCatalogStock: number;
   refreshCatalog: () => Promise<void>;
@@ -145,7 +148,19 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([ALL_CATEGORY]);
+  const [availablePromotions, setAvailablePromotions] = useState<AvailablePromotionDTO[]>([]);
   const refreshInFlight = useRef(false);
+
+  // Server-driven promotion discovery (badges/banners). Best-effort: the
+  // shop works without it; Django remains the authority at checkout.
+  const refreshPromotions = useCallback(async () => {
+    try {
+      const result = await api.getAvailablePromotions();
+      setAvailablePromotions(result.available ?? []);
+    } catch {
+      // offline / backend unreachable — keep the previous list
+    }
+  }, []);
 
   const loadCatalogFromApi = useCallback(async () => {
     if (refreshInFlight.current) return;
@@ -190,6 +205,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     void loadCatalogFromApi();
+    void refreshPromotions();
 
     const refreshOnFocus = () => {
       if (document.visibilityState === 'visible') {
@@ -210,7 +226,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       document.removeEventListener('visibilitychange', refreshOnFocus);
       window.removeEventListener('focus', refreshOnFocus);
     };
-  }, [loadCatalogFromApi]);
+  }, [loadCatalogFromApi, refreshPromotions]);
 
   const [inventoryLogs, setInventoryLogs] = useState<InventoryLog[]>(() => {
     try {
@@ -495,6 +511,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         categories,
         refreshCatalog: loadCatalogFromApi,
         promotions: PROMOTIONAL_CODES,
+        availablePromotions,
+        refreshPromotions,
         inventoryLogs,
         totalCatalogStock,
         getProductBySlug,

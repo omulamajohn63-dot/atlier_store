@@ -81,7 +81,10 @@ def build_snapshot(order):
             for item in order.items.all()
         ],
         'subtotal_minor': order.subtotal_minor,
+        'discount_minor': getattr(order, 'discount_minor', 0) or 0,
         'shipping_cost_minor': order.shipping_cost_minor,
+        'shipping_discount_minor': getattr(order, 'shipping_discount_minor', 0) or 0,
+        'coupon_code': getattr(order, 'coupon_code', '') or '',
         'tax_minor': order.tax_minor,
         'total_minor': order.total_minor,
         'shipping_method': order.shipping_method,

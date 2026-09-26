@@ -18,6 +18,9 @@ EMAIL_TYPE_CHOICES = (
     ('receipt', 'Receipt'),
     ('welcome', 'Welcome'),
     ('back_in_stock', 'Back in stock'),
+    ('promotion_announcement', 'Promotion announcement'),
+    ('promotion_ending_soon', 'Promotion ending soon'),
+    ('coupon_issued', 'Coupon issued'),
     # --- staff-facing ----------------------------------------------------
     ('admin_new_order', 'Admin: new order'),
     ('admin_payment_failed', 'Admin: payment failed'),
@@ -36,6 +39,7 @@ CUSTOMER_EMAIL_TYPES = frozenset({
     'order_confirmation', 'order_confirmed', 'order_cancelled',
     'order_received', 'payment_success', 'payment_failed', 'receipt',
     'welcome', 'back_in_stock',
+    'promotion_announcement', 'promotion_ending_soon', 'coupon_issued',
 })
 
 ADMIN_EMAIL_TYPES = ALLOWED_EMAIL_TYPES - CUSTOMER_EMAIL_TYPES
