@@ -354,7 +354,7 @@ const RightActions: React.FC<{
         <Search className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
       </IconButton>
 
-      <div className="relative hidden lg:block">
+      <div className="relative">
         <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
           <PopoverTrigger asChild>
             <button
@@ -473,20 +473,22 @@ const RightActions: React.FC<{
         <User className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
       </IconButton>
 
-      <IconButton
-        onClick={() => onNavigate('/wishlist')}
-        ariaLabel={`Wishlist with ${wishlistCount} saved items`}
-        title="Wishlist"
-      >
-        <span className="relative block">
-          <Heart className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
-          {wishlistCount > 0 && (
-            <Badge className="absolute -right-2.5 -top-2.5 h-4 min-w-4 justify-center px-1 text-[9px]">
-              {wishlistCount > 99 ? '99+' : wishlistCount}
-            </Badge>
-          )}
-        </span>
-      </IconButton>
+      <div className="hidden sm:flex">
+        <IconButton
+          onClick={() => onNavigate('/wishlist')}
+          ariaLabel={`Wishlist with ${wishlistCount} saved items`}
+          title="Wishlist"
+        >
+          <span className="relative block">
+            <Heart className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
+            {wishlistCount > 0 && (
+              <Badge className="absolute -right-2.5 -top-2.5 h-4 min-w-4 justify-center px-1 text-[9px]">
+                {wishlistCount > 99 ? '99+' : wishlistCount}
+              </Badge>
+            )}
+          </span>
+        </IconButton>
+      </div>
 
       <button
         type="button"
