@@ -22,6 +22,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
+# True under `manage.py test`. The runner pins a deterministic configuration
+# regardless of whatever backend/.env happens to carry, so a local
+# EMAIL_ENABLED=false (or a stray broker URL) cannot break the suite.
+TESTING = 'test' in sys.argv
+
 
 def _env_flag(name, default=False):
     """Read a boolean environment variable, falling back to ``default`` when
@@ -126,8 +131,13 @@ STORE_ADDRESS = os.getenv('STORE_ADDRESS', 'Nairobi, Kenya')
 #   3. neither        -> console backend, which prints messages to the log —
 #      a safe zero-config default for local development that can never fail a
 #      delivery attempt.
+#
+# The test runner always runs with delivery *enabled*, so `EMAIL_ENABLED=false`
+# in backend/.env cannot break the suite: the deactivated path is asserted with
+# override_settings(EMAIL_ENABLED=False) in backend/emails/tests.py instead.
 # ---------------------------------------------------------------------------
-EMAIL_ENABLED = _env_flag('EMAIL_ENABLED', True)
+EMAIL_ENABLED = (True if TESTING
+                 else _env_flag('EMAIL_ENABLED', True))
 
 #: Hard ceiling on how long a transport may block. Checkout queues mail from
 #: inside the request, so an unreachable mail host must never be able to hang
@@ -386,7 +396,6 @@ USE_TZ = True
 # the legacy import code path is always exercised.
 # ---------------------------------------------------------------------------
 REDIS_URL = os.getenv('REDIS_URL', '').strip()
-TESTING = 'test' in sys.argv
 
 if TESTING:
     CELERY_BROKER_URL = 'memory://'

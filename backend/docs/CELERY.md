@@ -22,7 +22,7 @@ Everything is governed by environment variables read in
 | `REDIS_URL` | *(empty)* | Broker. Render injects it automatically when a Redis resource is linked. |
 | `CELERY_WORKER_ENABLED` | `true` **iff** `REDIS_URL` is set | The single switch for imports (and email, when `EMAIL_DELIVERY_MODE` is unset). `false` → the browser-driven `/process` import loop. `true` → handed to a worker. |
 | `CELERY_TASK_ALWAYS_EAGER` | `true` unless a worker is enabled **and** reachable | Safety net: if `.delay()` is ever called with no worker able to drain the broker, the task runs inline instead of being stranded. |
-| `EMAIL_ENABLED` | `true`, but **`false` in the Render blueprint** | Master kill switch. `false` → `queue_email` still writes its row, but `_dispatch`, `deliver_email_log`, `requeue_email_log`, `retry_email_log` and `sweep_pending_emails` are all no-ops: no transport is touched and no row reaches `SENT`. |
+| `EMAIL_ENABLED` | code default `true`, but **`false` in `backend/.env` *and* in the Render blueprint** | Master kill switch. `false` → `queue_email` still writes its row, but `_dispatch`, `deliver_email_log`, `requeue_email_log`, `retry_email_log` and `sweep_pending_emails` are all no-ops: no transport is touched and no row reaches `SENT`. The test runner ignores the env value and pins `true`, so the disabled path is only ever exercised through `override_settings`. |
 | `EMAIL_DELIVERY_MODE` | *(empty)* → infer from `CELERY_WORKER_ENABLED` | How a queued message reaches its transport. `inline` = synchronously right after the DB commit. `deferred` = left `QUEUED` for the sweeper, so the request does no mail I/O. `worker` = `send_email_log.delay()`. |
 | `EMAIL_BACKEND` | inferred from `RESEND_API_KEY` / `EMAIL_HOST` | The transport itself — see "The transport" below. |
 | `EMAIL_TIMEOUT` | `10` | Seconds a transport may block before it is abandoned. |
@@ -38,8 +38,9 @@ observe a delivery.
 > unset on a service that *does* have `REDIS_URL` would default it to `true`
 > and route work to a worker that does not exist.
 
-> **The mailer ships deactivated.** `render.yaml` sets `EMAIL_ENABLED:
-> "false"` because no sending domain has been verified yet. Everything about
+> **The mailer ships deactivated — everywhere.** `render.yaml` and the local
+> `backend/.env` both set `EMAIL_ENABLED: "false"` because no sending domain
+> has been verified yet. Everything about
 > the subsystem — queueing, idempotency, the `/admin/dashboard/emails/`
 > pages, audit rows — stays in place and keeps recording; only the hand-off
 > to a transport is suppressed, and a message is never marked `SENT` for mail
