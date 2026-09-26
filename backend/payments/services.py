@@ -92,14 +92,17 @@ def create_intent(order_number, method, phone_number, cart_key):
     if existing:
         return existing
     intent_id = f'pi_{uuid.uuid4().hex}'
+    sandbox = bool(getattr(settings, 'PAYMENT_SANDBOX', False))
     intent = PaymentIntent.objects.create(
         id=intent_id,
         order=order,
         amount_minor=order.total_minor,
         method=method,
         client_secret=f'cs_{secrets.token_urlsafe(24)}',
-        metadata={'phoneNumber': phone_number or order.customer.get(
-            'phone', ''), 'mode': 'local-development'},
+        metadata={
+            'phoneNumber': phone_number or order.customer.get('phone', ''),
+            'mode': 'sandbox' if sandbox else 'local-development',
+        },
     )
     order.payment_intent_id = intent.id
     order.save(update_fields=['payment_intent_id', 'updated_at'])
@@ -113,6 +116,13 @@ def create_intent(order_number, method, phone_number, cart_key):
         status_code=201,
         description=f'Payment initiated for order {order.order_number}.',
     )
+    if sandbox:
+        # Mock gateway. Nothing in this codebase issues a Daraja STK push, so
+        # without this the intent would sit at `pending` forever: the order
+        # could never reach PAID and the admin Approve button — gated on PAID
+        # — would never appear. Completing it here is what a mock gateway
+        # does on the customer's phone. MPESA_ENV=production turns it off.
+        _mark_intent_succeeded(intent, f'SBX-{uuid.uuid4().hex[:12].upper()}')
     return intent
 
 

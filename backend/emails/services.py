@@ -20,7 +20,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import BadHeaderError
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 
 from .constants import (
@@ -84,8 +84,11 @@ def _clean_subject(subject):
 def classify_failure(exc):
     """``'temporary'`` (retry) or ``'permanent'`` (stop now).
 
-    An SMTP status code is authoritative: 4xx is a transient condition, 5xx is
-    not. Failing that, known permanent exception types win; everything else is
+    A transport may assert its own verdict with a boolean ``permanent``
+    attribute — the HTTPS API backend does, because HTTP 401/403 mean "your
+    key is wrong" and retrying for 40 minutes would only burn the attempts.
+    An SMTP status code is authoritative next: 4xx is transient, 5xx is not.
+    Failing that, known permanent exception types win; everything else is
     treated as transient because the ladder is bounded anyway.
     """
     seen = set()
@@ -99,6 +102,10 @@ def classify_failure(exc):
         chain.append(current)
         queue.extend((current.__cause__, current.__context__))
 
+    for node in chain:
+        verdict = getattr(node, 'permanent', None)
+        if isinstance(verdict, bool):
+            return 'permanent' if verdict else 'temporary'
     for node in chain:
         code = getattr(node, 'smtp_code', None)
         if isinstance(code, int):
@@ -121,11 +128,49 @@ def _format_error(exc):
     return f'{prefix}{exc.__class__.__name__}: {exc}'[:1000]
 
 
-def _dispatch(pk):
-    """Hand the log to Celery, or deliver it inline when there is no worker."""
-    if getattr(settings, 'CELERY_WORKER_ENABLED', False):
+def delivery_mode():
+    """Resolve how a freshly queued message reaches its transport.
+
+    ``EMAIL_DELIVERY_MODE`` wins when set. When it is not, the historical
+    behaviour stands — a Celery worker if there is one, inline delivery
+    otherwise — so an unconfigured deployment keeps working exactly as it
+    did before the switch existed.
+    """
+    explicit = (getattr(settings, 'EMAIL_DELIVERY_MODE', '') or '').strip().lower()
+    if explicit:
+        return explicit
+    return 'worker' if getattr(settings, 'CELERY_WORKER_ENABLED', False) else 'inline'
+
+
+def email_enabled():
+    """The subsystem's master switch.
+
+    ``EMAIL_ENABLED=False`` deactivates delivery without removing any of it:
+    rows are still queued and visible in the admin, but no dispatch path may
+    open a transport, and nothing may be recorded as SENT for mail that was
+    never attempted.
+    """
+    return bool(getattr(settings, 'EMAIL_ENABLED', True))
+
+
+def _dispatch(pk, *, force_inline=False):
+    """Hand the log to its transport. Never raises.
+
+    ``force_inline`` marks an *explicit* action by a human or by the sweeper
+    (the admin Resend button, ``requeue_email_log``): the caller wants the
+    attempt, and its error, right now rather than on the next sweep.
+    """
+    if not email_enabled():
+        logger.debug('email %s not dispatched: EMAIL_ENABLED is false', pk)
+        return
+    mode = 'inline' if force_inline else delivery_mode()
+    if mode == 'worker':
         from .tasks import send_email_log
         send_email_log.delay(str(pk))
+    elif mode == 'deferred':
+        # Leave the row QUEUED for POST /api/admin/emails/sweep. No socket
+        # is ever opened inside the request that queued the mail.
+        logger.debug('email %s deferred to the sweeper', pk)
     else:
         deliver_email_log(pk)
 
@@ -244,6 +289,11 @@ def deliver_email_log(pk):
         return None
     if log.status in EmailLog.TERMINAL_STATUSES:
         return log
+    if not email_enabled():
+        # Deactivated: leave the row (and its attempt count) untouched rather
+        # than recording an attempt nobody made.
+        logger.debug('email %s not delivered: EMAIL_ENABLED is false', pk)
+        return log
 
     now = timezone.now()
     # Atomic claim: only one executor may move QUEUED/RETRYING -> SENDING, so a
@@ -341,6 +391,9 @@ def retry_email_log(log):
     Returns ``(log, dispatched)``. Only a FAILED log is accepted — resending a
     message that already went out would duplicate it.
     """
+    if not email_enabled():
+        logger.info('email %s not retried: EMAIL_ENABLED is false', log.pk)
+        return log, False
     now = timezone.now()
     updated = EmailLog.objects.filter(
         pk=log.pk, status=EmailLog.Status.FAILED,
@@ -358,17 +411,24 @@ def retry_email_log(log):
         logger.info('email %s is not retryable (status=%s)', log.pk, log.status)
         return log, False
 
-    _dispatch(log.pk)
+    _dispatch(log.pk, force_inline=True)
+    # Re-read so the caller sees the post-dispatch state rather than the
+    # QUEUED row it was reset to a moment earlier.
+    log.refresh_from_db()
     return log, True
 
 
 def requeue_email_log(log):
-    """Re-dispatch a QUEUED/RETRYING log whose broker message was lost.
+    """Attempt delivery of a QUEUED/RETRYING log whose dispatch was lost.
 
-    Render's free Redis key value is in-memory, so a restart silently discards
-    queued messages. ``EmailLog`` survives, which is why this can rebuild the
-    work. Returns ``True`` when the message was re-dispatched.
+    Serves three callers: the recovery command (Render's in-memory Redis can
+    drop a queued message on restart, while ``EmailLog`` survives), the
+    sweeper endpoint, and a backoff-aware retry. ``EmailLog`` is always the
+    source of truth — the broker is not. Returns ``True`` when an attempt was
+    made, ``False`` when the row is not due or not eligible.
     """
+    if not email_enabled():
+        return False
     if log.status == EmailLog.Status.QUEUED:
         pass
     elif log.status == EmailLog.Status.RETRYING:
@@ -377,6 +437,78 @@ def requeue_email_log(log):
     else:
         return False
 
-    _dispatch(log.pk)
+    # Always inline: this is the sweeper's primitive, and delivering there is
+    # the whole point — it runs in its own process, outside any checkout.
+    _dispatch(log.pk, force_inline=True)
     logger.info('requeued email %s (status=%s)', log.pk, log.status)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Sweep — the out-of-band delivery loop for EMAIL_DELIVERY_MODE=deferred
+# ---------------------------------------------------------------------------
+#: Give up on this run after this many consecutive non-SENT outcomes. When the
+#: API is down every row would otherwise burn ``EMAIL_TIMEOUT`` seconds each;
+#: better to report honestly and let the next tick try again.
+SWEEP_MAX_CONSECUTIVE_FAILURES = 3
+
+
+def pending_for_sweep(*, older_than=45, limit=10):
+    """Return the rows a sweep should attempt, oldest first.
+
+    * ``QUEUED`` older than ``older_than`` seconds — young rows are held back
+      so the sweeper never races the request that is still queuing them.
+    * ``RETRYING`` regardless of age; :func:`requeue_email_log` re-checks
+      ``next_retry_at`` per row, which is what preserves the documented
+      30s/2m/10m/30m ladder even though this queryset is deliberately broad.
+    """
+    threshold = timezone.now() - timedelta(seconds=max(0, int(older_than)))
+    return list(
+        EmailLog.objects.filter(
+            Q(status=EmailLog.Status.QUEUED, queued_at__lte=threshold)
+            | Q(status=EmailLog.Status.RETRYING)
+        ).order_by('queued_at')[:max(1, int(limit))]
+    )
+
+
+def sweep_pending_emails(*, older_than=45, limit=10):
+    """Deliver every due message and report what happened.
+
+    Shared by ``manage.py requeue_stuck_emails`` and the sweeper endpoint so
+    the two can never drift apart on what "due" means. Never raises.
+    """
+    if not email_enabled():
+        logger.info('email sweep skipped: EMAIL_ENABLED is false')
+        return {'found': 0, 'requeued': 0, 'skipped': 0, 'failed': 0}
+
+    pending = pending_for_sweep(older_than=older_than, limit=limit)
+
+    dispatched = 0
+    skipped = 0
+    failed = 0
+    consecutive_failures = 0
+
+    for log in pending:
+        if not requeue_email_log(log):
+            skipped += 1
+            continue
+        log.refresh_from_db()
+        if log.status == EmailLog.Status.SENT:
+            dispatched += 1
+            consecutive_failures = 0
+        else:
+            failed += 1
+            consecutive_failures += 1
+            if consecutive_failures >= SWEEP_MAX_CONSECUTIVE_FAILURES:
+                logger.warning(
+                    'sweep stopping after %s consecutive failures',
+                    consecutive_failures,
+                )
+                break
+
+    return {
+        'found': len(pending),
+        'requeued': dispatched,
+        'skipped': skipped,
+        'failed': failed,
+    }

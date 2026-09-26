@@ -1,4 +1,5 @@
 import logging
+import secrets
 
 from django.conf import settings
 from django.shortcuts import get_object_or_404
@@ -15,6 +16,7 @@ from catalog.models import Category, ImportJob, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
 from catalog.services import BulkImportTemplateService
 from catalog.tasks import enqueue_import_job
+from emails.services import sweep_pending_emails
 from inventory.services import adjust_stock, expire_reservations
 
 from .serializers import CategoryWriteSerializer, ProductWriteSerializer, StockAdjustmentSerializer
@@ -492,3 +494,60 @@ class BulkImportReportView(AdminAPIView):
             'import_results': job.import_results,
             'error_details': job.error_details,
         })
+
+
+def _sweep_int(request, name, default):
+    raw = request.query_params.get(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+class EmailSweepView(APIView):
+    """Deliver every message that is due, for ``EMAIL_DELIVERY_MODE=deferred``.
+
+    In that mode a web request never opens a socket for mail, so *something*
+    has to move a row out of ``QUEUED`` — normally an external cron pointing
+    at this endpoint once a minute.
+
+    It carries no Django or Supabase authentication because a cron has no
+    session. Instead it requires ``EMAIL_SWEEP_TOKEN``, and when that variable
+    is unset the endpoint reports itself as unavailable rather than existing
+    unauthenticated: an unconfigured deployment must not advertise a POST
+    route anyone can knock on.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+    throttle_scope = 'admin'
+
+    def post(self, request):
+        configured = (getattr(settings, 'EMAIL_SWEEP_TOKEN', '') or '').strip()
+        if not configured:
+            return Response(
+                {'detail': 'Mail sweeping is not configured.'}, status=404)
+
+        offered = (
+            request.headers.get('x-sweep-token')
+            or request.query_params.get('token', '')
+        )
+        if not offered or not secrets.compare_digest(str(offered), configured):
+            AuditLogService.log(
+                'security_event',
+                category='security',
+                result='failure',
+                severity='critical',
+                metadata={'has_token': bool(offered)},
+                path=request.path,
+                description='Mail sweeper rejected an invalid token.',
+            )
+            return Response({'detail': 'Invalid sweep token.'}, status=401)
+
+        summary = sweep_pending_emails(
+            older_than=max(0, _sweep_int(request, 'olderThan', 45)),
+            limit=max(1, _sweep_int(request, 'limit', 10)),
+        )
+        return Response(summary)

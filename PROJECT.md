@@ -37,7 +37,8 @@ Browser ──▶ Vercel (Vite SPA, /assets)
 | Frontend | **Vercel** | React SPA served as static assets |
 | Backend API | **Render** (Docker) | Django REST Framework, `/api/*` |
 | Auth + DB | **Supabase** | Auth (JWT) + PostgreSQL |
-| Payments | **M-Pesa Daraja API** | STK Push / sandbox payments |
+| Payments | **M-Pesa Daraja API** | STK Push; `PAYMENT_SANDBOX` completes intents in-process |
+| Email | **Resend** (HTTPS API, port 443) | Outbound mail; SMTP is blocked on Render's free plan |
 
 ---
 
@@ -255,6 +256,13 @@ GET    /api/health/                    # health check
 - **Flow:** Checkout → `/api/payments/create-intent` → STK Push → user authorizes → `/api/payments/mpesa/callback` → order confirmed
 - Card payment scaffolding exists but M-Pesa is the primary method
 - Callback secured with `MPESA_CALLBACK_SECRET` / `PAYMENT_WEBHOOK_SECRET`
+- **No STK push exists yet.** With `PAYMENT_SANDBOX=true` (the default, and the
+  value `render.yaml` ships) `create_intent` completes the intent in-process
+  with an `SBX-…` reference, so the order reaches `PAID` and the admin
+  Approve button — which is gated on `payment_status == PAID` — appears. The
+  storefront polls the intent as before and reports the outcome. Set it to
+  `false` only once a real STK push is wired up, otherwise orders would sit at
+  `pending` forever and could never be approved.
 
 ---
 
@@ -271,7 +279,17 @@ Three templates exist: root `.env.example` (master), `backend/.env.example`, `fr
 | `DATABASE_URL` | Postgres connection string |
 | `FRONTEND_ORIGIN` | CORS origin |
 | `STORE_*` | Store branding |
-| `EMAIL_*` | Email (receipts/notifications) |
+
+### Email
+| Variable | Purpose |
+|---|---|
+| `EMAIL_ENABLED` | **Master kill switch.** `false` (the Render default) deactivates delivery: rows are still recorded, nothing is sent, nothing reaches `SENT`. |
+| `RESEND_API_KEY` | Switches to the HTTPS API transport (port 443). Required for real delivery — the free plan blocks SMTP. Only consulted when `EMAIL_ENABLED=true`. |
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | SMTP transport; only consulted when `RESEND_API_KEY` is empty |
+| `EMAIL_TIMEOUT` | Seconds a transport may block (default `10`) |
+| `EMAIL_DELIVERY_MODE` | `inline` \| `deferred` \| `worker` — `deferred` leaves rows for the sweeper |
+| `EMAIL_SWEEP_TOKEN` | Guards `POST /api/admin/emails/sweep`; unset disables the endpoint (404) |
+| `DEFAULT_FROM_EMAIL` / `SERVER_EMAIL` | Customer mail / admin alerts |
 
 ### Supabase
 | Variable | Purpose |
@@ -288,6 +306,7 @@ Three templates exist: root `.env.example` (master), `backend/.env.example`, `fr
 | `PAYMENT_WEBHOOK_SECRET` | Webhook signature |
 | `MPESA_CALLBACK_SECRET` | Callback verification |
 | `MPESA_ENV` | `sandbox` / `production` |
+| `PAYMENT_SANDBOX` | Mock gateway: completes the intent in-process so orders reach `PAID` |
 | `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` | API credentials |
 | `MPESA_SHORTCODE` / `MPESA_PASSKEY` | Till number credentials |
 | `MPESA_CALLBACK_URL` | Public callback URL |

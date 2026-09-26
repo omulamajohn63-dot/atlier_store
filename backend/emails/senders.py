@@ -58,11 +58,18 @@ def build_message(log):
     html = render_to_string('emails/base.html', context)
     text = render_to_string('emails/base.txt', context)
 
+    headers = {}
+    if log.idempotency_key:
+        # Carried through to the transport: Resend honours it as a request
+        # header, giving a second dedupe layer behind the unique DB column.
+        headers['Idempotency-Key'] = str(log.idempotency_key)[:256]
+
     message = EmailMultiAlternatives(
         subject=log.subject,
         body=text,
         from_email=log.sender_email or settings.DEFAULT_FROM_EMAIL,
         to=[log.recipient_email],
+        headers=headers,
     )
     message.attach_alternative(html, 'text/html')
     _attach_files(message, log)

@@ -1,15 +1,16 @@
 from django.urls import path
 
 from .views import (AdminCategoryCreateView, AdminNotificationReadView,
-                    AdminNotificationsPresentView, AdminNotificationsReadAllView,
-                    AdminNotificationsView, AdminProductArchiveView,
-                    AdminProductCreateView, AdminProductUpdateView,
-                    AdminStockAdjustmentView, AdminUnreadNotificationsView,
-                    BulkImportCancelView, BulkImportConfirmView,
-                    BulkImportHistoryView, BulkImportPreviewView,
-                    BulkImportProcessView, BulkImportReportView,
-                    BulkImportStatusView, BulkImportTemplateView,
-                    BulkImportUploadView, BulkImportValidateView,
+                    AdminNotificationsPresentView,
+                    AdminNotificationsReadAllView, AdminNotificationsView,
+                    AdminProductArchiveView, AdminProductCreateView,
+                    AdminProductUpdateView, AdminStockAdjustmentView,
+                    AdminUnreadNotificationsView, BulkImportCancelView,
+                    BulkImportConfirmView, BulkImportHistoryView,
+                    BulkImportPreviewView, BulkImportProcessView,
+                    BulkImportReportView, BulkImportStatusView,
+                    BulkImportTemplateView, BulkImportUploadView,
+                    BulkImportValidateView, EmailSweepView,
                     ExpireReservationsView)
 
 
@@ -26,6 +27,10 @@ urlpatterns = [
          AdminStockAdjustmentView.as_view(), name='admin-stock-adjustment'),
     path('admin/maintenance/expire-reservations',
          ExpireReservationsView.as_view(), name='admin-expire-reservations'),
+    # Unauthenticated (token-guarded) mail sweeper for EMAIL_DELIVERY_MODE
+    # =deferred; see emails.services.sweep_pending_emails.
+    path('admin/emails/sweep', EmailSweepView.as_view(),
+         name='admin-email-sweep'),
     path('admin/notifications',
          AdminNotificationsView.as_view(), name='admin-notifications-api'),
     path('admin/notifications/unread',

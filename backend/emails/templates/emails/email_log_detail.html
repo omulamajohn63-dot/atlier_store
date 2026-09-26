@@ -45,11 +45,20 @@
   <div style="display:flex; gap:8px; align-items:center;">
     <span class="status-badge {{ log.status_class }}">{{ log.status_label }}</span>
     <a class="btn btn-secondary" href="{% url 'emails:admin-email-list' %}"><i class="ph ph-arrow-left"></i> Back</a>
-    {% if log.can_resend and request.user|can:'emails.manage' %}
+    {% if log.can_resend and email_enabled and request.user|can:'emails.manage' %}
     <a class="btn btn-primary" href="{% url 'emails:admin-email-retry' log.pk %}"><i class="ph ph-arrows-clockwise"></i> Re-send</a>
     {% endif %}
   </div>
 </div>
+
+{% if not email_enabled %}
+<div class="alert" role="alert" style="margin-bottom: 20px; background: var(--status-warning-bg); color: var(--text);">
+  <strong>Email delivery is deactivated.</strong>
+  This message is recorded for the audit trail but nothing is being sent.
+  Set <code>EMAIL_ENABLED=true</code> on the server (with a configured
+  <code>RESEND_API_KEY</code>) to re-enable delivery.
+</div>
+{% endif %}
 
 {% if log.status == 'FAILED' %}
 <div class="alert alert-error" role="alert" style="margin-bottom: 20px;">

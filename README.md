@@ -49,12 +49,19 @@ npm run test:api              # bundled API integration tests
      `AUDIT_LOG_RETENTION_DAYS=365`, `USE_X_FORWARDED_FOR=True`, and an optional
      `THROTTLE_AUDIT_RATE` for the client audit-event endpoint.
    - Background work: `CELERY_WORKER_ENABLED=false` (the free plan cannot run a
-     worker, so bulk imports and email delivery run inline in the web process).
-     Link a managed **Redis** resource to get `REDIS_URL` injected — see
-     `backend/docs/CELERY.md` for how to switch the worker on later.
-   - Outbound email: `EMAIL_HOST` + `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD`
-     (leaving `EMAIL_HOST` empty keeps the console backend). Admin alerts land on
-     `SERVER_EMAIL`, customer mail on `DEFAULT_FROM_EMAIL`.
+      worker, so bulk imports run inline in the web process) and
+      `EMAIL_DELIVERY_MODE=deferred` (email does **not** run inline — see below).
+      Link a managed **Redis** resource to get `REDIS_URL` injected — see
+      `backend/docs/CELERY.md` for how to switch the worker on later.
+   - Outbound email: **currently deactivated** — `EMAIL_ENABLED=false` (the
+      blueprint default). The mailer is still installed and still records
+      every message in `/admin/dashboard/emails/`, but nothing is sent and
+      nothing reaches `SENT`. It is off because there is no custom domain yet
+      for Resend to verify. To switch it on: register a domain, verify it at
+      resend.com, set `RESEND_API_KEY` + `EMAIL_ENABLED=true`, and point
+      `DEFAULT_FROM_EMAIL` / `SERVER_EMAIL` at that domain. Remember
+      Render's free plan blocks outbound SMTP (ports 25/465/587), so mail
+      leaves through the Resend HTTPS API on port 443.
    - Add a managed **Postgres** database and paste its connection string into `DATABASE_URL`.
 4. Migrations now run automatically on every container start (`python manage.py migrate
    --noinput` in the Dockerfile), so the schema is applied as soon as the first deploy
@@ -119,18 +126,32 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
       logins and security events; `POST https://<backend>/api/audit/events`
       returns 202 for storefront events.
 - [ ] M-Pesa callbacks can reach `https://<backend>/api/payments/mpesa/callback`
-      (sandbox first via `MPESA_ENV=sandbox`).
+      (sandbox first via `MPESA_ENV=sandbox`). `PAYMENT_SANDBOX=true` completes
+      the intent in-process so orders can reach PAID and be approved.
 - [ ] CORS: frontend origin is in `FRONTEND_ORIGIN`; cookie-flags work over HTTPS.
 - [ ] `https://<backend>/admin/dashboard/emails/` loads and a test order produces a
-      row there (status `SENT` once `EMAIL_HOST` is configured).
+      row there. Delivery is off (`EMAIL_ENABLED=false`), so rows stay `QUEUED`
+      and the page carries the deactivation banner — that is the expected state
+      until a sending domain exists.
+- [ ] Sweeper endpoint answers `POST https://<backend>/api/admin/emails/sweep`
+      with `x-sweep-token` and returns 401 when the token is wrong.
 
 ## Background work (bulk imports & email)
 
-Bulk product imports and every outbound email are driven by Celery, but the
+Bulk product imports and outbound email are driven by Celery, but the
 deployment ships **without a worker**: `render.yaml` sets
-`CELERY_WORKER_ENABLED=false`, so both run inline in the web process with
+`CELERY_WORKER_ENABLED=false`, so imports run inline in the web process with
 byte-for-byte the same retry, idempotency and audit behaviour. Local
 development needs no Redis either — `python manage.py runserver` is enough.
+
+Email is **currently deactivated** (`EMAIL_ENABLED=false`). Nothing touches a
+transport: checkout still writes an `EmailLog` row, so the admin email page
+shows exactly what would have gone out, but no row ever reaches `SENT` and no
+retry loop runs. Set `EMAIL_ENABLED=true` to re-arm it, which also requires
+`EMAIL_DELIVERY_MODE=deferred` — a mode in which a web request never opens a
+socket for mail and rows are delivered by `POST /api/admin/emails/sweep`,
+guarded by `EMAIL_SWEEP_TOKEN` and called once a minute by a **free external
+cron** (cron-job.org — Render's own cron jobs are a paid service type).
 
 After a restart on the free plan (its Redis is in-memory) rebuild any lost work:
 
@@ -139,8 +160,8 @@ python manage.py requeue_stuck_imports --dry-run
 python manage.py requeue_stuck_emails   --dry-run
 ```
 
-Full runbook — switches, queues, retry ladders, and how to enable the worker
-on a paid plan — is in `backend/docs/CELERY.md`.
+Full runbook — switches, queues, retry ladders, the sweeper endpoint, and how
+to enable the worker on a paid plan — is in `backend/docs/CELERY.md`.
 
 ## Observability (logging & audit)
 

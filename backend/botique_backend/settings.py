@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside this project like this: BASE_DIR / 'subdir'.
@@ -29,6 +30,19 @@ def _env_flag(name, default=False):
     if raw is None or not raw.strip():
         return default
     return raw.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _env_int(name, default):
+    """Read an integer environment variable, falling back to ``default`` when
+    the variable is unset, empty or unparseable — a typo in an ops-only
+    variable must never prevent the process from booting."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
 
 
 # Quick-start development settings - unsuitable for production
@@ -52,6 +66,21 @@ PAYMENT_WEBHOOK_SECRET = os.getenv(
     'PAYMENT_WEBHOOK_SECRET', 'local-development-payment-secret')
 MPESA_CALLBACK_SECRET = os.getenv(
     'MPESA_CALLBACK_SECRET', 'local-development-mpesa-secret')
+# ---------------------------------------------------------------------------
+# Payment mode.
+#
+# The backend has no Daraja STK push yet: nothing ever calls
+# /api/payments/mpesa/callback, so a real intent would sit at `pending`
+# forever and no order could be approved (approve_order requires PAID).
+#
+# PAYMENT_SANDBOX therefore completes the intent inside create_intent, the
+# way a mock gateway would — order paid, receipt minted, approval unlocked.
+# It defaults to on whenever MPESA_ENV is not "production", so the day a real
+# STK push lands it is a single env var (MPESA_ENV=production) that turns the
+# simulation off.
+# ---------------------------------------------------------------------------
+MPESA_ENV = (os.getenv('MPESA_ENV', 'sandbox') or 'sandbox').strip().lower()
+PAYMENT_SANDBOX = _env_flag('PAYMENT_SANDBOX', MPESA_ENV != 'production')
 FRONTEND_ORIGIN = os.getenv(
     'FRONTEND_ORIGIN',
     'http://localhost:3000'
@@ -82,20 +111,43 @@ STORE_ADDRESS = os.getenv('STORE_ADDRESS', 'Nairobi, Kenya')
 # ---------------------------------------------------------------------------
 # Outbound email (automatic receipts & notifications)
 #
-# SMTP is activated whenever EMAIL_HOST is set (Render production). Otherwise
-# the console backend prints messages to the log — a safe zero-config default
-# for local development that can never fail a delivery attempt.
+# MASTER KILL SWITCH first: EMAIL_ENABLED=false deactivates delivery without
+# removing the subsystem. queue_email still writes its EmailLog row (so the
+# admin can see what *would* have gone out) but no dispatch path touches a
+# transport, and a row is never marked SENT for mail nobody attempted.
+#
+# Resolution order (first match wins):
+#   1. RESEND_API_KEY -> emails.backends.ResendEmailBackend (HTTPS, port 443).
+#      This is the only transport that works on Render's *free* plan: outbound
+#      SMTP ports 25/465/587 are blocked there, so a perfectly configured
+#      EMAIL_HOST still fails with OSError [Errno 101] Network is unreachable.
+#   2. EMAIL_HOST     -> django's SMTP backend (a paid Render instance, or a
+#      local mail relay).
+#   3. neither        -> console backend, which prints messages to the log —
+#      a safe zero-config default for local development that can never fail a
+#      delivery attempt.
 # ---------------------------------------------------------------------------
-EMAIL_HOST = os.getenv('EMAIL_HOST', '')
-if EMAIL_HOST:
+EMAIL_ENABLED = _env_flag('EMAIL_ENABLED', True)
+
+#: Hard ceiling on how long a transport may block. Checkout queues mail from
+#: inside the request, so an unreachable mail host must never be able to hang
+#: `POST /api/orders` and leave the customer staring at a spinner.
+EMAIL_TIMEOUT = _env_int('EMAIL_TIMEOUT', 10)
+
+RESEND_API_KEY = os.getenv('RESEND_API_KEY', '').strip()
+EMAIL_HOST = os.getenv('EMAIL_HOST', '').strip()
+EMAIL_PORT = _env_int('EMAIL_PORT', 587)
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv(
+    'EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
+EMAIL_USE_SSL = os.getenv(
+    'EMAIL_USE_SSL', 'False').lower() in {'1', 'true', 'yes', 'on'}
+
+if RESEND_API_KEY:
+    EMAIL_BACKEND = 'emails.backends.ResendEmailBackend'
+elif EMAIL_HOST:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-    EMAIL_USE_TLS = os.getenv(
-        'EMAIL_USE_TLS', 'True').lower() in {'1', 'true', 'yes', 'on'}
-    EMAIL_USE_SSL = os.getenv(
-        'EMAIL_USE_SSL', 'False').lower() in {'1', 'true', 'yes', 'on'}
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
@@ -103,10 +155,34 @@ DEFAULT_FROM_EMAIL = os.getenv(
     'DEFAULT_FROM_EMAIL', f'{STORE_NAME} <receipts@modeza.co.ke>')
 
 # Explicit override wins (lets CI/staging force a backend); otherwise the
-# backend derived from EMAIL_HOST above stands.
+# backend derived above stands.
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or EMAIL_BACKEND
 # Envelope sender for system-generated mail (bounces/complaints).
 SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+
+# ---------------------------------------------------------------------------
+# When queued messages are handed to the transport:
+#
+#   inline   -> synchronously, right after the DB commit. The default, and
+#               what the test suite exercises, so nothing silently stops.
+#   deferred -> left in QUEUED state for the out-of-band sweeper
+#               (POST /api/admin/emails/sweep, driven by an external cron).
+#               A web request then performs no network I/O for mail at all.
+#   worker   -> handed to Celery.
+#
+# Unset means "infer": worker when CELERY_WORKER_ENABLED is on, inline
+# otherwise — i.e. exactly the pre-existing behaviour.
+# ---------------------------------------------------------------------------
+EMAIL_DELIVERY_MODE = (os.getenv('EMAIL_DELIVERY_MODE') or '').strip().lower()
+if EMAIL_DELIVERY_MODE and EMAIL_DELIVERY_MODE not in {'inline', 'deferred', 'worker'}:
+    raise ImproperlyConfigured(
+        f'EMAIL_DELIVERY_MODE={EMAIL_DELIVERY_MODE!r} is not one of '
+        "'inline', 'deferred', 'worker'."
+    )
+
+# Token protecting the unauthenticated mail sweeper endpoint. Unset disables
+# the endpoint entirely rather than leaving an unauthenticated POST route.
+EMAIL_SWEEP_TOKEN = os.getenv('EMAIL_SWEEP_TOKEN', '').strip()
 
 
 # Application definition

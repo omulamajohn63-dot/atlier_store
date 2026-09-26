@@ -14,17 +14,28 @@ replaced:
    bookkeeping) reuse the call site's own ``event_key`` so nothing appears
    twice in the notification centre.
 5. The staff pages stay permission-gated.
+6. Deferred delivery never blocks the request that queued the mail, and the
+   sweeper — the only thing that moves a row out of ``QUEUED`` in that mode —
+   is token-guarded and honest about what it did. The HTTPS transport reports
+   its own retry verdict so a bad API key fails fast instead of burning the
+   whole ladder.
+7. ``EMAIL_ENABLED=false`` deactivates delivery without removing it: rows are
+   still queued and auditable, nothing touches a transport, nothing reaches
+   SENT, and the admin says so plainly instead of pretending.
 """
 
+import base64
 import smtplib as smtp
 import uuid as uuid_lib
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -34,12 +45,16 @@ from audit.models import AuditLog
 from orders.models import Order
 from receipts.models import Receipt
 
+from .backends import EmailAPIError, ResendEmailBackend
 from .models import EmailLog
 from .services import (
+    classify_failure,
     deliver_email_log,
+    delivery_mode,
     queue_email,
     requeue_email_log,
     retry_email_log,
+    sweep_pending_emails,
 )
 
 CUSTOMER_EVENT = 'customer-welcome:{pk}'
@@ -505,3 +520,459 @@ class EmailAdminPageTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(len(mail.outbox), 0)
+
+
+# ---------------------------------------------------------------------------
+# EMAIL_DELIVERY_MODE=deferred — the request never opens a socket for mail
+# ---------------------------------------------------------------------------
+class DeferredDeliveryTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='deferred-ada', email='deferred.ada@example.com',
+            password='pw')
+
+    def queue(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            return queue_email(
+                email_type='welcome',
+                subject='Welcome to MODEZA',
+                body_text='Thanks for joining us.',
+                recipient_email='ada@example.com',
+                recipient_name='Ada',
+                related_user=self.user,
+            )
+
+    @override_settings(EMAIL_DELIVERY_MODE='deferred')
+    def test_a_deferred_message_is_queued_without_touching_the_transport(self):
+        """The whole point of the mode: checkout returns before any network."""
+        log = self.queue()
+
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.QUEUED)
+        self.assertEqual(log.attempt_count, 0)
+        self.assertIsNone(log.sent_at)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_DELIVERY_MODE='deferred', CELERY_WORKER_ENABLED=True)
+    def test_an_explicit_mode_wins_over_the_celery_switch(self):
+        self.assertEqual(delivery_mode(), 'deferred')
+
+    @override_settings(EMAIL_DELIVERY_MODE='', CELERY_WORKER_ENABLED=True)
+    def test_an_unset_mode_follows_the_worker_switch(self):
+        self.assertEqual(delivery_mode(), 'worker')
+
+    @override_settings(EMAIL_DELIVERY_MODE='', CELERY_WORKER_ENABLED=False)
+    def test_an_unset_mode_without_a_worker_stays_inline(self):
+        self.assertEqual(delivery_mode(), 'inline')
+
+    @override_settings(EMAIL_DELIVERY_MODE='deferred')
+    def test_a_deferred_message_is_still_delivered_on_demand(self):
+        """The admin Resend button is an explicit human action: it goes now."""
+        log = self.queue()
+        self.assertEqual(log.status, EmailLog.Status.QUEUED)
+
+        dispatched = requeue_email_log(log)
+
+        self.assertTrue(dispatched)
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+        self.assertEqual(len(mail.outbox), 1)
+
+
+class SweepTests(TestCase):
+    """``sweep_pending_emails`` is the shared primitive behind both
+    ``manage.py requeue_stuck_emails`` and ``POST /api/admin/emails/sweep``.
+    """
+
+    def age(self, log, seconds):
+        # queued_at is auto_now_add, so only a queryset can move it back.
+        EmailLog.objects.filter(pk=log.pk).update(
+            queued_at=timezone.now() - timedelta(seconds=seconds))
+
+    @override_settings(EMAIL_DELIVERY_MODE='deferred')
+    def test_a_queued_row_is_delivered_once_it_is_old_enough(self):
+        log = make_log()
+        self.age(log, 60)
+
+        summary = sweep_pending_emails(older_than=45)
+
+        self.assertEqual(
+            summary, {'found': 1, 'requeued': 1, 'skipped': 0, 'failed': 0})
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+        self.assertEqual(log.attempt_count, 1)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_a_row_younger_than_the_threshold_is_left_alone(self):
+        """So a sweep never races the request that is still writing the row."""
+        log = make_log()
+        self.age(log, 5)
+
+        summary = sweep_pending_emails(older_than=45)
+
+        self.assertEqual(
+            summary, {'found': 0, 'requeued': 0, 'skipped': 0, 'failed': 0})
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.QUEUED)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_a_retrying_row_waits_for_its_backoff(self):
+        """The 30s/2m/10m/30m ladder survives the broad RETRYING queryset
+        because ``requeue_email_log`` re-checks ``next_retry_at`` per row."""
+        log = make_log(
+            status=EmailLog.Status.RETRYING,
+            next_retry_at=timezone.now() + timedelta(seconds=300))
+
+        summary = sweep_pending_emails()
+
+        self.assertEqual(
+            summary, {'found': 1, 'requeued': 0, 'skipped': 1, 'failed': 0})
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.RETRYING)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_a_due_retrying_row_is_delivered(self):
+        log = make_log(
+            status=EmailLog.Status.RETRYING,
+            next_retry_at=timezone.now() - timedelta(seconds=1))
+
+        summary = sweep_pending_emails()
+
+        self.assertEqual(summary['found'], 1)
+        self.assertEqual(summary['requeued'], 1)
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+
+    def test_terminal_rows_are_not_part_of_a_sweep(self):
+        make_log(status=EmailLog.Status.SENT, sent_at=timezone.now())
+        make_log(status=EmailLog.Status.FAILED, failed_at=timezone.now())
+
+        summary = sweep_pending_emails()
+
+        self.assertEqual(summary['found'], 0)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_DELIVERY_MODE='deferred')
+    def test_an_operator_resend_bypasses_the_deferral(self):
+        log = make_log(status=EmailLog.Status.FAILED, failed_at=timezone.now())
+
+        log, dispatched = retry_email_log(log)
+
+        self.assertTrue(dispatched)
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_the_sweep_stops_after_three_consecutive_failures(self):
+        """When the transport is down every row would burn EMAIL_TIMEOUT
+        seconds; better to report honestly and let the next tick try."""
+        for _ in range(4):
+            self.age(make_log(), 60)
+
+        with patch('emails.senders.build_message',
+                   side_effect=Exception('transport exploded')):
+            summary = sweep_pending_emails(older_than=45)
+
+        self.assertEqual(
+            summary, {'found': 4, 'requeued': 0, 'skipped': 0, 'failed': 3})
+        # The fourth row was never touched.
+        self.assertEqual(EmailLog.objects.filter(attempt_count=0).count(), 1)
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class SweeperEndpointTests(TestCase):
+    url = '/api/admin/emails/sweep'
+
+    def setUp(self):
+        # DRF throttles share one in-process cache across the whole run, so
+        # start from a clean counter rather than whatever earlier tests spent.
+        cache.clear()
+
+    def age_due_rows(self, seconds=60):
+        EmailLog.objects.filter(status=EmailLog.Status.QUEUED).update(
+            queued_at=timezone.now() - timedelta(seconds=seconds))
+
+    @override_settings(EMAIL_SWEEP_TOKEN='')
+    def test_the_route_does_not_exist_until_a_token_is_configured(self):
+        """An unconfigured deployment must not advertise a POST route that
+        anyone on the internet can knock on."""
+        response = self.client.post(self.url, HTTP_X_SWEEP_TOKEN='anything')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_SWEEP_TOKEN='sweep-secret')
+    def test_a_wrong_token_is_rejected_and_audited(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                self.url, HTTP_X_SWEEP_TOKEN='not-the-token')
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(AuditLog.objects.filter(
+            action='security_event',
+            result='failure',
+            severity='critical').exists())
+
+    @override_settings(EMAIL_SWEEP_TOKEN='sweep-secret')
+    def test_a_missing_token_is_rejected(self):
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, 401)
+
+    @override_settings(EMAIL_SWEEP_TOKEN='sweep-secret')
+    def test_a_valid_token_delivers_every_due_message(self):
+        make_log()
+        self.age_due_rows()
+
+        response = self.client.post(
+            self.url, HTTP_X_SWEEP_TOKEN='sweep-secret')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'found': 1, 'requeued': 1, 'skipped': 0, 'failed': 0})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(EmailLog.objects.get().status,
+                         EmailLog.Status.SENT)
+
+    @override_settings(EMAIL_SWEEP_TOKEN='sweep-secret')
+    def test_the_query_parameter_token_is_accepted_too(self):
+        make_log()
+        self.age_due_rows()
+
+        response = self.client.post(f'{self.url}?token=sweep-secret')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+
+
+# ---------------------------------------------------------------------------
+# EMAIL_ENABLED=false — deactivated, not removed
+# ---------------------------------------------------------------------------
+class EmailKillSwitchTests(TestCase):
+    """The subsystem must stay fully wired while delivering nothing.
+
+    Deactivation is not removal: rows are still queued and auditable, but no
+    dispatch path may touch a transport, and nothing may be recorded as SENT
+    for mail nobody attempted.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='off-ada', email='off.ada@example.com', password='pw')
+
+    def age_due_rows(self, seconds=60):
+        EmailLog.objects.filter(status=EmailLog.Status.QUEUED).update(
+            queued_at=timezone.now() - timedelta(seconds=seconds))
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_queueing_still_records_the_message(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            log = queue_email(
+                email_type='welcome',
+                subject='Welcome to MODEZA',
+                body_text='Thanks for joining us.',
+                recipient_email='ada@example.com',
+                recipient_name='Ada',
+                related_user=self.user,
+            )
+
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.QUEUED)
+        self.assertEqual(log.attempt_count, 0)
+        self.assertIsNone(log.sent_at)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_delivery_never_claims_a_row(self):
+        log = make_log()
+
+        returned = deliver_email_log(log.pk)
+
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.QUEUED)
+        self.assertEqual(log.attempt_count, 0)
+        self.assertEqual(returned.status, EmailLog.Status.QUEUED)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_admin_resend_reports_refusal_instead_of_pretending(self):
+        log = make_log(status=EmailLog.Status.FAILED, failed_at=timezone.now())
+
+        returned, dispatched = retry_email_log(log)
+
+        self.assertFalse(dispatched)
+        returned.refresh_from_db()
+        self.assertEqual(returned.status, EmailLog.Status.FAILED)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_the_sweeper_primitive_refuses_to_dispatch(self):
+        log = make_log()
+        self.assertFalse(requeue_email_log(log))
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.QUEUED)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_the_sweep_reports_no_work(self):
+        for _ in range(3):
+            make_log()
+        self.age_due_rows()
+
+        summary = sweep_pending_emails(older_than=45)
+
+        self.assertEqual(
+            summary, {'found': 0, 'requeued': 0, 'skipped': 0, 'failed': 0})
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(
+            EmailLog.objects.filter(status=EmailLog.Status.SENT).count(), 0)
+
+    @override_settings(EMAIL_ENABLED=False, EMAIL_SWEEP_TOKEN='sweep-secret')
+    def test_the_sweeper_endpoint_reports_no_work_too(self):
+        make_log()
+        self.age_due_rows()
+
+        response = self.client.post(
+            '/api/admin/emails/sweep', HTTP_X_SWEEP_TOKEN='sweep-secret')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'found': 0, 'requeued': 0, 'skipped': 0, 'failed': 0})
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_the_admin_list_page_explains_the_state(self):
+        log = make_log()
+        staff = get_user_model().objects.create_superuser(
+            username='off-admin', password='pw', email='off.admin@example.com')
+        self.client.force_login(staff)
+
+        response = self.client.get(reverse('emails:admin-email-list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Email delivery is deactivated')
+        # The row is still listed, and the re-send affordance is gone.
+        self.assertContains(response, log.subject)
+        self.assertNotContains(response, 'Re-send selected')
+
+    @override_settings(EMAIL_ENABLED=False)
+    def test_bulk_resend_says_so_instead_of_failing_silently(self):
+        make_log()
+        staff = get_user_model().objects.create_superuser(
+            username='off-admin-2', password='pw',
+            email='off.admin2@example.com')
+        self.client.force_login(staff)
+
+        response = self.client.post(
+            reverse('emails:admin-email-bulk-retry'),
+            {'ids': [str(EmailLog.objects.get().pk)]}, follow=True)
+
+        self.assertContains(response, 'Email delivery is deactivated')
+        self.assertEqual(len(mail.outbox), 0)
+
+
+# ---------------------------------------------------------------------------
+# The HTTPS transport (Render's free plan blocks SMTP entirely)
+# ---------------------------------------------------------------------------
+class ResendBackendTests(TestCase):
+    def message(self, *, html=False, attachment=False):
+        # Deliberately a plain EmailMessage unless an HTML alternative is
+        # asked for: the transport must not assume MultiAlternatives.
+        cls = mail.EmailMultiAlternatives if html else mail.EmailMessage
+        message = cls(
+            'Receipt for AT-001', 'Thanks for your order.',
+            'receipts@modeza.co.ke', ['ada@example.com'])
+        message.extra_headers['Idempotency-Key'] = 'log-42'
+        if html:
+            message.attach_alternative('<p>Thanks</p>', 'text/html')
+        if attachment:
+            message.attach('receipt.pdf', b'%PDF-1.4 fake', 'application/pdf')
+        return message
+
+    @staticmethod
+    def response(status_code=200, payload=None):
+        reply = Mock()
+        reply.status_code = status_code
+        reply.json.return_value = (
+            payload if payload is not None else {'id': 'email_1'})
+        return reply
+
+    @override_settings(RESEND_API_KEY='re_live_key', EMAIL_TIMEOUT=7)
+    def test_the_message_is_posted_over_https_with_its_identity_headers(self):
+        with patch('emails.backends.requests.post',
+                   return_value=self.response()) as post:
+            sent = ResendEmailBackend().send_messages([self.message()])
+
+        self.assertEqual(sent, 1)
+        self.assertEqual(post.call_args[0][0], 'https://api.resend.com/emails')
+        kwargs = post.call_args.kwargs
+        self.assertEqual(kwargs['timeout'], 7)
+        self.assertEqual(kwargs['headers']['Authorization'],
+                         'Bearer re_live_key')
+        # Resend de-duplicates on this for 24h: a second safety net behind
+        # the EmailLog idempotency key.
+        self.assertEqual(kwargs['headers']['Idempotency-Key'], 'log-42')
+        self.assertEqual(kwargs['json']['from'], 'receipts@modeza.co.ke')
+        self.assertEqual(kwargs['json']['to'], ['ada@example.com'])
+        self.assertEqual(kwargs['json']['subject'], 'Receipt for AT-001')
+        self.assertEqual(kwargs['json']['text'], 'Thanks for your order.')
+
+    @override_settings(RESEND_API_KEY='re_live_key')
+    def test_the_html_part_and_the_attachment_travel_together(self):
+        with patch('emails.backends.requests.post',
+                   return_value=self.response()) as post:
+            ResendEmailBackend().send_messages(
+                [self.message(html=True, attachment=True)])
+
+        payload = post.call_args.kwargs['json']
+        self.assertEqual(payload['html'], '<p>Thanks</p>')
+        attachment = payload['attachments'][0]
+        self.assertEqual(attachment['filename'], 'receipt.pdf')
+        self.assertEqual(attachment['content_type'], 'application/pdf')
+        self.assertEqual(
+            attachment['content'],
+            base64.b64encode(b'%PDF-1.4 fake').decode('ascii'))
+
+    @override_settings(RESEND_API_KEY='re_live_key')
+    def test_a_rejected_api_key_fails_permanently(self):
+        """HTTP 401/403/400/422 mean the key or the sending domain is wrong;
+        retrying for 40 minutes would only burn the ladder."""
+        with patch('emails.backends.requests.post',
+                   return_value=self.response(401, {'message': 'API key is invalid'})):
+            with self.assertRaises(EmailAPIError) as caught:
+                ResendEmailBackend().send_messages([self.message()])
+
+        self.assertTrue(caught.exception.permanent)
+        self.assertEqual(classify_failure(caught.exception), 'permanent')
+        self.assertIn('HTTP 401', str(caught.exception))
+        self.assertIn('API key is invalid', str(caught.exception))
+
+    @override_settings(RESEND_API_KEY='re_live_key')
+    def test_rate_limiting_is_only_temporary(self):
+        with patch('emails.backends.requests.post',
+                   return_value=self.response(429, {'message': 'Too many'})):
+            with self.assertRaises(EmailAPIError) as caught:
+                ResendEmailBackend().send_messages([self.message()])
+
+        self.assertFalse(caught.exception.permanent)
+        self.assertEqual(classify_failure(caught.exception), 'temporary')
+
+    @override_settings(RESEND_API_KEY='re_live_key')
+    def test_a_network_failure_is_only_temporary(self):
+        with patch('emails.backends.requests.post',
+                   side_effect=requests.exceptions.ConnectTimeout('timed out')):
+            with self.assertRaises(EmailAPIError) as caught:
+                ResendEmailBackend().send_messages([self.message()])
+
+        self.assertFalse(caught.exception.permanent)
+        self.assertEqual(classify_failure(caught.exception), 'temporary')
+
+    @override_settings(RESEND_API_KEY='')
+    def test_an_unconfigured_key_fails_fast_instead_of_hanging(self):
+        with patch('emails.backends.requests.post') as post:
+            with self.assertRaises(EmailAPIError) as caught:
+                ResendEmailBackend().send_messages([self.message()])
+
+        post.assert_not_called()
+        self.assertTrue(caught.exception.permanent)
+        self.assertEqual(classify_failure(caught.exception), 'permanent')

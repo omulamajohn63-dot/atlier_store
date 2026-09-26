@@ -66,6 +66,11 @@ class ReceiptNumberTests(TestCase):
     SUPABASE_JWT_ISSUER='',
     MPESA_CALLBACK_SECRET='local-development-mpesa-secret',
     PAYMENT_WEBHOOK_SECRET='local-development-payment-secret',
+    # These tests exercise the *confirm* path — an intent that stays pending
+    # until /api/payments/confirm or a Daraja callback settles it. The
+    # sandbox gateway would complete the intent inside create_intent and turn
+    # every confirm below into a no-op.
+    PAYMENT_SANDBOX=False,
 )
 class ReceiptApiTests(TestCase):
     def setUp(self):
@@ -338,6 +343,9 @@ class ReceiptApiTests(TestCase):
     },
     SUPABASE_JWT_SECRET=TEST_SECRET,
     SUPABASE_JWT_ISSUER='',
+    # Same reason as ReceiptApiTests: the assertions below are about what
+    # /api/payments/confirm does, so the intent must still be pending there.
+    PAYMENT_SANDBOX=False,
 )
 class ReceiptAuditTests(TestCase):
     def setUp(self):

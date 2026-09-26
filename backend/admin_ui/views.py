@@ -16,6 +16,7 @@ from django.contrib.auth.views import LoginView, LogoutView, redirect_to_login
 from django.core.paginator import Paginator
 from django.db import connection
 from django.db.models import Count, Q, Sum
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
@@ -27,6 +28,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.views import View
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from audit.constants import AUDIT_ACTIONS
 from audit.models import AuditLog
@@ -536,6 +538,23 @@ class MarkNotificationReadView(View):
         return JsonResponse({'ok': True, 'unread_count': unread_count})
 
 
+def _error_detail(exc):
+    """First human-readable message out of a Django or DRF ValidationError.
+
+    DRF nests messages under ``detail`` as lists; Django exposes a flat
+    ``messages`` sequence. Anything unrecognised yields '' so the caller can
+    fall back to its own wording.
+    """
+    detail = getattr(exc, 'detail', None)
+    if detail is None:
+        detail = getattr(exc, 'messages', None)
+    if isinstance(detail, dict):
+        detail = next(iter(detail.values()), None)
+    if isinstance(detail, (list, tuple)):
+        detail = detail[0] if detail else ''
+    return str(detail or '').strip()
+
+
 @permission_required('orders.confirm')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class ApproveOrderPageView(View):
@@ -545,8 +564,19 @@ class ApproveOrderPageView(View):
             return HttpResponse('Order not found.', status=404)
         try:
             approve_order(order)
+        except (DRFValidationError, DjangoValidationError) as exc:
+            # The unpaid-order case lives here, but so can a receipt or email
+            # validation failure — reporting everything as "only paid orders"
+            # sent operators chasing the wrong problem.
+            messages.error(
+                request, _error_detail(exc) or 'Order could not be approved.')
+            return redirect('admin-orders')
         except Exception:
-            messages.error(request, 'Only paid orders can be approved.')
+            logger.exception('approve_order failed for order %s', order_id)
+            messages.error(
+                request,
+                'Could not approve this order. The underlying error was '
+                'logged — check the server logs.')
             return redirect('admin-orders')
         messages.success(request, 'Order approved.')
         return redirect('admin-orders')

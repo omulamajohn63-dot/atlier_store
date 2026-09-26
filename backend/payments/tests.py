@@ -1,9 +1,11 @@
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from catalog.models import Category, Product, ProductVariant
 from orders.models import Order
 from payments.models import PaymentIntent
+from receipts.models import Receipt
 
 
 class PaymentApiTests(TestCase):
@@ -43,3 +45,44 @@ class PaymentApiTests(TestCase):
         response = self.client.post('/api/payments/create-intent', {
                                     'orderNumber': self.order.order_number}, format='json', HTTP_X_CART_ID='other-cart')
         self.assertEqual(response.status_code, 403)
+
+    def test_the_mock_gateway_completes_the_intent_so_the_order_can_be_approved(self):
+        """Nothing in this backend issues a Daraja STK push, so the sandbox
+        settles the intent inside create_intent. Without that the order never
+        reaches PAID and the admin Approve button — gated on PAID — never
+        appears, which is exactly the state production was stuck in."""
+        headers = {'HTTP_X_CART_ID': 'payment-cart'}
+        with self.captureOnCommitCallbacks(execute=True):
+            created = self.client.post('/api/payments/create-intent', {
+                                       'orderNumber': self.order.order_number, 'method': 'mpesa'}, format='json', **headers)
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()['status'],
+                         PaymentIntent.Status.SUCCEEDED)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status,
+                         Order.PaymentStatus.PAID)
+        self.assertTrue(Receipt.objects.filter(order=self.order).exists())
+        subjects = [message.subject for message in mail.outbox]
+        self.assertEqual(
+            subjects.count(
+                f'Payment received for order {self.order.order_number}'),
+            1)
+
+    @override_settings(PAYMENT_SANDBOX=False)
+    def test_disabling_the_mock_gateway_leaves_the_intent_pending(self):
+        """The day a real STK push exists, PAYMENT_SANDBOX=false hands control
+        back to the gateway instead of inventing a success."""
+        headers = {'HTTP_X_CART_ID': 'payment-cart'}
+        with self.captureOnCommitCallbacks(execute=True):
+            created = self.client.post('/api/payments/create-intent', {
+                                       'orderNumber': self.order.order_number, 'method': 'mpesa'}, format='json', **headers)
+
+        self.assertEqual(created.json()['status'], PaymentIntent.Status.PENDING)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status,
+                         Order.PaymentStatus.PENDING)
+        self.assertFalse(Receipt.objects.filter(order=self.order).exists())
+        self.assertNotIn(
+            f'Payment received for order {self.order.order_number}',
+            [message.subject for message in mail.outbox])

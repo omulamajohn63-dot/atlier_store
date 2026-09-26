@@ -368,18 +368,22 @@ export const CheckoutPage: React.FC = () => {
           return;
         }
 
-        if (paymentMethod === 'card') {
-          const intent = await api.createPaymentIntent(result.order.orderNumber, 'card');
-          setPaymentIntentId(intent.id);
-          setPendingOrderNumber(result.order.orderNumber);
-          setPaymentPending(true);
+        const intent = paymentMethod === 'card'
+          ? await api.createPaymentIntent(result.order.orderNumber, 'card')
+          : await api.createPaymentIntent(result.order.orderNumber, 'mpesa', formData.phone);
+        setPaymentIntentId(intent.id);
+        setPendingOrderNumber(result.order.orderNumber);
+
+        if (intent.status === 'succeeded') {
+          // The sandbox gateway settles the intent synchronously, so there is
+          // nothing to poll for — go straight to the confirmation page rather
+          // than parking the customer behind a "Payment pending" button.
           setIsSubmitting(false);
+          await clearCart();
+          navigate(`/order/success?order=${result.order.orderNumber}`);
           return;
         }
 
-        const intent = await api.createPaymentIntent(result.order.orderNumber, 'mpesa', formData.phone);
-        setPaymentIntentId(intent.id);
-        setPendingOrderNumber(result.order.orderNumber);
         setPaymentPending(true);
         setIsSubmitting(false);
       } else {
@@ -413,7 +417,7 @@ export const CheckoutPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!paymentPending || !pendingOrderNumber || paymentMethod === 'card') return;
+    if (!paymentPending || !pendingOrderNumber) return;
     let stopped = false;
     let pollCount = 0;
     const MAX_POLLS = 30;
@@ -430,8 +434,19 @@ export const CheckoutPage: React.FC = () => {
         }
       } catch {
       }
-      if (stopped || pollCount >= MAX_POLLS) {
+      if (stopped) {
         window.clearInterval(timer);
+        return;
+      }
+      if (pollCount >= MAX_POLLS) {
+        // Give up loudly. Silently stopping here left customers staring at a
+        // permanently disabled "Payment pending" button with no explanation.
+        window.clearInterval(timer);
+        setCheckoutError(
+          paymentMethod === 'card'
+            ? 'Payment was not confirmed automatically. Your order has been placed — use "Confirm sandbox payment" below, or find it under My Orders.'
+            : 'Payment was not confirmed automatically. Your order has been placed — use "I have completed payment" below, or find it under My Orders.'
+        );
       }
     }, 4000);
     return () => {
@@ -802,7 +817,7 @@ export const CheckoutPage: React.FC = () => {
                       ? 'Cash on delivery selected — the order will be paid when the courier delivers it.'
                       : paymentMethod === 'pay_on_delivery'
                       ? 'Pay on delivery selected — the order will be paid when the package is handed over.'
-                      : 'M-Pesa selected — a payment prompt will be sent to your phone after placing the order.'}
+                      : 'M-Pesa selected — a sandbox gateway settles the payment as soon as the order is placed; no real prompt is sent to your phone.'}
                   </motion.div>
                 )}
 
@@ -903,14 +918,14 @@ export const CheckoutPage: React.FC = () => {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold">
-                            {paymentMethod === 'card' ? 'Card payment intent created' : 'M-Pesa payment request sent'}
+                            {paymentMethod === 'card' ? 'Card payment intent created' : 'M-Pesa payment request created'}
                           </p>
                           <Badge variant="warning" size="sm">Awaiting confirmation</Badge>
                         </div>
                         <p className="mt-1 leading-relaxed text-[#4B6B57]">
                           {paymentMethod === 'card'
                             ? 'No card will be charged — confirm below to complete the order in sandbox and mark it paid.'
-                            : `Approve the prompt on ${formData.phone}. MODEZA will complete checkout automatically when payment is confirmed.`}
+                            : 'No real STK prompt is sent in sandbox mode. If payment does not confirm on its own, use the button below to mark it received.'}
                         </p>
                       </div>
                     </div>

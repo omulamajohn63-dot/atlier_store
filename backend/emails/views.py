@@ -21,7 +21,7 @@ from audit.services import AuditLogService
 
 from .constants import EMAIL_TYPE_CHOICES
 from .models import EmailLog
-from .services import requeue_email_log, retry_email_log
+from .services import email_enabled, requeue_email_log, retry_email_log
 
 PAGE_SIZE = 25
 
@@ -144,6 +144,7 @@ class EmailLogListView(StaffRequiredMixin, View):
             'page_title': 'Emails',
             'page_subtitle': 'Outbound transactional email: queued, sent, '
                              'retrying and failed.',
+            'email_enabled': email_enabled(),
             'admin_page': 'emails',
             'title': 'Emails',
             'description': 'Outbound transactional email log.',
@@ -170,6 +171,7 @@ class EmailLogDetailView(StaffRequiredMixin, View):
             'related_import_job': log.related_import_job,
             'page_title': 'Email detail',
             'page_subtitle': log.subject,
+            'email_enabled': email_enabled(),
             'admin_page': 'emails',
             'title': 'Email detail',
             'description': log.subject,
@@ -197,6 +199,11 @@ class EmailLogRetryView(StaffRequiredMixin, View):
         if dispatched:
             messages.success(
                 request, f'Email to {log.recipient_email} queued for re-send.')
+        elif not email_enabled():
+            messages.error(
+                request,
+                'Email delivery is deactivated (EMAIL_ENABLED=false); '
+                'nothing was sent.')
         else:
             messages.error(
                 request,
@@ -213,6 +220,12 @@ class EmailLogBulkRetryView(StaffRequiredMixin, View):
         ids = request.POST.getlist('ids')
         if not ids:
             messages.error(request, 'No emails selected.')
+            return redirect('emails:admin-email-list')
+        if not email_enabled():
+            messages.error(
+                request,
+                'Email delivery is deactivated (EMAIL_ENABLED=false); '
+                'nothing was sent.')
             return redirect('emails:admin-email-list')
 
         dispatched = 0

@@ -44,18 +44,49 @@ services:
       # is linked to this service, so it is deliberately not declared here.
       #
       # The free plan cannot run a worker (render.yaml rejects `type: worker`
-      # with `plan: free`), so both bulk imports and email delivery run inline
-      # inside this web process. Every behaviour — retries, idempotency,
-      # audit, the /admin/dashboard/emails pages — is identical; only the
-      # process that performs the send differs.
+      # with `plan: free`), so bulk imports run inline in this web process.
+      # Email delivery does not: see EMAIL_DELIVERY_MODE below.
       - key: CELERY_WORKER_ENABLED
         value: "false"
+
+      # ---- Outbound email (see backend/docs/CELERY.md) ----------------------
+      # DEACTIVATED: nothing is sent and no row is ever marked SENT, but the
+      # mailer itself is still there — queue_email keeps writing EmailLog rows
+      # so the admin email page shows what would have gone out. Flip to "true"
+      # once RESEND_API_KEY is set and the sending domain is verified.
+      - key: EMAIL_ENABLED
+        value: "false"
+      # Render's free plan blocks outbound SMTP (ports 25/465/587), so mail
+      # would leave through the Resend HTTPS API on port 443 instead: set
+      # RESEND_API_KEY in the dashboard (sync: false, below).
+      #
+      # deferred = a web request never opens a socket for mail. Rows stay
+      # QUEUED and POST /api/admin/emails/sweep delivers them. CREATE THE
+      # CRON JOB (cron-job.org, free) WHEN YOU ENABLE THIS, or nothing will
+      # be delivered. Revert to "inline" to go back to in-request delivery.
+      - key: EMAIL_DELIVERY_MODE
+        value: "deferred"
+      - key: EMAIL_TIMEOUT
+        value: "10"
+      # Mock payment gateway — completes an M-Pesa intent inside
+      # create_intent so an order can reach PAID and be approved. Set to
+      # "false" only once a real Daraja STK push is wired up.
+      - key: PAYMENT_SANDBOX
+        value: "true"
 
       # Secrets — set each via the Render dashboard ("sync: false" values are
       # never stored in source control):
       - key: DJANGO_SECRET_KEY
         sync: false
       - key: DATABASE_URL
+        sync: false
+      # Resend API key (https://resend.com/api-keys). Unset = mail falls back
+      # to SMTP, which the free plan blocks, so nothing would be delivered.
+      - key: RESEND_API_KEY
+        sync: false
+      # Long random token presented in the x-sweep-token header by the
+      # external cron that calls /api/admin/emails/sweep.
+      - key: EMAIL_SWEEP_TOKEN
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false

@@ -1575,6 +1575,76 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(order.status, Order.Status.CONFIRMED)
         self.assertContains(response, 'Order approved')
 
+    def _approveable_order(self, cart_key, order_number):
+        from cart.models import Cart
+
+        cart = Cart.objects.create(cart_key=cart_key)
+        return Order.objects.create(
+            order_number=order_number,
+            cart=cart,
+            customer={'fullName': 'Jane Doe', 'email': 'jane@example.com'},
+            subtotal_minor=1200,
+            total_minor=1400,
+            shipping_cost_minor=200,
+            payment_method='mpesa',
+            payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.PENDING,
+        )
+
+    def test_an_unexpected_approve_error_is_logged_not_mislabelled(self):
+        """The old bare ``except Exception`` reported every failure as "only
+        paid orders can be approved", sending operators after a problem the
+        order did not have."""
+        from unittest.mock import patch
+
+        order = self._approveable_order(
+            'order-admin-approve-boom-cart', 'AT-ORDER-APPROVE-BOOM-001')
+        self.client.force_login(self.staff)
+
+        with patch('admin_ui.views.approve_order',
+                   side_effect=RuntimeError('receipt blew up')):
+            with self.assertLogs('admin_ui.views', level='ERROR') as caught:
+                response = self.client.post(
+                    f'/admin/dashboard/orders/{order.id}/approve/', follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'check the server logs')
+        self.assertNotContains(response, 'Only paid orders can be approved.')
+        self.assertTrue(
+            any('receipt blew up' in line for line in caught.output))
+
+    def test_the_real_validation_message_reaches_the_operator(self):
+        from unittest.mock import patch
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        order = self._approveable_order(
+            'order-admin-approve-invalid-cart', 'AT-ORDER-APPROVE-BAD-001')
+        self.client.force_login(self.staff)
+
+        with patch('admin_ui.views.approve_order',
+                   side_effect=DRFValidationError(
+                       {'status': 'Order was cancelled and cannot be paid.'})):
+            response = self.client.post(
+                f'/admin/dashboard/orders/{order.id}/approve/', follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response,
+                            'Order was cancelled and cannot be paid.')
+        self.assertNotContains(response, 'Only paid orders can be approved.')
+
+    def test_error_detail_unwraps_both_validation_error_shapes(self):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        from admin_ui.views import _error_detail
+
+        self.assertEqual(
+            _error_detail(DRFValidationError({'status': 'Too late.'})),
+            'Too late.')
+        self.assertEqual(
+            _error_detail(DjangoValidationError('Too late.')), 'Too late.')
+        self.assertEqual(_error_detail(RuntimeError('boom')), '')
+
     def test_staff_can_create_category(self):
         self.client.force_login(self.staff)
 
