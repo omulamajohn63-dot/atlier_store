@@ -27,6 +27,30 @@ def _can_access_order(request, order):
                 and order.cart.cart_key == _cart_key(request))
 
 
+# Order states in which the customer may see, print or download the
+# receipt. A receipt becomes available only once an admin confirms the
+# order (``confirmed`` and every later fulfilment state). ``pending``
+# (awaiting approval) and ``cancelled`` orders never expose it.
+_RECEIPT_VISIBLE_STATUSES = frozenset({
+    Order.Status.CONFIRMED,
+    Order.Status.PROCESSING,
+    Order.Status.SHIPPED,
+    Order.Status.DELIVERED,
+    Order.Status.RECEIVED,
+})
+
+
+def _order_receipt_visible(order):
+    return order.status in _RECEIPT_VISIBLE_STATUSES
+
+
+def _not_ready_error():
+    return _error(
+        'RECEIPT_NOT_READY',
+        'The receipt will be available once an admin confirms your order.',
+        403)
+
+
 def _error(code, message, status):
     return Response(
         {'error': {'code': code, 'message': message, 'details': {}}},
@@ -54,6 +78,8 @@ class OrderReceiptView(APIView):
         if not _can_access_order(request, order):
             return _error(
                 'FORBIDDEN', 'You cannot access this order.', 403)
+        if not _order_receipt_visible(order):
+            return _not_ready_error()
         receipt = Receipt.objects.filter(order=order).first()
         if receipt is None:
             return _error(
@@ -72,6 +98,8 @@ class ReceiptDownloadView(APIView):
         if not _can_access_order(request, receipt.order):
             return _error(
                 'FORBIDDEN', 'You cannot access this receipt.', 403)
+        if not _order_receipt_visible(receipt.order):
+            return _not_ready_error()
         try:
             pdf_bytes = read_pdf_bytes(receipt)
         except Exception:

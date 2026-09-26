@@ -173,6 +173,8 @@ class ReceiptApiTests(TestCase):
     def test_receipt_metadata_endpoint(self):
         intent = self._create_intent()
         self._confirm_payment(intent['id'])
+        self.order.status = Order.Status.CONFIRMED
+        self.order.save(update_fields=['status'])
         receipt = Receipt.objects.get(order=self.order)
 
         response = self.client.get(
@@ -196,7 +198,25 @@ class ReceiptApiTests(TestCase):
             HTTP_X_CART_ID='other-cart')
         self.assertEqual(response.status_code, 403)
 
+    def test_receipt_metadata_withheld_until_admin_confirms(self):
+        intent = self._create_intent()
+        self._confirm_payment(intent['id'])
+        # Paid but still pending approval: metadata is withheld.
+        response = self.client.get(
+            f"/api/orders/{self.order.order_number}/receipt", **self.headers)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['error']['code'], 'RECEIPT_NOT_READY')
+
+        # After admin confirmation the same receipt becomes visible.
+        self.order.status = Order.Status.CONFIRMED
+        self.order.save(update_fields=['status'])
+        response = self.client.get(
+            f"/api/orders/{self.order.order_number}/receipt", **self.headers)
+        self.assertEqual(response.status_code, 200)
+
     def test_receipt_endpoint_missing_when_none_generated(self):
+        self.order.status = Order.Status.CONFIRMED
+        self.order.save(update_fields=['status'])
         response = self.client.get(
             f"/api/orders/{self.order.order_number}/receipt", **self.headers)
         self.assertEqual(response.status_code, 404)
@@ -205,6 +225,8 @@ class ReceiptApiTests(TestCase):
     def test_download_returns_pdf(self):
         intent = self._create_intent()
         self._confirm_payment(intent['id'])
+        self.order.status = Order.Status.CONFIRMED
+        self.order.save(update_fields=['status'])
         receipt = Receipt.objects.get(order=self.order)
 
         response = self.client.get(
@@ -226,12 +248,29 @@ class ReceiptApiTests(TestCase):
             HTTP_X_CART_ID='other-cart')
         self.assertEqual(response.status_code, 403)
 
+    def test_download_withheld_until_admin_confirms(self):
+        intent = self._create_intent()
+        self._confirm_payment(intent['id'])
+        receipt = Receipt.objects.get(order=self.order)
+
+        response = self.client.get(
+            f'/api/receipts/{receipt.receipt_number}/download', **self.headers)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['error']['code'], 'RECEIPT_NOT_READY')
+
+        self.order.status = Order.Status.CONFIRMED
+        self.order.save(update_fields=['status'])
+        response = self.client.get(
+            f'/api/receipts/{receipt.receipt_number}/download', **self.headers)
+        self.assertEqual(response.status_code, 200)
+
     def test_authenticated_user_can_download_own_receipt(self):
         from django.contrib.auth import get_user_model
         user = get_user_model().objects.create_user(
             username='ada', password='x')
         self.order.user = user
-        self.order.save(update_fields=['user'])
+        self.order.status = Order.Status.CONFIRMED
+        self.order.save(update_fields=['user', 'status'])
         self._create_intent()
         intent = PaymentIntent.objects.get(order=self.order)
         self.client.post('/api/payments/confirm', {
@@ -288,11 +327,19 @@ class ReceiptApiTests(TestCase):
             f'/api/receipts/{receipt.receipt_number}/regenerate')
         self.assertEqual(response.status_code, 403)
 
-    def test_receipt_email_dispatched_on_generation(self):
+    def test_receipt_email_withheld_until_admin_confirms(self):
+        from orders.services import approve_order
         intent = self._create_intent()
         with self.captureOnCommitCallbacks(execute=True):
             self._confirm_payment(intent['id'])
         receipt = Receipt.objects.get(order=self.order)
+        # Payment alone must not email the receipt while approval is pending.
+        self.assertEqual(
+            [m for m in mail.outbox if receipt.receipt_number in m.subject],
+            [])
+        self.order.refresh_from_db()
+        with self.captureOnCommitCallbacks(execute=True):
+            approve_order(self.order)
         # Confirming the payment also queues its own payment email, so narrow
         # the assertion to the one message that carries this receipt.
         messages = [m for m in mail.outbox if receipt.receipt_number in m.subject]

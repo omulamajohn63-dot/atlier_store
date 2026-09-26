@@ -143,8 +143,10 @@ def _mark_intent_succeeded(intent, gateway_reference):
         status=StockReservation.Status.COMMITTED)
     order.payment_status = Order.PaymentStatus.PAID
     order.save(update_fields=['payment_status', 'updated_at'])
-    # A successful online payment settles the order, so the official receipt is
-    # minted immediately (idempotent; a failing receipt never reverts payment).
+    # A successful online payment settles the order. The official receipt row
+    # is minted now (idempotent; a failing receipt never reverts payment),
+    # but customer delivery (email, notification, download) waits until an
+    # admin confirms the order.
     generate_receipt(order, intent=intent)
     audit_log = AuditLogService.log(
         'payment_success',

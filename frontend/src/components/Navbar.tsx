@@ -365,7 +365,10 @@ const RightActions: React.FC<{
             >
               <Bell className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
               {unreadCount > 0 && (
-                <Badge className="absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[9px]">
+                <Badge
+                  variant="danger"
+                  className="absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[9px]"
+                >
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </Badge>
               )}

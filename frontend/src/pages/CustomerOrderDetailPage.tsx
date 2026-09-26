@@ -262,9 +262,16 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
   }, [receipt]);
 
   useEffect(() => {
-    if (!order || order.status !== 'confirmed') {
+    // The receipt is downloadable only after an admin confirms the order.
+    // It stays available through every later fulfilment state.
+    const receiptVisible = order && order.status !== 'pending' && order.status !== 'cancelled';
+    if (!receiptVisible) {
       setReceipt(null);
-      setReceiptError('');
+      setReceiptError(
+        order && order.status === 'pending'
+          ? 'The official receipt will be available once an admin confirms your order.'
+          : ''
+      );
       setReceiptLoading(false);
       return;
     }
@@ -288,6 +295,10 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
         const receiptApiError = err as Error & { code?: string; status?: number };
         if (receiptApiError.status === 404 && receiptApiError.code === 'RECEIPT_NOT_FOUND') {
           setReceiptError('The official receipt is not available yet. Please try again shortly.');
+          return;
+        }
+        if (receiptApiError.status === 403 && receiptApiError.code === 'RECEIPT_NOT_READY') {
+          setReceiptError('The official receipt will be available once an admin confirms your order.');
           return;
         }
         setReceiptError(receiptApiError.message || 'The official receipt could not be checked.');

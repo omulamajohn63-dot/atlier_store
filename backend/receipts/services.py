@@ -99,10 +99,13 @@ def get_receipt_for_order(order):
 # ---------------------------------------------------------------------------
 
 def generate_receipt(order, *, intent=None):
-    """Create (or return) the receipt for a confirmed, paid order.
+    """Create (or return) the receipt for a paid order.
 
-    Receipt generation is intentionally gated on admin confirmation so a
-    customer becomes eligible only after the order leaves ``pending``.
+    The receipt row may be minted as soon as payment succeeds, but the
+    customer only becomes eligible to see, print or download it after the
+    order leaves ``pending`` (admin confirmation): customer email and
+    notification delivery is deferred until then, and the customer-facing
+    endpoints enforce the same rule.
 
     The operation is idempotent and no-op safe. Any failure is recorded on
     the existing receipt row (status ``failed``) and audited as
@@ -137,6 +140,7 @@ def generate_receipt(order, *, intent=None):
 def _generate_impl(order, intent):
     existing = get_receipt_for_order(order)
     if existing is not None and existing.status == Receipt.Status.GENERATED:
+        _send_customer_receipt_if_confirmed(existing, order)
         return existing
 
     gateway_reference = _clean_gateway_reference(order, intent)
@@ -212,6 +216,21 @@ def _generate_impl(order, intent):
         f'order {order.order_number}.',
         link=f'/admin/dashboard/orders/{order.pk}/',
     )
+    _send_customer_receipt_if_confirmed(receipt, order)
+    return receipt
+
+
+def _send_customer_receipt_if_confirmed(receipt, order):
+    """Deliver the receipt to the customer only after admin confirmation.
+
+    The receipt row itself may be minted earlier (e.g. on payment success)
+    as the official record, but the customer email, notification and
+    download availability wait until the order leaves ``pending`` so a
+    customer can never print or download the receipt before an admin
+    confirms the order. Idempotent: safe to call on every code path.
+    """
+    if order.status in (order.Status.PENDING, order.Status.CANCELLED):
+        return
     if order.user is not None:
         notify_customer(
             order.user,
@@ -225,7 +244,6 @@ def _generate_impl(order, intent):
 
     transaction.on_commit(
         lambda pk=receipt.pk: dispatch_receipt_email(pk))
-    return receipt
 
 
 def regenerate_receipt(receipt):
