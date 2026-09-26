@@ -46,8 +46,13 @@ class StaffCreateForm(forms.Form):
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
-        if User.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError("A user with this email already exists.")
+        conflict = User.objects.filter(
+            email__iexact=email, is_staff=True,
+        ).exclude(username__startswith="supabase_").order_by("username").first()
+        if conflict is not None:
+            raise forms.ValidationError(
+                "A staff account with this email already exists (%s)."
+                % conflict.username)
         return email
 
 
@@ -76,8 +81,14 @@ class StaffEditForm(forms.Form):
         email = self.cleaned_data["email"].strip().lower()
         if self.instance is None:
             return email
-        if User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
-            raise forms.ValidationError("A user with this email already exists.")
+        conflict = User.objects.filter(
+            email__iexact=email, is_staff=True,
+        ).exclude(username__startswith="supabase_").exclude(
+            pk=self.instance.pk).order_by("username").first()
+        if conflict is not None:
+            raise forms.ValidationError(
+                "A staff account with this email already exists (%s)."
+                % conflict.username)
         return email
 
 

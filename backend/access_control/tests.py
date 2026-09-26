@@ -227,12 +227,16 @@ class ServiceAccessTests(AccessControlTestCase):
                          codes=['products.view'])
         self.enroll(user, roles=[role])
         self.assertTrue(is_super_admin(user))
-        self.assertFalse(can_assign_sensitive_permissions(user))
+        self.assertTrue(can_assign_sensitive_permissions(user))
 
-    def test_can_assign_sensitive_permissions_is_superuser_only(self):
+    def test_can_assign_sensitive_permissions_for_super_admins(self):
         self.assertFalse(can_assign_sensitive_permissions(self.make_user('peon')))
         self.assertTrue(can_assign_sensitive_permissions(
             self.make_user('root', is_superuser=True)))
+        role_admin = self.make_user('roleadmin2')
+        self.enroll(role_admin, roles=[self.role(
+            slug='opsadmin2', is_superadmin=True, codes=[])])
+        self.assertTrue(can_assign_sensitive_permissions(role_admin))
 
     def test_would_leave_no_active_super_admin(self):
         admin = self.make_user('adm1', is_superuser=True)
@@ -351,6 +355,48 @@ class StaffViewAccessTests(AccessControlTestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(User.objects.filter(username='fin').exists())
+
+    def test_edit_succeeds_when_email_matches_customer_mirror_row(self):
+        target = self.make_user('staffdup')
+        User.objects.create_user(
+            username='supabase_mirror_dup', password='mirror-pass',
+            email=target.email, is_active=True)
+
+        response = self.superuser_client.post(
+            reverse('access-staff-edit', args=[target.pk]),
+            {'first_name': 'Staff', 'last_name': 'Dup',
+             'email': target.email,
+             'roles': [], 'direct_permissions': []})
+        self.assertEqual(response.status_code, 302)
+
+    def test_create_succeeds_when_email_matches_customer_mirror_row(self):
+        mirror_email = 'shopper@modeza.test'
+        User.objects.create_user(
+            username='supabase_mirror_shopper', password='mirror-pass',
+            email=mirror_email, is_active=True)
+
+        response = self.superuser_client.post(reverse('access-staff-create'), {
+            'username': 'newstaff',
+            'email': mirror_email,
+            'password': 'SecretPass123',
+            'roles': [],
+            'direct_permissions': [],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(User.objects.filter(username='newstaff').exists())
+
+    def test_duplicate_staff_email_is_rejected_with_conflict_username(self):
+        self.make_user('taken')
+        response = self.superuser_client.post(reverse('access-staff-create'), {
+            'username': 'wannabe',
+            'email': 'taken@modeza.test',
+            'password': 'SecretPass123',
+            'roles': [],
+            'direct_permissions': [],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'already exists (taken)')
+        self.assertFalse(User.objects.filter(username='wannabe').exists())
 
     def test_super_admin_creates_staff_with_role(self):
         catalog_manager = Role.objects.get(slug='catalog_manager')

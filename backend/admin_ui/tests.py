@@ -2230,6 +2230,23 @@ class AdminAuthTests(TestCase):
         self.assertEqual(
             int(self.client.session['_auth_user_id']), self.staff.id)
 
+    def test_staff_can_login_via_email_when_customer_mirror_exists(self):
+        User = get_user_model()
+        User.objects.create_user(
+            username='supabase_mirror_login', password='mirror-pass-123',
+            email='staff@example.com')
+
+        response = self.client.post('/admin/dashboard/login/', {
+            'username': 'staff@example.com',
+            'password': 'staff-pass-123',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, '/admin/dashboard/')
+        self.assertIn('_auth_user_id', self.client.session)
+        self.assertEqual(
+            int(self.client.session['_auth_user_id']), self.staff.id)
+
     def test_email_login_rejects_wrong_password(self):
         response = self.client.post('/admin/dashboard/login/', {
             'username': 'staff@example.com',
@@ -2407,6 +2424,68 @@ class AdminAuthTests(TestCase):
 
         self.assertContains(response, '/admin/dashboard/logout/')
         self.assertNotContains(response, 'href="/admin/logout/"')
+
+
+class AdminUsersGridTests(TestCase):
+    """Admin Users page: row action links, name links and real role labels."""
+
+    def setUp(self):
+        from access_control.models import Role
+
+        User = get_user_model()
+        self.superuser = User.objects.create_superuser(
+            username='grid-root', password='root-pass-123',
+            email='grid-root@example.com')
+        viewer = User.objects.create_user(
+            username='grid-viewer', password='staff-pass-123',
+            email='grid-viewer@example.com')
+        viewer.is_staff = True
+        viewer.save()
+        enroll_staff(viewer, codes=['staff.view'])
+        self.viewer = viewer
+
+        target = User.objects.create_user(
+            username='grid-target', password='staff-pass-123',
+            email='grid-target@example.com')
+        target.first_name = 'Target'
+        target.last_name = 'Person'
+        target.is_staff = True
+        target.save()
+        profile = StaffProfile.objects.create(user=target)
+        profile.roles.add(Role.objects.create(
+            slug='grid-fixture-role', name='Grid Fixture Role'))
+        self.target = target
+
+    def test_rows_link_to_staff_detail_and_edit_pages(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get('/admin/dashboard/admin-users/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, f'href="/admin/dashboard/staff/{self.target.pk}/"')
+        self.assertContains(
+            response, f'href="/admin/dashboard/staff/{self.target.pk}/edit/"')
+
+    def test_role_column_shows_assigned_roles(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get('/admin/dashboard/admin-users/')
+
+        self.assertContains(response, 'Grid Fixture Role')
+        self.assertContains(response, 'Super Admin')
+        self.assertContains(response, 'No roles yet')
+
+    def test_assign_link_hidden_without_staff_update_permission(self):
+        self.client.force_login(self.viewer)
+
+        response = self.client.get('/admin/dashboard/admin-users/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, f'href="/admin/dashboard/staff/{self.target.pk}/"')
+        self.assertNotContains(
+            response, f'/admin/dashboard/staff/{self.target.pk}/edit/')
 
 
 class ActivityCenterTests(TestCase):

@@ -97,8 +97,8 @@ def is_super_admin(user):
 
 
 def can_assign_sensitive_permissions(user):
-    """Only real super admins may grant sensitive permissions / admin roles."""
-    return user.is_superuser
+    """True for Super Admins: Django superusers or holders of a Super Admin role."""
+    return is_super_admin(user)
 
 
 # ---------------------------------------------------------------------------

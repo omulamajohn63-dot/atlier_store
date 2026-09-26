@@ -1360,22 +1360,37 @@ class AdminPageView(View):
         if page == 'admin-users':
             admin_rows = []
             User = get_user_model()
-            admins = User.objects.filter(is_staff=True).order_by('username')
+            admins = User.objects.filter(is_staff=True).prefetch_related(
+                'staff_profile__roles').order_by('username')
             if query:
                 admins = admins.filter(
                     Q(username__icontains=query) | Q(email__icontains=query))
             for a in admins:
+                profile = getattr(a, 'staff_profile', None)
+                role_names = sorted(
+                    r.name for r in profile.roles.all()) if profile else []
+                is_super = a.is_superuser or any(
+                    r.is_superadmin
+                    for r in (profile.roles.all() if profile else []))
+                if is_super:
+                    role_label = 'Super Admin'
+                elif role_names:
+                    role_label = ', '.join(role_names)
+                else:
+                    role_label = 'No roles yet'
                 admin_rows.append({
                     'id': str(a.pk),
                     'name': a.get_full_name() or a.username,
                     'email': a.email,
-                    'role': 'Super Admin' if a.is_superuser else 'Staff',
+                    'role': role_label,
                     'status': 'Active' if a.is_active else 'Inactive',
                     'last': a.last_login.strftime('%b %d, %Y') if a.last_login else 'Never',
                     'actions': 'View'
                 })
             page_data = dict(page_data)
             page_data['rows'] = admin_rows
+            page_data['can_assign_roles'] = user_has_permission(
+                request.user, 'staff.update')
 
         if page == 'profile':
             u = request.user
@@ -1456,6 +1471,7 @@ class AdminPageView(View):
             'rows': rows,
             'empty_title': page_data.get('empty_title', 'No items found.'),
             'empty_description': page_data.get('empty_description', 'Create the first item to start managing this section.'),
+            'can_assign_roles': page_data.get('can_assign_roles', False),
         }
 
         return render(request, self.template_name, {

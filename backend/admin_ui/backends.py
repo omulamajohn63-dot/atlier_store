@@ -27,6 +27,17 @@ class EmailOrUsernameModelBackend(ModelBackend):
             except UserModel.DoesNotExist:
                 continue
             except UserModel.MultipleObjectsReturned:
+                if lookup == 'email__iexact':
+                    # Several rows can share an email: the staff account plus
+                    # its Supabase customer mirror. Prefer the staff account.
+                    staff_match = (UserModel._default_manager
+                                   .filter(email__iexact=value, is_staff=True)
+                                   .exclude(username__startswith='supabase_')
+                                   .order_by('username')
+                                   .first())
+                    if staff_match is not None:
+                        user = staff_match
+                        break
                 continue
 
         if user is None:
