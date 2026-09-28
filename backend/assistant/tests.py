@@ -27,7 +27,8 @@ from .models import (AssistantConversation, AssistantInsight,
 from .services import tools as tools_module
 from .services.conversation import (MarkerFilter, get_or_create_conversation,
                                     record_insight, run_message)
-from .services.gemini import _classify
+from .services.gemini import (_classify, _stream_error_detail,
+                              _stream_error_retryable)
 from .services.tools import ToolContext, sanitize_arguments
 from .throttling import AssistantRateThrottle
 
@@ -63,7 +64,10 @@ def make_interaction(text='', calls=None, interaction_id='int-1'):
               output_text=text, usage=None)
 
 
-def stream_events(text='', calls=None, interaction_id='int-1'):
+def stream_events(text='', calls=None, interaction_id='int-1', events=None):
+    if events is not None:
+        yield from events
+        return
     yield ns(event_type='interaction.created',
              interaction=ns(id=interaction_id))
     for index, (name, arguments) in enumerate(calls or []):
@@ -87,6 +91,23 @@ def stream_events(text='', calls=None, interaction_id='int-1'):
                             usage=None))
 
 
+def error_stream_event(code='', message=''):
+    """An SSE ``error`` event shaped exactly like the SDK's ErrorEvent."""
+    return ns(event_type='error', error=ns(code=code, message=message))
+
+
+def stream_before_error(text='partial', code='', message=''):
+    """Events that stream some text and then fail (error not retried)."""
+    half = max(1, len(text) // 2)
+    return [
+        ns(event_type='interaction.created', interaction=ns(id='int-partial')),
+        ns(event_type='step.start', step=ns(type='model_output', content=[])),
+        ns(event_type='step.delta', delta=ns(type='text', text=text[:half])),
+        ns(event_type='step.delta', delta=ns(type='text', text=text[half:])),
+        error_stream_event(code=code, message=message),
+    ]
+
+
 class FakeInteractions:
     """Replays scripted rounds; each spec is a dict or an Exception."""
 
@@ -104,7 +125,8 @@ class FakeInteractions:
         if kwargs.get('stream'):
             return stream_events(text=spec.get('text', ''),
                                  calls=spec.get('calls'),
-                                 interaction_id=spec.get('id', 'int-1'))
+                                 interaction_id=spec.get('id', 'int-1'),
+                                 events=spec.get('events'))
         return make_interaction(text=spec.get('text', ''),
                                 calls=spec.get('calls'),
                                 interaction_id=spec.get('id', 'int-1'))
@@ -305,6 +327,66 @@ class AssistantChatApiTests(TestCase):
             action='assistant_error').exists())
         self.assertTrue(AssistantInsight.objects.filter(
             kind=AssistantInsight.Kind.GEMINI_ERROR).exists())
+
+    def test_stream_error_before_text_is_retried_and_recovers(self):
+        """A transient mid-stream failure with no text yet gets one retry."""
+        specs = [
+            {'events': [error_stream_event(
+                code='UNAVAILABLE', message='upstream hiccup')]},
+            {'text': 'Recovered!', 'id': 'int-7'},
+        ]
+        with patch_gemini(specs) as fake:
+            with self.settings(GEMINI_RETRY_BACKOFF_SECONDS=0):
+                with self.assertLogs('modeza.assistant', level='WARNING') as logs:
+                    with self.captureOnCommitCallbacks(execute=True):
+                        response = self.client.post(
+                            '/api/assistant/chat', {'message': 'hi'},
+                            format='json')
+                        body = b''.join(
+                            response.streaming_content).decode()
+
+        self.assertIn('event: done', body)
+        texts = [json.loads(line[6:])['text'] for line in body.split('\n')
+                 if line.startswith('data: ') and '"text"' in line]
+        self.assertEqual(''.join(texts), 'Recovered!')
+        self.assertNotIn('event: error', body)
+        self.assertEqual(len(fake.interactions.calls), 2)
+        self.assertTrue(any('upstream hiccup' in line for line in logs.output))
+
+    def test_stream_error_after_text_is_not_retried(self):
+        """Once text has streamed, a failure surfaces instead of duplicating."""
+        specs = [{'events': stream_before_error(
+            'Half a reply', code='', message='connection reset')}]
+        with patch_gemini(specs) as fake:
+            with self.settings(GEMINI_RETRY_BACKOFF_SECONDS=0):
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(
+                        '/api/assistant/chat', {'message': 'hi'}, format='json')
+                    body = b''.join(response.streaming_content).decode()
+
+        self.assertEqual(len(fake.interactions.calls), 1)
+        self.assertIn('event: error', body)
+        error_line = next(line for line in body.split('\n')
+                          if line.startswith('data: ') and '"code"' in line)
+        payload = json.loads(error_line[6:])
+        self.assertIn('trouble', payload['message'])
+        self.assertNotIn('connection reset', payload['message'])
+
+    def test_permanent_stream_error_fails_without_retry(self):
+        specs = [{'events': [error_stream_event(
+            code='PERMISSION_DENIED', message='API key not valid')]}]
+        with patch_gemini(specs) as fake:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    '/api/assistant/chat', {'message': 'hi'}, format='json')
+                body = b''.join(response.streaming_content).decode()
+
+        self.assertEqual(len(fake.interactions.calls), 1)
+        self.assertIn('event: error', body)
+        message = AssistantMessage.objects.get(role='assistant')
+        self.assertEqual(message.kind, AssistantMessage.Kind.ERROR)
+        self.assertTrue(AuditLog.objects.filter(
+            action='assistant_error').exists())
 
     def test_support_escalation_is_audited_during_a_chat_turn(self):
         specs = [
@@ -719,6 +801,37 @@ class ClassifyTests(TestCase):
         self.assertEqual(_classify(FakeAPIError(503))[1], True)
         self.assertEqual(_classify(TimeoutError('timed out'))[1], True)
         self.assertEqual(_classify(FakeAPIError(401))[1], False)
+
+
+class StreamErrorDetailTests(TestCase):
+    def test_detail_is_read_from_the_error_payload(self):
+        event = error_stream_event(
+            code='https://googleapis.com/UNAVAILABLE',
+            message='The service is currently unavailable.')
+        self.assertEqual(
+            _stream_error_detail(event),
+            ('https://googleapis.com/UNAVAILABLE',
+             'The service is currently unavailable.'))
+
+    def test_missing_payload_falls_back_without_crashing(self):
+        code, message = _stream_error_detail(ns(event_type='error'))
+        self.assertEqual(code, '')
+        self.assertIn(message, ('', 'stream error'))
+
+    def test_empty_error_is_retryable(self):
+        self.assertTrue(_stream_error_retryable('', ''))
+
+    def test_unavailable_is_retryable(self):
+        self.assertTrue(_stream_error_retryable(
+            'https://googleapis.com/UNAVAILABLE', 'try again later'))
+
+    def test_permission_error_is_not_retryable(self):
+        self.assertFalse(_stream_error_retryable(
+            'PERMISSION_DENIED', 'API key not valid for this API'))
+
+    def test_invalid_argument_is_not_retryable(self):
+        self.assertFalse(_stream_error_retryable(
+            'INVALID_ARGUMENT', 'invalid model'))
 
 
 class InsightTests(TestCase):

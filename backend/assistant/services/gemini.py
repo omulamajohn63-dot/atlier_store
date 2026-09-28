@@ -255,6 +255,39 @@ def _parse_interaction(interaction):
     )
 
 
+def _stream_error_detail(event):
+    """Extract ``(code, message)`` from a Gemini SSE ``error`` event.
+
+    The SDK's ``ErrorEvent`` carries the failure in ``event.error`` (a
+    ``{code, message}`` object); ``event.message`` does not exist — reading it
+    used to make every stream failure log the useless "stream error".
+    """
+    error = getattr(event, 'error', None)
+    code = str(getattr(error, 'code', '') or '')
+    message = str(getattr(error, 'message', '') or '')
+    if not message:  # tolerate alternate/older event shapes
+        message = str(getattr(event, 'message', '') or '')
+    return code, message
+
+
+_PERMANENT_STREAM_TOKENS = (
+    'permission', 'denied', 'forbidden', 'unauthenticated', 'unauthorized',
+    'api key', 'invalid', 'not found', 'prohibited', 'blocked',
+)
+
+
+def _stream_error_retryable(code, message):
+    """Classify a stream ``error`` event: only clearly permanent ones fail.
+
+    Everything else — including an empty/unknown mid-stream failure (e.g. a
+    network blip between Render and Google) — defaults to retryable, which is
+    exactly the case a second attempt fixes. Retries in ``run_turn`` only run
+    before any text was emitted, so a retry can never duplicate a reply.
+    """
+    text = f'{code} {message}'.lower()
+    return not any(token in text for token in _PERMANENT_STREAM_TOKENS)
+
+
 def _consume_stream(stream):
     """Walk SSE events; yields ``('delta', text)`` as text arrives and a
     final ``('final', (text, calls, interaction_id, usage, status))``."""
@@ -304,9 +337,21 @@ def _consume_stream(stream):
             usage = _usage_dict(getattr(interaction, 'usage', None))
             status = getattr(interaction, 'status', 'completed') or 'completed'
         elif event_type == 'error':
-            message = getattr(event, 'message', '') or 'stream error'
-            raise GeminiFailed(f'Gemini stream error: {message}',
-                               code='stream_error')
+            code, message = _stream_error_detail(event)
+            retryable = _stream_error_retryable(code, message)
+            try:
+                dump = event.model_dump(mode='json', exclude_none=True)
+            except Exception:  # noqa: BLE001 - log whatever shape we got
+                dump = repr(event)
+            logger.warning(
+                'assistant: gemini stream error event (retryable=%s '
+                'code=%s message=%s): %s',
+                retryable, code or 'unknown', message or '<empty>',
+                str(dump)[:500])
+            raise GeminiFailed(
+                f'Gemini stream error: [{code or "unknown"}] '
+                f'{message or "no detail"}',
+                code='stream_error', retryable=retryable)
         # 'interaction.status_update' and unknown events are ignored.
 
     flush()
@@ -358,6 +403,8 @@ def run_turn(*, system_instruction: str, payload, tools=None,
     client = _get_client()
     model = getattr(settings, 'GEMINI_MODEL', '') or 'gemini-3.5-flash'
     timeout = float(getattr(settings, 'GEMINI_TIMEOUT_SECONDS', 30) or 30)
+    max_retries = int(getattr(settings, 'GEMINI_MAX_RETRIES', 2) or 0)
+    backoff = float(getattr(settings, 'GEMINI_RETRY_BACKOFF_SECONDS', 0.5) or 0)
     max_tool_rounds = int(
         getattr(settings, 'ASSISTANT_MAX_TOOL_ROUNDS', MAX_TOOL_ROUNDS))
 
@@ -406,13 +453,34 @@ def run_turn(*, system_instruction: str, payload, tools=None,
             created = _create_interaction(client, **kwargs)
 
         if stream:
-            final = None
-            for kind, payload in _consume_stream(created):
-                if kind == 'delta':
-                    text_parts.append(payload)
-                    yield ('delta', payload)
-                else:
-                    final = payload
+            attempt = 0
+            while True:
+                final = None
+                emitted_before = len(text_parts)
+                try:
+                    for kind, data in _consume_stream(created):
+                        if kind == 'delta':
+                            text_parts.append(data)
+                            yield ('delta', data)
+                        else:
+                            final = data
+                    break
+                except GeminiFailed as exc:
+                    # Retry only transient stream errors that arrive before
+                    # this round emitted any text (retrying after a delta
+                    # would duplicate what the customer already sees).
+                    if (not exc.retryable
+                            or len(text_parts) != emitted_before
+                            or attempt >= max_retries):
+                        raise
+                    attempt += 1
+                    logger.warning(
+                        'assistant: retrying stream (attempt=%s code=%s): %s',
+                        attempt, exc.code, exc)
+                    if backoff:
+                        time.sleep(min(backoff * (2 ** (attempt - 1)), 8)
+                                   + random.uniform(0, 0.25))
+                    created = _create_interaction(client, **kwargs)
             text, calls, interaction_id, usage, status = final
         else:
             text, calls, interaction_id, usage, status = _parse_interaction(created)
