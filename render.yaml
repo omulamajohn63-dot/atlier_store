@@ -74,9 +74,25 @@ services:
       - key: PAYMENT_SANDBOX
         value: "true"
 
+      # ---- AI shopping assistant (server-side Gemini, see PROJECT.md) ------
+      # Model used by backend/assistant; must support the Interactions API.
+      - key: GEMINI_MODEL
+        value: "gemini-3.5-flash"
+      - key: ASSISTANT_RETENTION_DAYS
+        value: "90"
+      # Conversation rate limits for /api/assistant/*.
+      - key: THROTTLE_ASSISTANT_ANON_RATE
+        value: "15/minute"
+      - key: THROTTLE_ASSISTANT_USER_RATE
+        value: "30/minute"
+
       # Secrets — set each via the Render dashboard ("sync: false" values are
       # never stored in source control):
       - key: DJANGO_SECRET_KEY
+        sync: false
+      # Google AI Studio key. SERVER ONLY: read by Django settings and used
+      # exclusively by backend/assistant; never sent to React/Vercel.
+      - key: GEMINI_API_KEY
         sync: false
       - key: DATABASE_URL
         sync: false

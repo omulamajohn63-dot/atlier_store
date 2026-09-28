@@ -26,6 +26,7 @@ import { LegalPage } from './pages/LegalPage';
 import { WishlistProvider } from './context/WishlistContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { AssistantWidget } from './components/assistant/AssistantWidget';
 import { Product } from './types';
 import { Layers } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -102,6 +103,9 @@ function AppContent() {
 
       {/* Global Boutique Footer */}
       <Footer />
+
+      {/* AI shopping assistant (server-side Gemini via Django) */}
+      <AssistantWidget />
     </div>
   );
 }

@@ -15,3 +15,5 @@ celery>=5.6,<6.0
 redis>=5.2,<9.0
 # emails/backends.py posts to the Resend HTTPS API (Render blocks SMTP).
 requests>=2.31,<3.0
+# AI shopping assistant — Google Gen AI SDK (Interactions API). Server-side only.
+google-genai>=2.25,<3.0

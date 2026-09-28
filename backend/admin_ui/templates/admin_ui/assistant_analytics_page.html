@@ -1,0 +1,168 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Assistant Analytics | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li>Analytics</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Assistant</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .stat-card { padding: 16px 18px; }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .stat-value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .stat-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .range-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .range-links a {
+    font-size: 13px; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+    text-decoration: none;
+  }
+  .range-links a.current {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .bar-name { width: 190px; font-size: 13px; }
+  .bar-track {
+    flex: 1; height: 10px; background: var(--surface-3, rgba(255,255,255,.06));
+    border-radius: 6px; overflow: hidden;
+  }
+  .bar-fill { height: 100%; background: var(--accent); border-radius: 6px; }
+  .bar-meta { width: 110px; font-size: 12px; color: var(--text-secondary); text-align: right; }
+  .trend { display: flex; align-items: flex-end; gap: 3px; height: 90px; }
+  .trend-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; min-width: 4px; }
+  .trend-q { background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; }
+  .trend-u { background: var(--danger, #e5484d); border-radius: 0 0 2px 2px; min-height: 1px; }
+  .ask-list { display: flex; flex-direction: column; gap: 8px; }
+  .ask-item {
+    display: flex; justify-content: space-between; gap: 12px;
+    font-size: 13px; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .ask-count { color: var(--text-secondary); white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Assistant Analytics</h2>
+    <p class="page-subtitle">How customers are using the AI shopping assistant.</p>
+  </div>
+  <div class="range-links">
+    {% for choice in day_choices %}
+    <a href="?days={{ choice }}" class="{% if days == choice %}current{% endif %}">{{ choice }}d</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="card stat-card">
+    <div class="stat-label">Questions</div>
+    <div class="stat-value">{{ stats.questions }}</div>
+    <div class="stat-hint">{{ stats.conversations }} conversation(s)</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Replies</div>
+    <div class="stat-value">{{ stats.replies }}</div>
+    <div class="stat-hint">{{ stats.avgLatencyMs }} ms avg latency</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Unanswered</div>
+    <div class="stat-value">{{ stats.unanswered }}</div>
+    <div class="stat-hint">{{ stats.unansweredRate }}% of replies</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Escalations</div>
+    <div class="stat-value">{{ stats.escalations }}</div>
+    <div class="stat-hint">{{ stats.zeroResults }} zero-result search(es)</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Tool calls</div>
+    <div class="stat-value">{{ stats.toolCalls }}</div>
+    <div class="stat-hint">Gemini: {{ stats.geminiErrors }} error(s)</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Reply errors</div>
+    <div class="stat-value">{{ stats.errors }}</div>
+    <div class="stat-hint">Failed turns shown to customers</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 18px;">
+  <div class="card-body">
+    <h3 style="font-size: 14px; margin-bottom: 12px;">Daily questions ({{ days }} days)</h3>
+    <div class="trend">
+      {% for d in daily %}
+      <div class="trend-col" title="{{ d.date }}: {{ d.questions }} question(s), {{ d.unanswered }} unanswered">
+        <div class="trend-q" style="height: {% if max_daily %}{% widthratio d.questions max_daily 70 %}{% else %}0{% endif %}px;"></div>
+        <div class="trend-u" style="height: {% if max_daily %}{% widthratio d.unanswered max_daily 70 %}{% else %}0{% endif %}px;"></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:16px; font-size:12px; color: var(--text-secondary); margin-top:10px;">
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;"></span> Questions</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:var(--danger, #e5484d);border-radius:2px;"></span> Unanswered</span>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-top: 18px;">
+  <div class="card">
+    <div class="card-body">
+      <h3 style="font-size: 14px; margin-bottom: 14px;">Tool usage</h3>
+      {% if toolUsage %}
+        {% for tool in toolUsage %}
+        <div class="bar-row">
+          <div class="bar-name">{{ tool.name }}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: {% widthratio tool.calls toolUsage.0.calls 100 %}%;"></div>
+          </div>
+          <div class="bar-meta">{{ tool.calls }} calls · {{ tool.failures }} fail</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="font-size:13px; color: var(--text-secondary);">No tool calls in this period.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h3 style="font-size: 14px; margin-bottom: 14px;">Questions we couldn't answer</h3>
+      {% if topUnanswered %}
+        <div class="ask-list">
+          {% for item in topUnanswered %}
+          <div class="ask-item">
+            <span>{{ item.text }}</span>
+            <span class="ask-count">×{{ item.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p style="font-size:13px; color: var(--text-secondary);">Nothing outstanding — nice.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 18px; background: transparent; box-shadow: none; border-style: dashed;">
+  <div class="card-body" style="color: var(--text-secondary); font-size: 12px; display: flex; gap: 8px;">
+    <i class="ph ph-info"></i>
+    <span>Aggregates only. Full conversations are stored for {{ retention_days|default:"90" }} days and are available to staff in the Django admin (Assistant section).</span>
+  </div>
+</div>
+{% endblock %}

@@ -111,6 +111,15 @@ AUDIT_ACTIONS = (
     "unexpected_server_error",
     "inventory_low_stock",
     "email_retry_requested",
+    # AI shopping assistant (backend-written; metadata only, never content).
+    "assistant_conversation_started",
+    "assistant_message_sent",
+    "assistant_tool_called",
+    "assistant_tool_failed",
+    "assistant_product_recommended",
+    "assistant_order_lookup",
+    "assistant_escalated",
+    "assistant_error",
 )
 
 # Events the browser storefront is allowed to emit via POST /api/audit/events.
@@ -156,6 +165,7 @@ AUDIT_CATEGORIES = (
     "api_client",
     "staff",
     "roles",
+    "assistant",
 )
 
 RESULTS = ("success", "failure")
@@ -252,6 +262,14 @@ CATEGORY_BY_ACTION = {
     "inventory_low_stock": "inventory",
     "email_retry_requested": "system",
     "security_event": "security",
+    "assistant_conversation_started": "assistant",
+    "assistant_message_sent": "assistant",
+    "assistant_tool_called": "assistant",
+    "assistant_tool_failed": "assistant",
+    "assistant_product_recommended": "assistant",
+    "assistant_order_lookup": "assistant",
+    "assistant_escalated": "assistant",
+    "assistant_error": "assistant",
 }
 
 # Default severity when a call site does not pass one explicitly.
@@ -296,6 +314,9 @@ SEVERITY_BY_ACTION = {
     "permissions_granted": "high",
     "permissions_revoked": "medium",
     "email_retry_requested": "medium",
+    "assistant_tool_failed": "medium",
+    "assistant_error": "medium",
+    "assistant_escalated": "info",
 }
 
 

@@ -45,6 +45,7 @@ from catalog.services import (
     import_products_from_file,
 )
 from audit.services import AuditLogService
+from assistant.analytics import assistant_analytics
 from botique_backend.storage import object_key_from_url, supabase_storage_enabled
 from inventory.services import adjust_stock
 from orders.models import Order, OrderItem
@@ -3589,6 +3590,39 @@ class SystemHealthPageView(StaffRequiredMixin, View):
             'admin_page': 'system-health',
             'title': 'System Health',
             'description': 'Service health and configuration status.',
+        })
+
+
+@permission_required('reports.view')
+class AssistantAnalyticsPageView(StaffRequiredMixin, View):
+    """AI assistant usage, unanswered questions, tool health.
+
+    Reuses the ``reports.view`` permission — no new RBAC codes. Shows
+    aggregates only; raw conversations live in the Django admin.
+    """
+
+    template_name = 'admin_ui/assistant_analytics_page.html'
+
+    def get(self, request):
+        try:
+            days = int(request.GET.get('days', 30))
+        except (TypeError, ValueError):
+            days = 30
+        data = assistant_analytics(days)
+        return render(request, self.template_name, {
+            'stats': data['totals'],
+            'toolUsage': data['toolUsage'],
+            'topUnanswered': data['topUnanswered'],
+            'daily': data['daily'],
+            'days': data['days'],
+            'day_choices': (7, 14, 30, 90),
+            'max_daily': max((d['questions'] for d in data['daily']), default=0),
+            'retention_days': int(getattr(settings, 'ASSISTANT_RETENTION_DAYS', 90)),
+            'page_title': 'Assistant Analytics',
+            'page_subtitle': 'How customers are using the AI shopping assistant.',
+            'admin_page': 'assistant',
+            'title': 'Assistant Analytics',
+            'description': 'Assistant usage, unanswered questions and tool health.',
         })
 
 

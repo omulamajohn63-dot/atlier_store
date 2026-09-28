@@ -12,6 +12,8 @@ Full-stack fashion e-commerce store targeting the **Kenyan market** (currency: *
 - [Features](#features)
 - [Frontend](#frontend)
 - [Backend (Django)](#backend-django)
+- [Promotions & Discounts Engine](#promotions--discounts-engine)
+- [AI Shopping Assistant](#ai-shopping-assistant)
 - [API Endpoints](#api-endpoints)
 - [Database & Auth](#database--auth)
 - [Payments (M-Pesa)](#payments-mpesa)
@@ -194,6 +196,7 @@ Custom hash-aware `RouterContext` — no React Router dependency.
 | `access_control` | Roles: customer / staff / admin (+ `promotions.*` permissions) |
 | `admin_ui` | Custom server-rendered dashboard (incl. Promotions pages) |
 | `admin_api` | Staff REST endpoints (products, inventory, notifications, maintenance) |
+| `assistant` | AI shopping assistant: Gemini chat, tools, SSE streaming, analytics |
 | `store` | `/api/health/` health check |
 
 ---
@@ -272,6 +275,77 @@ Usage analytics per promotion: redemptions, revenue, discount given, AOV.
 
 ---
 
+## AI Shopping Assistant
+
+A production-ready shopping assistant: **React widget → Django → Google Gemini**
+(Gemini is called **only** server-side). `GEMINI_API_KEY` lives in `backend/.env`
+(or the Render secret of the same name), is read by Django settings, and never
+appears in an API response — there is deliberately no `VITE_GEMINI_*` variable.
+
+### Flow
+1. `frontend/src/components/assistant/AssistantWidget.tsx` POSTs to
+   `/api/assistant/chat` (Supabase JWT + `x-cart-id` headers) and reads the SSE
+   reply with `fetch` + `ReadableStream` (`frontend/src/services/assistantClient.ts`).
+2. `assistant/conversation.py` persists the turn (resumable per-customer /
+   per-guest-session conversations) and builds the system prompt
+   (`assistant/constants.py`).
+3. `assistant/services/gemini.py` calls the Gemini **Interactions API** via the
+   `google-genai` SDK with streaming, retries with backoff, and a round limit
+   (`ASSISTANT_MAX_TOOL_ROUNDS`; the final round forces a plain-text answer).
+4. Tools run against the real database — the same catalog, promotions, orders
+   and policy data the storefront uses.
+5. Tool calls, messages and insights are stored for auditing + admin analytics.
+
+### Tools (10)
+| Tool | Backed by / notes |
+|---|---|
+| `search_products`, `compare_products`, `check_variant_availability` | `catalog`; stock exposed only as `available` / `lowStock`, never exact quantities |
+| `get_active_promotions` | `promotions`; coupon codes hidden (badge + `AVAILABLE_AT_CHECKOUT`, mirrors `/api/promotions/available`) |
+| `validate_promotion_code` | server-side eligibility check without redeeming |
+| `get_order_status`, `get_customer_orders` | `orders`; ownership = signed-in user match **or** caller's `x-cart-id`; only `order_number` is exposed, internal UUIDs never leave the server |
+| `get_store_policy` | shipping, returns, payments, sizing, contact (port of `LegalPage`) |
+| `prepare_add_to_cart` | returns an action payload; the widget performs the actual add through the normal cart API |
+| `create_support_request` | escalates to support; PIN/password-like strings redacted before persistence (`actions.py`) |
+
+### Streaming protocol (SSE)
+```
+meta{conversationId,userMessageId}
+  → tool{name,status,durationMs}*
+  → delta{text}*
+  → products{...}*
+  → action*
+  → done{messageId,conversationId,latencyMs,usage,unanswered,toolCount}
+  | error{code,message}
+```
+`"stream": false` returns the same events as a single JSON response.
+
+### Safety & limits
+- Rate limits **15/min anonymous (IP)** and **30/min signed-in**
+  (`THROTTLE_ASSISTANT_ANON_RATE` / `THROTTLE_ASSISTANT_USER_RATE`);
+  `LOAD_TEST_MODE` raises them like the other scopes.
+- `[[UNANSWERED]]` marker → the reply is flagged for human follow-up instead
+  of fabricating an answer (`unanswered` in `done` + `AssistantInsight`).
+- Transient Gemini failures retried with backoff (`GEMINI_MAX_RETRIES`,
+  `GEMINI_RETRY_BACKOFF_SECONDS`); per-request timeout `GEMINI_TIMEOUT_SECONDS`.
+- Conversations kept `ASSISTANT_RETENTION_DAYS` (default 90) — purge with
+  `python manage.py purge_assistant_conversations --older-than 90 [--dry-run]`.
+- Audit actions: `assistant_conversation_started`, `assistant_message_sent`,
+  `assistant_tool_called`, `assistant_tool_failed`, `assistant_product_recommended`,
+  `assistant_order_lookup`, `assistant_escalated`, `assistant_error`.
+
+### Admin analytics
+Dashboard → Analytics → **Assistant** (`/admin/dashboard/assistant/`, gated on
+`reports.view`): message volume, tool usage, unanswered rate, top unanswered
+questions.
+
+### Widget
+Floating launcher on every storefront page: welcome message + suggested
+questions, streaming replies, product cards → `/product/<slug>`, "Add to bag"
+chips (existing cart flow), live tool indicator, error + retry, conversation
+history restored for returning visitors, `Trash2` starts a fresh conversation.
+
+---
+
 ## API Endpoints
 
 ### Public / storefront
@@ -291,6 +365,9 @@ POST   /api/payments/webhook           # provider webhook
 POST   /api/payments/mpesa/callback    # M-Pesa callback
 GET    /api/auth/me                    # current user (JWT)
 POST   /api/audit/events               # client audit events
+POST   /api/assistant/chat             # AI assistant (SSE stream; stream:false for JSON)
+GET    /api/assistant/history?conversationId=…   # persisted messages
+GET    /api/assistant/suggestions      # welcome text + suggested questions
 GET    /api/health/                    # health check
 ```
 
@@ -306,6 +383,8 @@ GET    /api/health/                    # health check
 | Authenticated | 120/min |
 | Orders | 20/min |
 | Payments | 10/min |
+| Assistant (anonymous) | 15/min (`assistant_anon`) |
+| Assistant (authenticated) | 30/min (`assistant_user`) |
 
 `LOAD_TEST_MODE` raises limits for load testing.
 
@@ -388,6 +467,16 @@ Three templates exist: root `.env.example` (master), `backend/.env.example`, `fr
 | `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` | API credentials |
 | `MPESA_SHORTCODE` / `MPESA_PASSKEY` | Till number credentials |
 | `MPESA_CALLBACK_URL` | Public callback URL |
+
+### Assistant (Gemini)
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | **Server-only** Google AI Studio key; used exclusively by `backend/assistant` |
+| `GEMINI_MODEL` | Model id (default `gemini-3.5-flash`; must support the Interactions API) |
+| `GEMINI_TIMEOUT_SECONDS` / `GEMINI_MAX_RETRIES` / `GEMINI_RETRY_BACKOFF_SECONDS` | Per-call timeout and retry budget |
+| `ASSISTANT_MAX_TOOL_ROUNDS` | Max tool round-trips per message (default `4`) |
+| `ASSISTANT_RETENTION_DAYS` | Conversation retention for the purge command (default `90`) |
+| `THROTTLE_ASSISTANT_ANON_RATE` / `THROTTLE_ASSISTANT_USER_RATE` | Assistant rate limits (default `15/minute` / `30/minute`) |
 
 ### Observability
 | Variable | Purpose |

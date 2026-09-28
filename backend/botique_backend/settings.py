@@ -220,6 +220,7 @@ INSTALLED_APPS = [
     'promotions',
     'receipts',
     'store',
+    'assistant',
 ]
 
 # ---------------------------------------------------------------------------
@@ -248,6 +249,10 @@ THROTTLE_RATES = {
     'payments': os.getenv('THROTTLE_PAYMENTS_RATE', '10/minute'),
     'admin': os.getenv('THROTTLE_ADMIN_RATE', '60/minute'),
     'audit': os.getenv('THROTTLE_AUDIT_RATE', '60/minute'),
+    # AI assistant (Gemini-backed). Guests get a tighter budget than signed-in
+    # customers because every message spends real Gemini quota.
+    'assistant_anon': os.getenv('THROTTLE_ASSISTANT_ANON_RATE', '15/minute'),
+    'assistant_user': os.getenv('THROTTLE_ASSISTANT_USER_RATE', '30/minute'),
 }
 
 if LOAD_TEST_MODE:
@@ -258,6 +263,10 @@ if LOAD_TEST_MODE:
         'payments': os.getenv('LOAD_TEST_PAYMENTS_RATE', '30000/minute'),
         'admin': os.getenv('LOAD_TEST_ADMIN_RATE', '60000/minute'),
         'audit': os.getenv('LOAD_TEST_AUDIT_RATE', '60000/minute'),
+        'assistant_anon': os.getenv(
+            'LOAD_TEST_ASSISTANT_ANON_RATE', '600/minute'),
+        'assistant_user': os.getenv(
+            'LOAD_TEST_ASSISTANT_USER_RATE', '600/minute'),
     }
 
 REST_FRAMEWORK = {
@@ -507,6 +516,25 @@ AUDIT_LOG_RETENTION_DAYS = int(os.getenv('AUDIT_LOG_RETENTION_DAYS', '365'))
 USE_X_FORWARDED_FOR = os.getenv(
     'USE_X_FORWARDED_FOR', 'False').lower() in {'1', 'true', 'yes', 'on'}
 
+# ---------------------------------------------------------------------------
+# AI shopping assistant (Google Gemini).
+#
+# The key lives ONLY here — server side. It is never passed to the React
+# bundle (no VITE_GEMINI_* variable exists) and never appears in a response.
+# ---------------------------------------------------------------------------
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
+GEMINI_MODEL = (os.getenv('GEMINI_MODEL', 'gemini-3.5-flash') or '').strip()
+GEMINI_TIMEOUT_SECONDS = _env_int('GEMINI_TIMEOUT_SECONDS', 30)
+GEMINI_MAX_RETRIES = _env_int('GEMINI_MAX_RETRIES', 2)
+# Exponential backoff base between retries (timeout/429/5xx only).
+GEMINI_RETRY_BACKOFF_SECONDS = float(
+    os.getenv('GEMINI_RETRY_BACKOFF_SECONDS', '0.5') or 0.5)
+# Max tool round-trips per customer message (the last round forces text).
+ASSISTANT_MAX_TOOL_ROUNDS = _env_int('ASSISTANT_MAX_TOOL_ROUNDS', 4)
+# Days an assistant conversation (and its messages) is kept before
+# `purge_assistant_conversations` removes it.
+ASSISTANT_RETENTION_DAYS = _env_int('ASSISTANT_RETENTION_DAYS', 90)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -614,6 +642,11 @@ LOGGING = {
             'propagate': False,
         },
         'modeza.celery': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'modeza.assistant': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
             'propagate': False,

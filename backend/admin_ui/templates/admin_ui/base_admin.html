@@ -1236,6 +1236,11 @@
           <a class="nav-link {% if admin_page == 'performance' %}active{% endif %}" href="/admin/dashboard/performance/">
             <i class="ph ph-trend-up"></i><span>Product Performance</span>
           </a>
+          {% if request.user|can:'reports.view' %}
+          <a class="nav-link {% if admin_page == 'assistant' %}active{% endif %}" href="/admin/dashboard/assistant/">
+            <i class="ph ph-chat-circle-text"></i><span>Assistant</span>
+          </a>
+          {% endif %}
         </div>
 
         <div class="sidebar-section">
